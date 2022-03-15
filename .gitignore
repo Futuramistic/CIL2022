@@ -1,0 +1,8 @@
+**/data/
+env/
+**/weights/
+.vscode/
+*.pth
+**/__pycache__/
+**/other_maybe_relevant_code/
+onnx-tensorflow/
