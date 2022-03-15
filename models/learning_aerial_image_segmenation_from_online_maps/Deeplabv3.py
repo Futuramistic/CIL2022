@@ -1,7 +1,6 @@
 from torchvision.models.segmentation import deeplabv3_resnet50 as deeplabv3
 from torchvision.models.segmentation.deeplabv3 import DeepLabHead
 import torch.nn as nn
-from .Deeplabv3 import Deeplabv3
 
 
 class Deeplabv3(nn.Module):
