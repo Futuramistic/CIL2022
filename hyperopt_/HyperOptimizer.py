@@ -8,9 +8,7 @@ from data_handling.dataloader_torch import TorchDataLoader
 class HyperParamOptimizer:
     """Class for Hyperparameter Optimization
         Args: 
-            param_space (Dictionary) - hyparparameter search space, beware that no two params are called the same
-            loss (function) - a loss function which takes two arguments to compute a loss with prediction and target
-            minimize_loss (boolean) - whether the loss is to be minimized or maximized - important!
+            param_space (Dictionary) - hyparparameter search space, beware that no two params are called the same, see param_spaces_UNet.py for an example
     """
     def __init__(self, param_space):
         # set often used parameters
@@ -38,7 +36,7 @@ class HyperParamOptimizer:
         Args: 
             n_runs (int) - number of searches in search space
         Returns:
-            output (Dictionary, Hyperopt Trials): parameters of best model and the Trial history
+            output (Hyperopt Trials): Trial history
         """
         # run objective function n times with different variations of the parameter space and search for the variation minimizing the loss
         best_run = fmin(
@@ -54,12 +52,11 @@ class HyperParamOptimizer:
     
     def objective(self, hyperparams):
         """
-        The target function, which returns the validation loss for a set of hyperparams, 
-        using k-fold cross validation for the loss
+        The target function, which is to be minimized based on the 'loss' in the return dictionary
         Args: 
             hyperparams (Dictionary) - Hyperparameter search space
         Returns:
-        output (Dictionary[loss, status]): Loss and training status
+        output (Dictionary[loss, status, and other things])
         """
         print(self.model_class)
         model = self.model_class(**hyperparams['model']['kwargs'])
@@ -86,10 +83,7 @@ class HyperParamOptimizer:
     
     def get_best_model(self, trials_path = None):
         """
-        Trains the optimal model with the whole training data set and also the testing dataset, if annotations are available and saves the prediction on the test data set
-
-        Raises:
-            ValueError: If the run() Method wasn't completed before, the optimal parameters are not defined yet
+        Returns the optimal model trained in previous trials under the trials_path (use ROOT_DIR)
         """
         if trials_path is None:
             with open(self.trials_path, 'rb') as file:
