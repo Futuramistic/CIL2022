@@ -1,7 +1,6 @@
 import abc
 import errno
 import warnings
-import tensorflow as tf
 import os, shutil, urllib, zipfile
 import errno
 from utils import ROOT_DIR
@@ -116,6 +115,7 @@ class DataLoader(abc.ABC):
     def __create_file_structure(self, destination_path):
         # create paths 
         # --> useful if dataset is not in required format, currently not needed anymore
+        #####TODO: test this method#####
         try:
             os.makedirs(destination_path)
             os.makedirs(f"{destination_path}/training")
@@ -138,6 +138,7 @@ class DataLoader(abc.ABC):
     def __move_files(self, destination_path, image_path_initial, gt_path_initial, test_image_path_initial, test_gt_path_initial):
         # move all files into the wanted folder structure 
         # --> might be useful later for other datasets, currently not needed anymore
+        #####TODO: test this method#####
         print("Moving Data into required folder structure...")
         for file_name in os.listdir(image_path_initial):
             shutil.move(src = os.path.join(image_path_initial,file_name), dst = f"{destination_path}/training/images")

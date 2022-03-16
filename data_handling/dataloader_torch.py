@@ -3,11 +3,12 @@ from random import random
 import warnings
 
 from pandas import test
+import torch
 from .dataloader import DataLoader
 from torch.utils.data import DataLoader as torchDL
 from torch.utils.data import random_split
 from .torchDataset import SegmentationDataset
-from utils import ROOT_DIR
+from models import *
 
 class TorchDataLoader(DataLoader):
     def __init__(self, dataset="original"):
@@ -67,8 +68,11 @@ class TorchDataLoader(DataLoader):
         return torchDL(self.unlabeled_testing_data, batch_size, **args)
         
     
-    def load_model(self, path):
-        return
+    def load_model(self, path, model_class_as_string):
+        model = eval(model_class_as_string)
+        model.load_state_dict(torch.load(path))
+        return model
+        
     
     def save_model(self, model, path):
-        return
+        torch.save(model.state_dict(), path)
