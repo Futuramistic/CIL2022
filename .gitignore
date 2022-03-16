@@ -6,3 +6,5 @@ env/
 **/__pycache__/
 **/other_maybe_relevant_code/
 onnx-tensorflow/
+ZZZ_own_code_testing.py
+dataset/Massachuset
