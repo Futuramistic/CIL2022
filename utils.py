@@ -6,3 +6,4 @@ DO NOT MOVE!
 import os
 # global constants
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+ACCEPTED_IMAGE_EXTENSIONS = [".png", ".jpeg", ".jpg", ".gif"]
