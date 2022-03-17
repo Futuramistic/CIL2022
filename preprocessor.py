@@ -10,20 +10,63 @@ from torchvision import transforms
 from tqdm import tqdm
 
 
+# taken from https://stackoverflow.com/questions/4194948/python-argparse-is-there-a-way-to-specify-a-range-in-nargs
+def required_length(nmin, nmax):
+    class RequiredLength(argparse.Action):
+        def __call__(self, parser, args, values, option_string=None):
+            if not nmin <= len(values) <= nmax:
+                msg = 'argument "{f}" requires between {nmin} and {nmax} arguments'.format(
+                    f=self.dest, nmin=nmin, nmax=nmax)
+                raise argparse.ArgumentTypeError(msg)
+            setattr(args, self.dest, values)
+
+    return RequiredLength
+
+
 def main():
     # Define the parser
     parser = argparse.ArgumentParser(description='Implementation of Preprocessor that augments and segments the '
                                                  'dataset into patches')
     parser.add_argument('-d', '--dataset', type=str, default='original')
     parser.add_argument('-o', '--output_dir', type=str)
+
+    # Augmentation parameters
     parser.add_argument('-a', '--augmentation_factor', type=int, default=3)
+    parser.add_argument('--rotation', type=int, default=20)
+    parser.add_argument('--translation', type=float, nargs='+', action=required_length(2, 2), default=[0.15, 0.15])
+    parser.add_argument('--scale', type=float, nargs=2, action=required_length(2, 2), default=[0.8, 1.2])
+
+    parser.add_argument('--vertical_flip', dest='vertical_flip', action='store_true')
+    parser.add_argument('--no-vertical_flip', dest='vertical_flip', action='store_false')
+    parser.set_defaults(vertical_flip=True)
+    parser.add_argument('--horizontal_flip', dest='horizontal_flip', action='store_true')
+    parser.add_argument('--no-horizontal_flip', dest='horizontal_flip', action='store_false')
+    parser.set_defaults(horizontal_flip=True)
+
+    # TODO what are good ranges for these parameters?
+    parser.add_argument('--brightness', type=float, nargs=2, action=required_length(2, 2), default=[0.8, 1.2])
+    parser.add_argument('--contrast', type=float, nargs=2, action=required_length(2, 2), default=[0.8, 1.2])
+    parser.add_argument('--saturation', type=float, nargs=2, action=required_length(2, 2), default=[0.8, 1.2])
+
     # Parse
-    params = parser.parse_args()
+    try:
+        params = parser.parse_args()
+    except argparse.ArgumentTypeError as err:
+        print(err)
+        exit(-1)
 
     # Retrieve the parameters
     dataset = params.dataset
     output_dir = params.output_dir
     augmentation_factor = params.augmentation_factor
+    rotation = params.rotation
+    translation = tuple(params.translation)
+    scale = tuple(params.scale)
+    brightness = params.brightness
+    contrast = params.contrast
+    saturation = params.saturation
+    vertical_flip = params.vertical_flip
+    horizontal_flip = params.horizontal_flip
 
     # Check whether the directories are correctly specified
     if not os.path.exists(f'{ROOT_DIR}/dataset/{dataset}'):
@@ -67,9 +110,23 @@ def main():
         exit(-1)
     print("Created output file structure")
 
+    # Create the transformations
+    geometric_transforms = [transforms.RandomAffine(degrees=rotation, translate=translation, scale=scale)]
+    if vertical_flip:
+        geometric_transforms.append(transforms.RandomVerticalFlip())
+    if horizontal_flip:
+        geometric_transforms.append(transforms.RandomHorizontalFlip())
+    augmentation_parameters = {
+        'factor': augmentation_factor,
+        'geometric_transforms': geometric_transforms,
+        'lighting_transforms': [
+            transforms.ColorJitter(brightness=brightness, contrast=contrast, saturation=saturation),
+        ]
+    }
+
     # read and process the dataset
     original_dataset = torchDataset.SegmentationDataset(img_path, gt_path)
-    process_dataset(original_dataset, output_img_path, output_gt_path, augmentation_factor)
+    process_dataset(original_dataset, output_img_path, output_gt_path, augmentation_parameters)
 
     # copy the test files to the new dataset without processing
     input_test_path = f'{ROOT_DIR}/dataset/{dataset}/test/images'
@@ -79,20 +136,16 @@ def main():
     print(f'Finished creating the new dataset at {output_path}')
 
 
-def process_dataset(dataset, output_img_path, output_gt_path, augmentation_factor):
+def process_dataset(dataset, output_img_path, output_gt_path, augmentation_parameters):
     torch.manual_seed(42)
     nb_images = dataset.__len__()
 
     # Define transformations
     geometric_transforms = torch.nn.Sequential(
-        transforms.RandomAffine(degrees=20, translate=(0.15, 0.15), scale=(0.8, 1.2)),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomVerticalFlip(),
-        # transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        *augmentation_parameters['geometric_transforms']
     )
     lighting_transforms = torch.nn.Sequential(
-        # TODO what are good ranges for these parameters?
-        transforms.ColorJitter(brightness=(0.8, 1.2), contrast=(0.8, 1.2), saturation=(0.8, 1.2)),
+        *augmentation_parameters['lighting_transforms']
     )
     scripted_geometric_transforms = torch.jit.script(geometric_transforms)
     scripted_lighting_transforms = torch.jit.script(lighting_transforms)
@@ -109,7 +162,7 @@ def process_dataset(dataset, output_img_path, output_gt_path, augmentation_facto
 
         # TODO: this assumes RGBA format. Must handle RGB and grayscale formats as well
         concatenated = torch.cat((gt, image), dim=0)
-        for j in range(augmentation_factor):
+        for j in range(augmentation_parameters['factor']):
             # transform the image
             transformed = scripted_geometric_transforms(concatenated)  # apply to both image and ground_truth
             tr_gt, tr_image, alpha = torch.split(transformed, [1, transformed.shape[0] - 2, 1], dim=0)
@@ -118,7 +171,6 @@ def process_dataset(dataset, output_img_path, output_gt_path, augmentation_facto
             # save the image
             save_image(tr_gt, f'{output_gt_path}/image_{i}_{j + 1}.png')
             save_image(tr_image, f'{output_img_path}/image_{i}_{j + 1}.png')
-        break
 
 
 def create_file_structure(destination_path):
