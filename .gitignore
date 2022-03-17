@@ -8,3 +8,4 @@ env/
 onnx-tensorflow/
 ZZZ_own_code_testing.py
 dataset/Massachuset
+.idea/
