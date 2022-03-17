@@ -94,7 +94,7 @@ class HyperParamOptimizer:
         model = self.__get_best_model(trials)
         return model
     
-    def __get_best_trial(trials):
+    def __get_best_trial(self, trials):
         # code adapted from https://stackoverflow.com/questions/54273199/how-to-save-the-best-hyperopt-optimized-keras-models-and-its-weights
         valid_trial_list = [trial for trial in trials if STATUS_OK == trial['result']['status']]
         losses = [ float(trial['result']['loss']) for trial in valid_trial_list]
