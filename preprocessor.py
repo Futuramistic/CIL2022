@@ -33,7 +33,7 @@ def main():
     # Augmentation parameters
     parser.add_argument('-a', '--augmentation_factor', type=int, default=3)
     parser.add_argument('--rotation', type=int, default=20)
-    parser.add_argument('--translation', type=float, nargs='+', action=required_length(2, 2), default=[0.15, 0.15])
+    parser.add_argument('--translation', type=float, nargs='+', action=required_length(2, 2), default=[0.1, 0.1])
     parser.add_argument('--scale', type=float, nargs=2, action=required_length(2, 2), default=[0.8, 1.2])
 
     parser.add_argument('--vertical_flip', dest='vertical_flip', action='store_true')
@@ -42,6 +42,10 @@ def main():
     parser.add_argument('--horizontal_flip', dest='horizontal_flip', action='store_true')
     parser.add_argument('--no-horizontal_flip', dest='horizontal_flip', action='store_false')
     parser.set_defaults(horizontal_flip=True)
+
+    # Whether to create smaller patches
+    parser.add_argument('--patchify', dest='patchify', action='store_true')
+    parser.set_defaults(patchify=False)
 
     # TODO what are good ranges for these parameters?
     parser.add_argument('--brightness', type=float, nargs=2, action=required_length(2, 2), default=[0.8, 1.2])
@@ -67,6 +71,7 @@ def main():
     saturation = params.saturation
     vertical_flip = params.vertical_flip
     horizontal_flip = params.horizontal_flip
+    patchify = params.patchify
 
     # Check whether the directories are correctly specified
     if not os.path.exists(f'{ROOT_DIR}/dataset/{dataset}'):
@@ -85,7 +90,7 @@ def main():
     if os.path.exists(output_path):
         retry = True
         while retry:
-            answer = input("The specified output directory already exists. Do you want to overwrite it? [y/n]")
+            answer = input("The specified output directory already exists. Do you want to overwrite it? [y/n] ")
             retry = False
             if answer == 'y':
                 print(f'Overwriting {output_path}')
@@ -111,6 +116,7 @@ def main():
     print("Created output file structure")
 
     # Create the transformations
+    patching_transform = transforms.FiveCrop if patchify else None  # Check we want patches or not
     geometric_transforms = [transforms.RandomAffine(degrees=rotation, translate=translation, scale=scale)]
     if vertical_flip:
         geometric_transforms.append(transforms.RandomVerticalFlip())
@@ -118,6 +124,7 @@ def main():
         geometric_transforms.append(transforms.RandomHorizontalFlip())
     augmentation_parameters = {
         'factor': augmentation_factor,
+        'patching_transform': patching_transform,
         'geometric_transforms': geometric_transforms,
         'lighting_transforms': [
             transforms.ColorJitter(brightness=brightness, contrast=contrast, saturation=saturation),
@@ -139,8 +146,14 @@ def main():
 def process_dataset(dataset, output_img_path, output_gt_path, augmentation_parameters):
     torch.manual_seed(42)
     nb_images = dataset.__len__()
+    image_size = dataset.__getitem__(0)[1].shape[1]
 
     # Define transformations
+    patching_function = augmentation_parameters['patching_transform']  # (dataset.shape[1])
+    patching_transform = transforms.Compose([
+        patching_function(image_size // 2),
+        transforms.Lambda(lambda crops: list(crops))
+    ]) if patching_function is not None else None
     geometric_transforms = torch.nn.Sequential(
         *augmentation_parameters['geometric_transforms']
     )
@@ -152,25 +165,35 @@ def process_dataset(dataset, output_img_path, output_gt_path, augmentation_param
 
     # Transform the images
     print('Transforming images...')
+    output_size = 0
     for i in tqdm(range(nb_images)):
         image, gt = dataset.__getitem__(i)
         image = image / 255.  # transform from ByteTensor to FloatTensor
         gt = gt / 255.  # transform from ByteTensor to FloatTensor
-        # save original images
-        save_image(gt, f'{output_gt_path}/image_{i}_0.png')
-        save_image(image, f'{output_img_path}/image_{i}_0.png')
 
         # TODO: this assumes RGBA format. Must handle RGB and grayscale formats as well
         concatenated = torch.cat((gt, image), dim=0)
-        for j in range(augmentation_parameters['factor']):
-            # transform the image
-            transformed = scripted_geometric_transforms(concatenated)  # apply to both image and ground_truth
-            tr_gt, tr_image, alpha = torch.split(transformed, [1, transformed.shape[0] - 2, 1], dim=0)
-            tr_image = scripted_lighting_transforms(tr_image)  # only apply to rgb channels of image
-            tr_image = torch.cat((tr_image, alpha), dim=0)
-            # save the image
-            save_image(tr_gt, f'{output_gt_path}/image_{i}_{j + 1}.png')
-            save_image(tr_image, f'{output_img_path}/image_{i}_{j + 1}.png')
+
+        if patching_function is None:
+            patches = torch.unsqueeze(concatenated, 0)
+            # save original images
+            save_image(gt, f'{output_gt_path}/image_{i}_0.png')
+            save_image(image, f'{output_img_path}/image_{i}_0.png')
+        else:
+            patches = patching_transform(concatenated)
+
+        for k, patch in enumerate(patches):
+            for j in range(augmentation_parameters['factor']):
+                # transform the image
+                transformed = scripted_geometric_transforms(patch)  # apply to both image and ground_truth
+                tr_gt, tr_image, alpha = torch.split(transformed, [1, transformed.shape[0] - 2, 1], dim=0)
+                tr_image = scripted_lighting_transforms(tr_image)  # only apply to rgb channels of image
+                tr_image = torch.cat((tr_image, alpha), dim=0)
+                # save the image
+                save_image(tr_gt, f'{output_gt_path}/image_{i}_{k+1}_{j + 1}.png')
+                save_image(tr_image, f'{output_img_path}/image_{i}_{k+1}_{j + 1}.png')
+                output_size += 1
+    print(f'Created output dataset with {output_size} images')
 
 
 def create_file_structure(destination_path):
@@ -180,8 +203,6 @@ def create_file_structure(destination_path):
         os.makedirs(f"{destination_path}/training")
         os.makedirs(f"{destination_path}/training/images")
         os.makedirs(f"{destination_path}/training/groundtruth")
-        # os.makedirs(f"{destination_path}/test")
-        # os.makedirs(f"{destination_path}/test/images")
         return 1
     except:
         warnings.warn(
