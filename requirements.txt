@@ -49,3 +49,4 @@ shutil
 wget
 zipfile
 pickle
+tqdm

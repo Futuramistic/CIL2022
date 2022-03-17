@@ -4,6 +4,10 @@ from data_handling import torchDataset
 from utils import ROOT_DIR
 import warnings
 import shutil
+from torchvision.utils import save_image
+import torch
+from torchvision import transforms
+from tqdm import tqdm
 
 
 def main():
@@ -12,7 +16,7 @@ def main():
                                                  'dataset into patches')
     parser.add_argument('-d', '--dataset', type=str, default='original')
     parser.add_argument('-o', '--output_dir', type=str)
-    parser.add_argument('-a', '--augmentation_factor', type=int, default=5)
+    parser.add_argument('-a', '--augmentation_factor', type=int, default=3)
     # Parse
     params = parser.parse_args()
 
@@ -61,20 +65,60 @@ def main():
     if create_file_structure(output_path) == -1:
         print("Aborting")
         exit(-1)
-
     print("Created output file structure")
 
-    # read the input data
+    # read and process the dataset
     original_dataset = torchDataset.SegmentationDataset(img_path, gt_path)
-    nb_images = original_dataset.__len__()
-    for i in range(nb_images):
-        image, gt = original_dataset.__getitem__(i)
-        print(f'image shape {image.shape}')
-        print(f'gt shape {gt.shape}')
+    process_dataset(original_dataset, output_img_path, output_gt_path, augmentation_factor)
+
+    # copy the test files to the new dataset without processing
+    input_test_path = f'{ROOT_DIR}/dataset/{dataset}/test/images'
+    output_test_path = f'{ROOT_DIR}/dataset/{output_dir}/test/images'
+    shutil.copytree(input_test_path, output_test_path)
+
+    print(f'Finished creating the new dataset at {output_path}')
+
+
+def process_dataset(dataset, output_img_path, output_gt_path, augmentation_factor):
+    torch.manual_seed(42)
+    nb_images = dataset.__len__()
+
+    # Define transformations
+    geometric_transforms = torch.nn.Sequential(
+        transforms.RandomAffine(degrees=20, translate=(0.15, 0.15), scale=(0.8, 1.2)),
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomVerticalFlip(),
+        # transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+    )
+    lighting_transforms = torch.nn.Sequential(
+        # TODO what are good ranges for these parameters?
+        transforms.ColorJitter(brightness=(0.8, 1.2), contrast=(0.8, 1.2), saturation=(0.8, 1.2)),
+    )
+    scripted_geometric_transforms = torch.jit.script(geometric_transforms)
+    scripted_lighting_transforms = torch.jit.script(lighting_transforms)
+
+    # Transform the images
+    print('Transforming images...')
+    for i in tqdm(range(nb_images)):
+        image, gt = dataset.__getitem__(i)
+        image = image / 255.  # transform from ByteTensor to FloatTensor
+        gt = gt / 255.  # transform from ByteTensor to FloatTensor
+        # save original images
+        save_image(gt, f'{output_gt_path}/image_{i}_0.png')
+        save_image(image, f'{output_img_path}/image_{i}_0.png')
+
+        # TODO: this assumes RGBA format. Must handle RGB and grayscale formats as well
+        concatenated = torch.cat((gt, image), dim=0)
+        for j in range(augmentation_factor):
+            # transform the image
+            transformed = scripted_geometric_transforms(concatenated)  # apply to both image and ground_truth
+            tr_gt, tr_image, alpha = torch.split(transformed, [1, transformed.shape[0] - 2, 1], dim=0)
+            tr_image = scripted_lighting_transforms(tr_image)  # only apply to rgb channels of image
+            tr_image = torch.cat((tr_image, alpha), dim=0)
+            # save the image
+            save_image(tr_gt, f'{output_gt_path}/image_{i}_{j + 1}.png')
+            save_image(tr_image, f'{output_img_path}/image_{i}_{j + 1}.png')
         break
-
-    print(f"output dir {output_dir}")
-
 
 
 def create_file_structure(destination_path):
@@ -84,8 +128,8 @@ def create_file_structure(destination_path):
         os.makedirs(f"{destination_path}/training")
         os.makedirs(f"{destination_path}/training/images")
         os.makedirs(f"{destination_path}/training/groundtruth")
-        os.makedirs(f"{destination_path}/test")
-        os.makedirs(f"{destination_path}/test/images")
+        # os.makedirs(f"{destination_path}/test")
+        # os.makedirs(f"{destination_path}/test/images")
         return 1
     except:
         warnings.warn(
