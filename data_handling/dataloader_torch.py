@@ -2,7 +2,6 @@ import os
 from random import random
 import warnings
 
-from pandas import test
 import torch
 from .dataloader import DataLoader
 from torch.utils.data import DataLoader as torchDL
