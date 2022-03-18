@@ -14,12 +14,12 @@ class TFDataLoader(DataLoader):
     # Get image data
     # Args:
     #    image_path  (string): path to an image
-    #    channesl   (int): 3 for RGB, 1 for grayscale
+    #    channels   (int): 4 for RGBA, 3 for RGB, 1 for grayscale, 0 - default encoding
     # Returns: A Tensor of type dtype uint8
     ###  
-    def __parse_data(self,image_path, channels):
+    def __parse_data(self,image_path, channels=0):
         image_content = tf.io.read_file(image_path)
-        image  = tf.image.decode_png(image_content, channels=channels)
+        image  = tf.io.decode_png(image_content, channels=0)
         return image
 
     # Get images and masks
@@ -30,10 +30,10 @@ class TFDataLoader(DataLoader):
     ###  
     def __get_image_data(self,image_dir,mask_dir = None):
         image_paths = tf.convert_to_tensor([image_dir+"/"+x for x in tf.io.gfile.listdir(image_dir)])
-        images  = [self.__parse_data(x,3) for x in image_paths]
+        images  = [self.__parse_data(x) for x in image_paths]
         if mask_dir is not None:
             mask_paths  = tf.convert_to_tensor([mask_dir+"/"+x for x in tf.io.gfile.listdir(mask_dir)])
-            masks   = [self.__parse_data(x,1) for x in mask_paths]
+            masks   = [self.__parse_data(x) for x in mask_paths]
             return tf.data.Dataset.from_tensor_slices((images,masks))
         else:
             return tf.data.Dataset.from_tensor_slices(images)
