@@ -2,7 +2,7 @@ import abc
 import datetime, os, shutil, urllib3, zipfile
 import warnings
 import errno
-from utils import ROOT_DIR, DATASET_ZIP_URLS
+from utils import ACCEPTED_IMAGE_EXTENSIONS, DATASET_ZIP_URLS, ROOT_DIR
 
 
 class DataLoader(abc.ABC):
@@ -19,8 +19,8 @@ class DataLoader(abc.ABC):
 
         # set data directories
         ds_base = [ROOT_DIR, "dataset", dataset]
-        self.img_dir = os.path.join(*[*ds_base, "training", "images"])
-        self.gt_dir = os.path.join(*[*ds_base, "training", "groundtruth"])
+        self.training_img_dir = os.path.join(*[*ds_base, "training", "images"])
+        self.training_gt_dir = os.path.join(*[*ds_base, "training", "groundtruth"])
         self.test_img_dir = os.path.join(*[*ds_base, "test", "images"])
         self.test_gt_dir = None
         # some data sets have ground truth for their testing data:
@@ -28,10 +28,41 @@ class DataLoader(abc.ABC):
         if os.path.exists(test_gt_dir):
             self.test_gt_dir = test_gt_dir
 
+        self.training_img_paths, self.training_gt_paths = self.__get_paths(self.training_img_dir, self.training_gt_dir)
+        self.test_img_paths, self.test_gt_paths = self.__get_paths(self.test_img_dir, self.test_gt_dir)
+
         # define dataset variables for later usage
         self.training_data = None
         self.testing_data = None
         self.unlabeled_testing_data = None
+
+    def __get_paths(self, img_dir, gt_dir):
+        img_paths, gt_paths = None, None
+        img_idxs = None  # match corresponding image<>gt pairs
+        have_samples = img_dir is not None
+        have_gt = gt_dir is not None
+        if have_samples:
+            img_paths = []
+            img_idxs = {}
+            for img_name in os.listdir(img_dir):
+                _, ext = os.path.splitext(img_name)
+                if ext.lower() in ACCEPTED_IMAGE_EXTENSIONS:
+                    pth = f"{img_dir}/{img_name}"
+                    img_idxs[img_name] = len(img_paths)
+                    img_paths.append(pth)
+        if have_gt:
+            gt_paths = [""] * len(img_paths) if have_samples else []
+            for img_name in os.listdir(gt_dir):
+                if have_samples and img_name not in img_idxs:
+                    continue
+                _, ext = os.path.splitext(img_name)
+                if ext.lower() in ACCEPTED_IMAGE_EXTENSIONS:
+                    pth = f"{gt_dir}/{img_name}"
+                    if have_samples:
+                        gt_paths[img_idxs[img_name]] = pth
+                    else:
+                        gt_paths.append(pth)
+        return img_paths, gt_paths
 
     @abc.abstractmethod
     def get_training_dataloader(self, split, batch_size, preprocessing=None, **args):

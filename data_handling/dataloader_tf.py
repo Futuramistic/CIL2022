@@ -27,14 +27,14 @@ class TFDataLoader(DataLoader):
     #    mask_dir   (string): the directory of corresponding masks
     # Returns: Dataset
     ###  
-    def __get_image_data(self, image_dir, mask_dir=None, preprocessing=None):
-        image_paths = tf.convert_to_tensor([image_dir+"/"+x for x in tf.io.gfile.listdir(image_dir)])
+    def __get_image_data(self, img_paths, gt_paths=None, preprocessing=None):
+        img_paths_tf = tf.convert_to_tensor(img_paths)
         parse = (lambda x: self.__parse_data(x)) if preprocessing is None else \
                 (lambda x: preprocessing(self.__parse_data(x)))
-        images = [parse(x) for x in image_paths]
-        if mask_dir is not None:
-            mask_paths = tf.convert_to_tensor([mask_dir+"/"+x for x in tf.io.gfile.listdir(mask_dir)])
-            masks = [parse(x) for x in mask_paths]
+        images = [parse(x) for x in img_paths_tf]
+        if gt_paths is not None:
+            gt_paths_tf = tf.convert_to_tensor(gt_paths)
+            masks = [parse(x) for x in gt_paths_tf]
             return tf.data.Dataset.from_tensor_slices((images,masks))
         else:
             return tf.data.Dataset.from_tensor_slices(images)
@@ -50,7 +50,7 @@ class TFDataLoader(DataLoader):
     ###  
     def get_training_dataloader(self, split, batch_size, preprocessing=None, **args):
         # Get images' names and data
-        data = self.__get_image_data(self.img_dir, self.gt_dir, preprocessing=preprocessing)
+        data = self.__get_image_data(self.training_img_paths, self.training_gt_paths, preprocessing=preprocessing)
         train_size = int(len(data) * split)
         # Shuffle and split
         data = data.shuffle(100)
@@ -76,10 +76,11 @@ class TFDataLoader(DataLoader):
                     If groundtruth testing data is explicitely available in the Dataset, this will be used, otherwise the complete training dataset will be used.\n \
                         Call <get_unlabeled_testing_dataloader()> in order to get the testing data of a dataset without annotations.")
             if self.test_gt_dir is not None:
-                self.testing_data = self.__get_image_data(self.test_img_dir, self.test_gt_dir,
+                self.testing_data = self.__get_image_data(self.test_img_paths, self.test_gt_paths,
                                                           preprocessing=preprocessing)
             else:
-                self.testing_data = self.__get_image_data(self.img_dir, self.gt_dir, preprocessing=preprocessing)
+                self.testing_data = self.__get_image_data(self.training_img_paths, self.training_gt_paths,
+                                                          preprocessing=preprocessing)
 
         print(f'Test data consists of ({len(self.testing_data)}) samples')
         return self.testing_data.cache().shuffle(100).batch(batch_size).repeat().prefetch(tf.data.AUTOTUNE)
@@ -96,7 +97,7 @@ class TFDataLoader(DataLoader):
         if self.test_gt_dir is not None:
             warnings.warn(f"The dataset {self.dataset} doesn't contain unlabeled testing data. The testing data will simply be used without loading the groundtruth")
         if self.unlabeled_testing_data is None:
-            self.unlabeled_testing_data = self.__get_image_data(self.test_img_dir, preprocessing=preprocessing)
+            self.unlabeled_testing_data = self.__get_image_data(self.test_img_paths, preprocessing=preprocessing)
         print(f'Found ({len(self.unlabeled_testing_data)}) unlabeled testing data')
         return self.unlabeled_testing_data.cache().shuffle(100).batch(batch_size).repeat().prefetch(tf.data.AUTOTUNE)
         
