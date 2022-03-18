@@ -32,7 +32,7 @@ def main():
 
     # Augmentation parameters
     parser.add_argument('-a', '--augmentation_factor', type=int, default=3)
-    parser.add_argument('--rotation', type=int, default=20)
+    parser.add_argument('--rotation', type=int, default=10)
     parser.add_argument('--translation', type=float, nargs='+', action=required_length(2, 2), default=[0.1, 0.1])
     parser.add_argument('--scale', type=float, nargs=2, action=required_length(2, 2), default=[0.8, 1.2])
 
@@ -44,8 +44,7 @@ def main():
     parser.set_defaults(horizontal_flip=True)
 
     # Whether to create smaller patches
-    parser.add_argument('--patchify', dest='patchify', action='store_true')
-    parser.set_defaults(patchify=False)
+    parser.add_argument('--patchify', type=int, default=0)
 
     # TODO what are good ranges for these parameters?
     parser.add_argument('--brightness', type=float, nargs=2, action=required_length(2, 2), default=[0.8, 1.2])
@@ -71,7 +70,8 @@ def main():
     saturation = params.saturation
     vertical_flip = params.vertical_flip
     horizontal_flip = params.horizontal_flip
-    patchify = params.patchify
+    patch_size = params.patchify
+    patchify = patch_size > 0
 
     # Check whether the directories are correctly specified
     if not os.path.exists(f'{ROOT_DIR}/dataset/{dataset}'):
@@ -110,13 +110,13 @@ def main():
     output_img_path = f'dataset/{output_dir}/training/images'
     output_gt_path = f'dataset/{output_dir}/training/groundtruth'
 
-    if create_file_structure(output_path) == -1:
+    if __create_file_structure(output_path, patchify) == -1:
         print("Aborting")
         exit(-1)
     print("Created output file structure")
 
     # Create the transformations
-    patching_transform = transforms.FiveCrop if patchify else None  # Check we want patches or not
+    patching_transform = transforms.FiveCrop(patch_size) if patchify else None  # Check we want patches or not
     geometric_transforms = [transforms.RandomAffine(degrees=rotation, translate=translation, scale=scale)]
     if vertical_flip:
         geometric_transforms.append(transforms.RandomVerticalFlip())
@@ -133,25 +133,50 @@ def main():
 
     # read and process the dataset
     original_dataset = torchDataset.SegmentationDataset(img_path, gt_path)
-    process_dataset(original_dataset, output_img_path, output_gt_path, augmentation_parameters)
+    __process_dataset(original_dataset, output_img_path, output_gt_path, augmentation_parameters)
 
-    # copy the test files to the new dataset without processing
-    input_test_path = f'{ROOT_DIR}/dataset/{dataset}/test/images'
-    output_test_path = f'{ROOT_DIR}/dataset/{output_dir}/test/images'
-    shutil.copytree(input_test_path, output_test_path)
+    input_test_dir = f'dataset/{dataset}/test/images'
+    output_test_dir = f'dataset/{output_dir}/test/images'
+    input_test_path = f'{ROOT_DIR}/{input_test_dir}'
+    output_test_path = f'{ROOT_DIR}/{output_test_dir}'
+    if not patchify:
+        # copy the test files to the new dataset without processing
+        shutil.copytree(input_test_path, output_test_path)
+    else:
+        # patchify the test set too
+        original_test_dataset = torchDataset.SegmentationDataset(input_test_dir)
+        __patchify_test_set(original_test_dataset, output_test_dir, patching_transform)
+        pass
 
     print(f'Finished creating the new dataset at {output_path}')
 
 
-def process_dataset(dataset, output_img_path, output_gt_path, augmentation_parameters):
+def __patchify_test_set(dataset, output_test_dir, patchify_function):
     torch.manual_seed(42)
     nb_images = dataset.__len__()
-    image_size = dataset.__getitem__(0)[1].shape[1]
+
+    # Transform the images
+    print('Patchifying test set...')
+    output_size = 0
+    for i in tqdm(range(nb_images)):
+        image = dataset.__getitem__(i)
+        image = image / 255.
+        patches = list(patchify_function(image))
+        for k, patch in enumerate(patches):
+            # save the image
+            save_image(patch, f'{output_test_dir}/image_{i}_{k + 1}.png')
+            output_size += 1
+    print(f'Created output test set with {output_size} images')
+
+
+def __process_dataset(dataset, output_img_path, output_gt_path, augmentation_parameters):
+    torch.manual_seed(42)
+    nb_images = dataset.__len__()
 
     # Define transformations
     patching_function = augmentation_parameters['patching_transform']  # (dataset.shape[1])
     patching_transform = transforms.Compose([
-        patching_function(image_size // 2),
+        patching_function,
         transforms.Lambda(lambda crops: list(crops))
     ]) if patching_function is not None else None
     geometric_transforms = torch.nn.Sequential(
@@ -193,16 +218,18 @@ def process_dataset(dataset, output_img_path, output_gt_path, augmentation_param
                 save_image(tr_gt, f'{output_gt_path}/image_{i}_{k+1}_{j + 1}.png')
                 save_image(tr_image, f'{output_img_path}/image_{i}_{k+1}_{j + 1}.png')
                 output_size += 1
+        break
     print(f'Created output dataset with {output_size} images')
 
 
-def create_file_structure(destination_path):
+def __create_file_structure(destination_path, create_test_dir):
     # create paths
     try:
         os.makedirs(destination_path)
-        os.makedirs(f"{destination_path}/training")
         os.makedirs(f"{destination_path}/training/images")
         os.makedirs(f"{destination_path}/training/groundtruth")
+        if create_test_dir:
+            os.makedirs(f"{destination_path}/test/images")
         return 1
     except:
         warnings.warn(
