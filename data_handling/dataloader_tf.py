@@ -3,7 +3,6 @@ import warnings
 import tensorflow as tf
 
 from .dataloader import DataLoader
-from models import *
 
 AUTOTUNE = tf.data.AUTOTUNE
 
@@ -17,9 +16,9 @@ class TFDataLoader(DataLoader):
     #    channels   (int): 4 for RGBA, 3 for RGB, 1 for grayscale, 0 - default encoding
     # Returns: A Tensor of type dtype uint8
     ###  
-    def __parse_data(self,image_path, channels=0):
+    def __parse_data(self, image_path, channels=0):
         image_content = tf.io.read_file(image_path)
-        image  = tf.io.decode_png(image_content, channels=0)
+        image = tf.io.decode_png(image_content, channels)
         return image
 
     # Get images and masks
@@ -28,12 +27,14 @@ class TFDataLoader(DataLoader):
     #    mask_dir   (string): the directory of corresponding masks
     # Returns: Dataset
     ###  
-    def __get_image_data(self,image_dir,mask_dir = None):
+    def __get_image_data(self, image_dir, mask_dir=None, preprocessing=None):
         image_paths = tf.convert_to_tensor([image_dir+"/"+x for x in tf.io.gfile.listdir(image_dir)])
-        images  = [self.__parse_data(x) for x in image_paths]
+        parse = (lambda x: self.__parse_data(x)) if preprocessing is None else \
+                (lambda x: preprocessing(self.__parse_data(x)))
+        images = [parse(x) for x in image_paths]
         if mask_dir is not None:
-            mask_paths  = tf.convert_to_tensor([mask_dir+"/"+x for x in tf.io.gfile.listdir(mask_dir)])
-            masks   = [self.__parse_data(x) for x in mask_paths]
+            mask_paths = tf.convert_to_tensor([mask_dir+"/"+x for x in tf.io.gfile.listdir(mask_dir)])
+            masks = [parse(x) for x in mask_paths]
             return tf.data.Dataset.from_tensor_slices((images,masks))
         else:
             return tf.data.Dataset.from_tensor_slices(images)
@@ -43,11 +44,13 @@ class TFDataLoader(DataLoader):
     # Args:
     #    split (float): training/testing splitting ratio, e.g. 0.8 for 80"%" training and 20"%" testing data
     #    batch_size (int): training batch size
+    #    preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
+    #                              constructing the native dataloader
     # Returns: PrefetchDataset
     ###  
-    def get_training_dataloader(self, split, batch_size, **args):
+    def get_training_dataloader(self, split, batch_size, preprocessing=None, **args):
         # Get images' names and data
-        data = self.__get_image_data(self.img_dir,self.gt_dir)
+        data = self.__get_image_data(self.img_dir, self.gt_dir, preprocessing=preprocessing)
         train_size = int(len(data) * split)
         # Shuffle and split
         data = data.shuffle(100)
@@ -62,35 +65,38 @@ class TFDataLoader(DataLoader):
     # Get labeled dataset for validation
     # Args:
     #    batch_size (int): training batch size
+    #    preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
+    #                              constructing the native dataloader
     # Returns: PrefetchDataset
     ###       
-    def get_testing_dataloader(self, batch_size, **args):
+    def get_testing_dataloader(self, batch_size, preprocessing=None, **args):
         if self.testing_data is None:
             warnings.warn("You called testing dataloader before training dataloader. \
                 Usually the testing data is created by splitting the training data when calling get_training_dataloader. \
                     If groundtruth testing data is explicitely available in the Dataset, this will be used, otherwise the complete training dataset will be used.\n \
                         Call <get_unlabeled_testing_dataloader()> in order to get the testing data of a dataset without annotations.")
             if self.test_gt_dir is not None:
-                self.testing_data = self.__get_image_data(self.test_img_dir,self.test_gt_dir)
+                self.testing_data = self.__get_image_data(self.test_img_dir, self.test_gt_dir,
+                                                          preprocessing=preprocessing)
             else:
-                self.testing_data = self.__get_image_data(self.img_dir, self.gt_dir)
-            print(f'Test data consists of ({len(self.testing_data)}) samples')
-            return self.testing_data.cache().shuffle(100).batch(batch_size).repeat().prefetch(tf.data.AUTOTUNE)
-        else:
-            print(f'Test data consists of ({len(self.testing_data)}) samples')
-            return self.testing_data.cache().shuffle(100).batch(batch_size).repeat().prefetch(tf.data.AUTOTUNE)
+                self.testing_data = self.__get_image_data(self.img_dir, self.gt_dir, preprocessing=preprocessing)
+
+        print(f'Test data consists of ({len(self.testing_data)}) samples')
+        return self.testing_data.cache().shuffle(100).batch(batch_size).repeat().prefetch(tf.data.AUTOTUNE)
 
     ###
     # Get unlabeled dataset for testing
     # Args:
     #    batch_size (int): training batch size
+    #    preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
+    #                              constructing the native dataloader
     # Returns: PrefetchDataset
     ###       
-    def get_unlabeled_testing_dataloader(self, batch_size, **args):
+    def get_unlabeled_testing_dataloader(self, batch_size, preprocessing=None, **args):
         if self.test_gt_dir is not None:
             warnings.warn(f"The dataset {self.dataset} doesn't contain unlabeled testing data. The testing data will simply be used without loading the groundtruth")
         if self.unlabeled_testing_data is None:
-            self.unlabeled_testing_data = self.__get_image_data(self.test_img_dir)
+            self.unlabeled_testing_data = self.__get_image_data(self.test_img_dir, preprocessing=preprocessing)
         print(f'Found ({len(self.unlabeled_testing_data)}) unlabeled testing data')
         return self.unlabeled_testing_data.cache().shuffle(100).batch(batch_size).repeat().prefetch(tf.data.AUTOTUNE)
         
