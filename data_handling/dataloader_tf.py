@@ -1,10 +1,9 @@
+import tensorflow as tf
 import warnings
 
-import tensorflow as tf
-
 from .dataloader import DataLoader
+import utils
 
-AUTOTUNE = tf.data.AUTOTUNE
 
 class TFDataLoader(DataLoader):
     def __init__(self, dataset="original"):
@@ -27,17 +26,23 @@ class TFDataLoader(DataLoader):
     #    mask_dir   (string): the directory of corresponding masks
     # Returns: Dataset
     ###  
-    def __get_image_data(self, img_paths, gt_paths=None, preprocessing=None):
-        img_paths_tf = tf.convert_to_tensor(img_paths)
-        parse = (lambda x: self.__parse_data(x)) if preprocessing is None else \
-                (lambda x: preprocessing(self.__parse_data(x)))
-        images = [parse(x) for x in img_paths_tf]
+    def __get_image_data(self, img_paths, gt_paths=None, preprocessing=None, offset=0, length=10**12):
+        # WARNING: must use lambda captures (see https://stackoverflow.com/q/10452770)
+
+        img_paths, gt_paths = utils.consistent_shuffling(img_paths, gt_paths)
+        img_paths_tf = tf.convert_to_tensor(img_paths[offset:offset+length])
+        parse = (lambda x, preprocessing=preprocessing: self.__parse_data(x)) if preprocessing is None else \
+                (lambda x, preprocessing=preprocessing: preprocessing(self.__parse_data(x)))
         if gt_paths is not None:
-            gt_paths_tf = tf.convert_to_tensor(gt_paths)
-            masks = [parse(x) for x in gt_paths_tf]
-            return tf.data.Dataset.from_tensor_slices((images,masks))
+            gt_paths_tf = tf.convert_to_tensor(gt_paths[offset:])
+            common_gen = ((parse(img_path), parse(gt_path)) for img_path, gt_path in zip(img_paths_tf, gt_paths_tf))
+            return tf.data.Dataset.from_generator(lambda common_gen=common_gen: common_gen,
+                                                  output_types=(parse(img_paths_tf[0]).dtype,
+                                                                parse(gt_paths_tf[0]).dtype))
         else:
-            return tf.data.Dataset.from_tensor_slices(images)
+            image_gen = (parse(img_path) for img_path in img_paths_tf)
+            return tf.data.Dataset.from_generator(lambda image_gen=image_gen: image_gen,
+                                                  output_types=parse(img_paths_tf[0]).dtype)
 
     ###
     # Create training/validaiton dataset split
@@ -50,16 +55,24 @@ class TFDataLoader(DataLoader):
     ###  
     def get_training_dataloader(self, split, batch_size, preprocessing=None, **args):
         # Get images' names and data
-        data = self.__get_image_data(self.training_img_paths, self.training_gt_paths, preprocessing=preprocessing)
-        train_size = int(len(data) * split)
-        # Shuffle and split
-        data = data.shuffle(100)
-        self.training_data = data.take(train_size)
-        self.testing_data = data.skip(train_size)
-        print(f'Train data consists of ({len(self.training_data)}) samples')
-        print(f'Test data consists of ({len(self.testing_data)}) samples')
-        # Cache training -> shuffle -> batch -> repeat for all batches -> prefetch for speed
-        return self.training_data.cache().shuffle(100).batch(batch_size).repeat().prefetch(tf.data.AUTOTUNE)
+        dataset_size = len(self.training_img_paths)
+        train_size = int(dataset_size * split)
+        test_size = dataset_size - train_size
+        self.training_data = self.__get_image_data(self.training_img_paths, self.training_gt_paths,
+                                                   preprocessing=preprocessing, offset=0, length=train_size)
+        self.testing_data = self.__get_image_data(self.training_img_paths, self.training_gt_paths,
+                                                  preprocessing=preprocessing, offset=train_size, length=test_size)
+        print(f'Train data consists of ({train_size}) samples')
+        print(f'Test data consists of ({test_size}) samples')
+
+        return self.training_data.batch(batch_size).repeat().prefetch(tf.data.AUTOTUNE)
+
+        # # Shuffle and split
+        # data = data.shuffle(100)
+        # self.training_data = data.take(train_size)
+        # self.testing_data = data.skip(train_size)
+        # # Cache training -> shuffle -> batch -> repeat for all batches -> prefetch for speed
+        # return self.training_data.cache().shuffle(100).batch(batch_size).repeat().prefetch(tf.data.AUTOTUNE)
     
     ###
     # Get labeled dataset for validation
@@ -78,12 +91,13 @@ class TFDataLoader(DataLoader):
             if self.test_gt_dir is not None:
                 self.testing_data = self.__get_image_data(self.test_img_paths, self.test_gt_paths,
                                                           preprocessing=preprocessing)
+                print(f'Test data consists of ({len(self.test_img_paths)}) samples')
             else:
                 self.testing_data = self.__get_image_data(self.training_img_paths, self.training_gt_paths,
                                                           preprocessing=preprocessing)
-
-        print(f'Test data consists of ({len(self.testing_data)}) samples')
-        return self.testing_data.cache().shuffle(100).batch(batch_size).repeat().prefetch(tf.data.AUTOTUNE)
+                print(f'Test data consists of ({len(self.training_img_paths)}) samples')
+        return self.testing_data.batch(batch_size).repeat().prefetch(tf.data.AUTOTUNE)
+        # return self.testing_data.cache().shuffle(100).batch(batch_size).repeat().prefetch(tf.data.AUTOTUNE)
 
     ###
     # Get unlabeled dataset for testing
@@ -98,8 +112,9 @@ class TFDataLoader(DataLoader):
             warnings.warn(f"The dataset {self.dataset} doesn't contain unlabeled testing data. The testing data will simply be used without loading the groundtruth")
         if self.unlabeled_testing_data is None:
             self.unlabeled_testing_data = self.__get_image_data(self.test_img_paths, preprocessing=preprocessing)
-        print(f'Found ({len(self.unlabeled_testing_data)}) unlabeled testing data')
-        return self.unlabeled_testing_data.cache().shuffle(100).batch(batch_size).repeat().prefetch(tf.data.AUTOTUNE)
+            print(f'Found ({len(self.test_img_paths)}) unlabeled testing data')
+        return self.unlabeled_testing_data.batch(batch_size).repeat().prefetch(tf.data.AUTOTUNE)
+        # return self.unlabeled_testing_data.cache().shuffle(100).batch(batch_size).repeat().prefetch(tf.data.AUTOTUNE)
         
     # Load model
     # Args:

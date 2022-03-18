@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader as torchDL
 from torch.utils.data import random_split
 from .torchDataset import SegmentationDataset
 from .dataloader import DataLoader
+import utils
 from models import *
 
 class TorchDataLoader(DataLoader):
@@ -22,7 +23,9 @@ class TorchDataLoader(DataLoader):
             Torch Dataloader
         """
         #load training data and possibly split
-        dataset = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing)
+        shuffled_training_img_paths, shuffled_training_gt_paths = utils.consistent_shuffling(self.training_img_paths,
+                                                                                             self.training_gt_paths)
+        dataset = SegmentationDataset(shuffled_training_img_paths, shuffled_training_gt_paths, preprocessing)
         training_data_len = (int) (len(dataset)*split)
         testing_data_len = len(dataset)-training_data_len
         
@@ -46,9 +49,14 @@ class TorchDataLoader(DataLoader):
                     If groundtruth testing data is explicitely available in the Dataset, this will be used, otherwise the complete training dataset will be used.\n \
                         Call <get_unlabeled_testing_dataloader()> in order to get the testing data of a dataset without annotations.")
             if self.test_gt_dir is not None:
-                self.testing_data = SegmentationDataset(self.test_img_paths, self.test_gt_paths, preprocessing)
+                shuffled_test_img_paths, shuffled_test_gt_paths = utils.consistent_shuffling(self.test_img_paths,
+                                                                                             self.test_gt_paths)
+                self.testing_data = SegmentationDataset(shuffled_test_img_paths, shuffled_test_gt_paths, preprocessing)
             else:
-                self.testing_data = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing)
+                shuffled_training_img_paths, shuffled_training_gt_paths =\
+                    utils.consistent_shuffling(self.training_img_paths, self.training_gt_paths)
+                self.testing_data = SegmentationDataset(shuffled_training_img_paths, shuffled_training_gt_paths,
+                                                        preprocessing)
 
         return torchDL(self.testing_data, batch_size, **args)
             
@@ -66,7 +74,8 @@ class TorchDataLoader(DataLoader):
         if self.test_gt_dir is not None:
             warnings.warn(f"The dataset {self.dataset} doesn't contain unlabeled testing data. The testing data will simply be used without loading the groundtruth")
         if self.unlabeled_testing_data is None:
-            self.unlabeled_testing_data = SegmentationDataset(self.test_img_paths, None, preprocessing)
+            self.unlabeled_testing_data = SegmentationDataset(*utils.consistent_shuffling(self.test_img_paths), None,
+                                                              preprocessing)
         return torchDL(self.unlabeled_testing_data, batch_size, **args)
 
     def load_model(self, path, model_class_as_string):
