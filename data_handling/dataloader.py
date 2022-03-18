@@ -1,21 +1,17 @@
 import abc
-import errno
+import datetime, os, shutil, urllib3, zipfile
 import warnings
-import os, shutil, urllib, zipfile
 import errno
-from utils import ROOT_DIR
+from utils import ROOT_DIR, DATASET_ZIP_URLS
+
 
 class DataLoader(abc.ABC):
     """Args:
-            dataset (string): type of Dataset ("original" [from CIL2022 Competition], "Massachuset")
+            dataset (string): type of Dataset ("original" [from CIL2022 Competition], "Massachusets")
         """
     def __init__(self, dataset = "original"):
         self.dataset = dataset
-        # check if dataset is available on local disk or download if possible
-        if dataset == "original":
-            check = 1 # always on disk
-        else: 
-            check = self.__download_data(dataset)
+        check = self.__download_data(dataset)
         if check == -1:
             print("Using default dataset from the CIL 2022 competition")
             self.dataset = "original"
@@ -84,31 +80,42 @@ class DataLoader(abc.ABC):
         raise NotImplementedError('must be defined for torch or tensorflow loader')
     
     def __download_data(self, dataset_name):
-        destination_path = f"dataset/{dataset_name}"
-        zip_path = f'{destination_path}_zipped/'
-        
-        if dataset_name == "Massachuset":
-            url = "https://polybox.ethz.ch/index.php/s/5Vj1A3cPh57SRmM"
-        else:
-            warnings.warn(f"Dataset {dataset_name} unknown...error in Dataloader.__download_data()")
+        destination_path = os.path.join(*[ROOT_DIR, "dataset", dataset_name.lower()])
+        ts_path = os.path.join(destination_path, "download_timestamp.txt")
+        zip_path = f"{destination_path}.zip"
+
+        url = next((v for k, v in DATASET_ZIP_URLS.items() if dataset_name.lower() == k.lower()), None)
+        if url is None:
+            warnings.warn(f"Dataset '{dataset_name}' unknown... error in Dataloader.__download_data()")
             return -1
-        
-        # check if data already downloaded
-        if os.path.exists(f"{ROOT_DIR}/dataset/{dataset_name}"):
+
+        # check if data already downloaded; use timestamp file written *after* successful download for the check
+        if os.path.exists(ts_path):
             return 1
+        else:
+            os.makedirs(destination_path, exist_ok=True)
         
         # data doesn't exist yet
-        ######TODO: Because Polybox is currently not reachable this code hasn't been tested and is probably buggy #######
         print("Downloading Dataset...")
-        urllib.request.urlretrieve(url, zip_path)
+        pool = urllib3.PoolManager()
+        try:
+            with pool.request("GET", url, preload_content=False) as response, open(zip_path, "wb") as file:
+                shutil.copyfileobj(response, file)
+        except Exception as e:
+            warnings.warn(f"Error encountered while downloading dataset '{dataset_name}': {str(e)}")
+            return -1
         print("...Done!")
+
         print("Extracting files...")
         with zipfile.ZipFile(zip_path) as z:
             z.extractall(destination_path)
             print("...Done!")
         print("Removing zip file...")
-        shutil.rmtree(zip_path)
+        os.unlink(zip_path)
         print("...Done!")
+
+        with open(ts_path, "w") as file:
+            file.write(str(datetime.datetime.now()))
         
         return 1
     
