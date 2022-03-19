@@ -11,8 +11,13 @@ import random
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 ACCEPTED_IMAGE_EXTENSIONS = [".png", ".jpeg", ".jpg", ".gif"]
+DEFAULT_TRAIN_FRACTION = 0.8
 DATASET_ZIP_URLS = {
-    "original": "https://polybox.ethz.ch/index.php/s/x2RcSv4MOG3rtPB/download"
+    # "original": dataset used in the ETHZ CIL Road Segmentation 2022 Kaggle competition
+    "original": "https://polybox.ethz.ch/index.php/s/x2RcSv4MOG3rtPB/download",
+
+    # "original_128": "original" dataset, patchified into 128x128 patches and augmented using Preprocessor
+    "original_128": "https://polybox.ethz.ch/index.php/s/c68pfFLBXCCjzDT/download"
 }
 
 

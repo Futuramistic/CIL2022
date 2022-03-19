@@ -10,6 +10,19 @@ class TFDataLoader(DataLoader):
     def __init__(self, dataset="original"):
         super().__init__(dataset)
 
+    # Get the sizes of the training, testing and unlabeled datasets associated with this DataLoader.
+    # Args:
+    #   split   (float): training/testing splitting ratio \in [0,1]
+    # Returns: Tuple of (int, int, int): sizes of training, testing and unlabeled testing datasets, respectively,
+    #          in samples
+    def get_dataset_sizes(self, split):
+        dataset_size = len(self.training_img_paths)
+        train_size = int(dataset_size * split)
+        test_size = dataset_size - train_size
+        unlabeled_test_size = len(self.test_img_paths)
+        return train_size, test_size, unlabeled_test_size
+
+
     # Get image data
     # Args:
     #    image_path  (string): path to an image

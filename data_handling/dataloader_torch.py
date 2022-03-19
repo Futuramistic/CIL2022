@@ -7,10 +7,27 @@ from .dataloader import DataLoader
 import utils
 from models import *
 
+
 class TorchDataLoader(DataLoader):
     def __init__(self, dataset="original"):
         super().__init__(dataset)
-    
+
+    def get_dataset_sizes(self, split):
+        """
+        Get the sizes of the training, testing and unlabeled datasets associated with this DataLoader.
+        Args:
+            split: training/testing splitting ratio \in [0,1]
+
+        Returns:
+            Tuple of (int, int, int): sizes of training, testing and unlabeled testing datasets, respectively,
+            in samples
+        """
+        full_training_data_len = len(self.training_img_paths)
+        training_data_len = int(full_training_data_len * split)
+        testing_data_len = full_training_data_len - training_data_len
+        unlabeled_testing_data_len = len(self.test_img_paths)
+        return training_data_len, testing_data_len, unlabeled_testing_data_len
+
     def get_training_dataloader(self, split, batch_size, preprocessing=None, **args):
         """
         Args:
@@ -26,7 +43,7 @@ class TorchDataLoader(DataLoader):
         shuffled_training_img_paths, shuffled_training_gt_paths = utils.consistent_shuffling(self.training_img_paths,
                                                                                              self.training_gt_paths)
         dataset = SegmentationDataset(shuffled_training_img_paths, shuffled_training_gt_paths, preprocessing)
-        training_data_len = (int) (len(dataset)*split)
+        training_data_len = int(len(dataset)*split)
         testing_data_len = len(dataset)-training_data_len
         
         self.training_data, self.testing_data = random_split(dataset, [training_data_len, testing_data_len])

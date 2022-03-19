@@ -28,15 +28,16 @@ class DataLoader(abc.ABC):
         if os.path.exists(test_gt_dir):
             self.test_gt_dir = test_gt_dir
 
-        self.training_img_paths, self.training_gt_paths = self.__get_paths(self.training_img_dir, self.training_gt_dir)
-        self.test_img_paths, self.test_gt_paths = self.__get_paths(self.test_img_dir, self.test_gt_dir)
+        self.training_img_paths, self.training_gt_paths = DataLoader.get_img_gt_paths(self.training_img_dir, self.training_gt_dir)
+        self.test_img_paths, self.test_gt_paths = DataLoader.get_img_gt_paths(self.test_img_dir, self.test_gt_dir)
 
         # define dataset variables for later usage
         self.training_data = None
         self.testing_data = None
         self.unlabeled_testing_data = None
 
-    def __get_paths(self, img_dir, gt_dir):
+    @staticmethod
+    def get_img_gt_paths(img_dir, gt_dir):
         img_paths, gt_paths = None, None
         img_idxs = None  # match corresponding image<>gt pairs
         have_samples = img_dir is not None
@@ -63,6 +64,19 @@ class DataLoader(abc.ABC):
                     else:
                         gt_paths.append(pth)
         return img_paths, gt_paths
+
+    @abc.abstractmethod
+    def get_dataset_sizes(self, split):
+        """
+        Get the sizes of the training, testing and unlabeled datasets associated with this DataLoader.
+        Args:
+            split: training/testing splitting ratio \in [0,1]
+
+        Returns:
+            Tuple of (int, int, int): sizes of training, testing and unlabeled testing datasets, respectively,
+            in samples
+        """
+        raise NotImplementedError('must be defined for torch or tensorflow loader')
 
     @abc.abstractmethod
     def get_training_dataloader(self, split, batch_size, preprocessing=None, **args):

@@ -1,6 +1,6 @@
 import os
 import argparse
-from data_handling import torchDataset
+from data_handling import dataloader, torchDataset
 from utils import ROOT_DIR
 import warnings
 import shutil
@@ -132,7 +132,8 @@ def main():
     }
 
     # read and process the dataset
-    original_dataset = torchDataset.SegmentationDataset(img_path, gt_path)
+    img_paths, gt_paths = dataloader.DataLoader.get_img_gt_paths(img_path, gt_path)
+    original_dataset = torchDataset.SegmentationDataset(img_paths, gt_paths)
     __process_dataset(original_dataset, output_img_path, output_gt_path, augmentation_parameters)
 
     input_test_dir = f'dataset/{dataset}/test/images'
@@ -144,7 +145,8 @@ def main():
         shutil.copytree(input_test_path, output_test_path)
     else:
         # patchify the test set too
-        original_test_dataset = torchDataset.SegmentationDataset(input_test_dir)
+        input_test_paths, _ = dataloader.DataLoader.get_img_gt_paths(input_test_dir, None)
+        original_test_dataset = torchDataset.SegmentationDataset(input_test_paths)
         __patchify_test_set(original_test_dataset, output_test_dir, patching_transform)
         pass
 
@@ -218,7 +220,7 @@ def __process_dataset(dataset, output_img_path, output_gt_path, augmentation_par
                 save_image(tr_gt, f'{output_gt_path}/image_{i}_{k+1}_{j + 1}.png')
                 save_image(tr_image, f'{output_img_path}/image_{i}_{k+1}_{j + 1}.png')
                 output_size += 1
-        break
+
     print(f'Created output dataset with {output_size} images')
 
 
