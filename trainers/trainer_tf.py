@@ -5,7 +5,7 @@ import tempfile
 import tensorflow as tf
 import tensorflow.keras as K
 
-from trainer import Trainer
+from .trainer import Trainer
 from utils import *
 
 

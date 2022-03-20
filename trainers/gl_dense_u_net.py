@@ -4,7 +4,7 @@ import os
 import mlflow
 import tensorflow as tf
 import tensorflow.keras as K
-from trainer_tf import TFTrainer
+from .trainer_tf import TFTrainer
 from utils import *
 
 
@@ -20,7 +20,7 @@ class GLDenseUNetTrainer(TFTrainer):
         if split is None:
             split = DEFAULT_TRAIN_FRACTION
 
-        train_set_size, test_set_size, unlabeled_test_set_size = self.dataloader.get_dataset_sizes(split=split)
+        train_set_size, test_set_size, unlabeled_test_set_size = dataloader.get_dataset_sizes(split=split)
         self.steps_per_training_epoch = train_set_size // batch_size
 
         if batch_size is None:
