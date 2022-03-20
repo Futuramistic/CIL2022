@@ -22,8 +22,12 @@ DATASET_ZIP_URLS = {
     # "original_256": "original" dataset, patchified into 256x256 patches and augmented using Preprocessor
     "original_256": "https://polybox.ethz.ch/index.php/s/ncSp9vsJ1HAIHcR/download"
 }
+MLFLOW_USER = "mlflow_user"
+MLFLOW_HOST = "algvrithm.com"
+MLFLOW_TRACKING_URI = f"http://{MLFLOW_HOST}:8000"
+MLFLOW_PASS_URL = "https://algvrithm.com/files/mlflow_cil_pass.txt"
+MLFLOW_PROFILING = True
 
-MLFLOW_TRACKING_URI = "http://algvrithm.com:8000"
 
 # helper functions
 
