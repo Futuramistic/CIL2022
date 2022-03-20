@@ -16,15 +16,16 @@ class GLDenseUNetTrainer(TFTrainer):
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
                  batch_size=None, optimizer_or_lr=None, loss_function=None, evaluation_interval=None):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
+        # warning: some arguments depend on others not being None, so respect this order!
 
         if split is None:
             split = DEFAULT_TRAIN_FRACTION
 
-        train_set_size, test_set_size, unlabeled_test_set_size = dataloader.get_dataset_sizes(split=split)
-        self.steps_per_training_epoch = train_set_size // batch_size
-
         if batch_size is None:
             batch_size = 2
+
+        train_set_size, test_set_size, unlabeled_test_set_size = dataloader.get_dataset_sizes(split=split)
+        self.steps_per_training_epoch = train_set_size // batch_size
 
         if num_epochs is None:
             num_epochs = math.ceil(100000 / self.steps_per_training_epoch)
