@@ -65,7 +65,7 @@ class _Convo_Block(tf.keras.Model):
         return self.drop2(x)
 
 class Unet_TF(tf.keras.Model):
-    def __init__(self,name="UNET(TF)",dropout=0.5,kernel_init='he_normal',normalize=False,**kwargs):
+    def __init__(self,name="UNET-TF-",dropout=0.5,kernel_init='he_normal',normalize=False,**kwargs):
         super(Unet_TF,self).__init__(self,name=name, **kwargs)
 
         self.down_block1 = _Down_Block(name+"-down-block-1",dropout,32,kernel_init,normalize)
@@ -99,7 +99,7 @@ class Unet_TF(tf.keras.Model):
         return self.final_convo(up4)
 
 class UnetPlus_TF(tf.keras.Model):
-    def __init__(self,name="UNETPlus_TF",dropout=0.5,kernel_init='he_normal',normalize=False, average = False,**kwargs):
+    def __init__(self,name="UNETPlus-TF-",dropout=0.5,kernel_init='he_normal',normalize=False, average = False,**kwargs):
         super(UnetPlus_TF,self).__init__(self,name=name, **kwargs)
         self.average = average
         self.nb_filters = [32,64,128,256,512]
@@ -253,7 +253,7 @@ class _Attention_Block_Up(tf.keras.Model):
         return self.convo(concat)
 
 class Att_Unet_TF(tf.keras.Model):
-    def __init__(self,name="Attention_Unet(TF)",dropout=0.5,kernel_init='he_normal',normalize=False,**kwargs):
+    def __init__(self,name="Attention_Unet-TF-",dropout=0.5,kernel_init='he_normal',normalize=False,**kwargs):
         super(Att_Unet_TF,self).__init__(self,name=name,**kwargs)
         self.nb_filters = [32,64,128,256,512]
 
