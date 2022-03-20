@@ -25,7 +25,7 @@ class SegmentationDataset(Dataset):
         if self.gt_paths is None:
             if self.preprocessing is not None:
                 # apply the transformations to both image and its mask
-                image = self.preprocessing(image)
+                image = self.preprocessing(x=image, is_gt=False)
             return image
         
         # there is groundtruth
@@ -33,7 +33,7 @@ class SegmentationDataset(Dataset):
         # check to see if we are applying any transformations
         if self.preprocessing is not None:
             # apply the transformations to both image and its mask
-            image = self.preprocessing(image)
-            gt = self.preprocessing(gt)
+            image = self.preprocessing(x=image, is_gt=False)
+            gt = self.preprocessing(x=gt, is_gt=True)
         # return a tuple of the image and its mask
-        return (image, gt)
+        return image, gt

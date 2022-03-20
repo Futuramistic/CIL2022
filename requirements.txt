@@ -17,6 +17,7 @@ keras==2.7.0
 Keras-Preprocessing==1.1.2
 kornia==0.6.3
 matplotlib==3.4.3
+mlflow==1.24.0
 numpy==1.21.5
 oauthlib==3.2.0
 onnx==1.11.0

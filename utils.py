@@ -17,9 +17,13 @@ DATASET_ZIP_URLS = {
     "original": "https://polybox.ethz.ch/index.php/s/x2RcSv4MOG3rtPB/download",
 
     # "original_128": "original" dataset, patchified into 128x128 patches and augmented using Preprocessor
-    "original_128": "https://polybox.ethz.ch/index.php/s/c68pfFLBXCCjzDT/download"
+    "original_128": "https://polybox.ethz.ch/index.php/s/c68pfFLBXCCjzDT/download",
+
+    # "original_256": "original" dataset, patchified into 256x256 patches and augmented using Preprocessor
+    "original_256": "https://polybox.ethz.ch/index.php/s/ncSp9vsJ1HAIHcR/download"
 }
 
+MLFLOW_TRACKING_URI = "http://algvrithm.com:8000"
 
 # helper functions
 

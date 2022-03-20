@@ -43,23 +43,25 @@ class TFDataLoader(DataLoader):
     def __get_image_data(self, img_paths, gt_paths=None, preprocessing=None, offset=0, length=10**12):
         # WARNING: must use lambda captures (see https://stackoverflow.com/q/10452770)
         img_paths_tf = tf.convert_to_tensor(img_paths[offset:offset+length])
-        parse = (lambda x, preprocessing=preprocessing: self.__parse_data(x)) if preprocessing is None else \
-                (lambda x, preprocessing=preprocessing: preprocessing(self.__parse_data(x)))
+        parse_img = (lambda x, preprocessing=preprocessing: self.__parse_data(x)) if preprocessing is None else \
+                    (lambda x, preprocessing=preprocessing: preprocessing(x=self.__parse_data(x), is_gt=False))
+        parse_gt = (lambda x, preprocessing=preprocessing: self.__parse_data(x)) if preprocessing is None else \
+                   (lambda x, preprocessing=preprocessing: preprocessing(x=self.__parse_data(x), is_gt=True))
 
         # itertools.count() gives infinite generators
 
         if gt_paths is not None:
             gt_paths_tf = tf.convert_to_tensor(gt_paths[offset:])
-            common_gen = ((parse(img_path), parse(gt_path)) for _ in itertools.count() for img_path, gt_path in
+            common_gen = ((parse_img(img_path), parse_gt(gt_path)) for _ in itertools.count() for img_path, gt_path in
                           zip(*utils.consistent_shuffling(img_paths_tf, gt_paths_tf)))
             return tf.data.Dataset.from_generator(lambda common_gen=common_gen: common_gen,
-                                                  output_types=(parse(img_paths_tf[0]).dtype,
-                                                                parse(gt_paths_tf[0]).dtype))
+                                                  output_types=(parse_img(img_paths_tf[0]).dtype,
+                                                                parse_gt(gt_paths_tf[0]).dtype))
         else:
-            image_gen = (parse(img_path) for _ in itertools.count() for img_path in
+            image_gen = (parse_img(img_path) for _ in itertools.count() for img_path in
                          utils.consistent_shuffling(img_paths_tf)[0])
             return tf.data.Dataset.from_generator(lambda image_gen=image_gen: image_gen,
-                                                  output_types=parse(img_paths_tf[0]).dtype)
+                                                  output_types=parse_img(img_paths_tf[0]).dtype)
 
     ###
     # Create training/validaiton dataset split
