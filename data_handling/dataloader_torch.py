@@ -47,7 +47,7 @@ class TorchDataLoader(DataLoader):
         testing_data_len = len(dataset)-training_data_len
         
         self.training_data, self.testing_data = random_split(dataset, [training_data_len, testing_data_len])
-        return torchDL(self.training_data, batch_size, **args)
+        return torchDL(self.training_data, batch_size, shuffle=True, **args)
     
     def get_testing_dataloader(self, batch_size, preprocessing=None, **args):
         """
@@ -75,7 +75,7 @@ class TorchDataLoader(DataLoader):
                 self.testing_data = SegmentationDataset(shuffled_training_img_paths, shuffled_training_gt_paths,
                                                         preprocessing)
 
-        return torchDL(self.testing_data, batch_size, **args)
+        return torchDL(self.testing_data, batch_size, shuffle=False, **args)
             
     def get_unlabeled_testing_dataloader(self, batch_size, preprocessing=None, **args):
         """
@@ -93,7 +93,7 @@ class TorchDataLoader(DataLoader):
         if self.unlabeled_testing_data is None:
             self.unlabeled_testing_data = SegmentationDataset(*utils.consistent_shuffling(self.test_img_paths), None,
                                                               preprocessing)
-        return torchDL(self.unlabeled_testing_data, batch_size, **args)
+        return torchDL(self.unlabeled_testing_data, batch_size, shuffle=False, **args)
 
     def load_model(self, path, model_class_as_string):
         model = eval(model_class_as_string)
