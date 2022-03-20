@@ -37,7 +37,7 @@ class Trainer(abc.ABC):
         self.loss_function = loss_function
         self.evaluation_interval = evaluation_interval
 
-    def __init_mlflow(self):
+    def _init_mlflow(self):
         self.mlflow_experiment_id = None
         if self.mlflow_experiment_name is not None:
             mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)

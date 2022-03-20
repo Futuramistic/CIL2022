@@ -25,10 +25,10 @@ class GLDenseUNetTrainer(TFTrainer):
             batch_size = 2
 
         train_set_size, test_set_size, unlabeled_test_set_size = dataloader.get_dataset_sizes(split=split)
-        self.steps_per_training_epoch = train_set_size // batch_size
+        steps_per_training_epoch = train_set_size // batch_size
 
         if num_epochs is None:
-            num_epochs = math.ceil(100000 / self.steps_per_training_epoch)
+            num_epochs = math.ceil(100000 / steps_per_training_epoch)
 
         if optimizer_or_lr is None:
             optimizer_or_lr = GLDenseUNetTrainer.get_default_optimizer_with_lr(1e-3)
@@ -44,12 +44,12 @@ class GLDenseUNetTrainer(TFTrainer):
 
         # convert training samples to float32 \in [0, 1] & remove A channel;
         # convert test samples to int \in {0, 1} & remove A channel
-        self.preprocessing =\
+        preprocessing =\
             lambda x, is_gt: (tf.cast(x[:, :, :3], dtype=tf.float32) / 255.0) if not is_gt \
             else (x[:, :, :1] // 255)
 
-        super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
-                         loss_function, evaluation_interval)
+        super().__init__(dataloader, model, preprocessing, steps_per_training_epoch, experiment_name, run_name, split,
+                         num_epochs, batch_size, optimizer_or_lr, loss_function, evaluation_interval)
 
     @staticmethod
     def get_default_optimizer_with_lr(lr):
@@ -60,4 +60,4 @@ class GLDenseUNetTrainer(TFTrainer):
         return K.optimizers.Adam(lr_schedule)
 
     def train(self):
-        self.__train()
+        self._train()
