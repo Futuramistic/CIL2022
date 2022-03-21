@@ -1,8 +1,5 @@
-from cv2 import normalize
-from pandas import concat
 import tensorflow as tf
 from keras.layers import *
-
 from blocks import *
 
 class Unet_TF(tf.keras.Model):
