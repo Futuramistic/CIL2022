@@ -79,12 +79,15 @@ class TorchTrainer(Trainer, abc.ABC):
                             for batch_sample_idx in range(batch_xs.shape[0]):
                                 output = self.model(batch_xs)
                                 preds = torch.argmax(output, dim=1).float()
-                                # TODO: merge prediction and ground truth into one image using colors, to reduce traffic
+                                if batch_ys is None:
+                                    batch_ys = torch.zeros_like(preds)
+                                merged = (2 * preds + batch_ys).int()
+                                green_channel = merged == 3  # true positives
+                                red_channel = merged == 2  # false positive
+                                blue_channel = merged == 1  # false negative
+                                rgb = torch.cat((red_channel, green_channel, blue_channel), dim=1).float()
                                 # TODO: merge multiple images to one big figure to reduce number of requests
-                                save_image(preds[batch_sample_idx], os.path.join(temp_dir, f'{sample_idx}_pred.png'))
-                                if batch_ys is not None:
-                                    save_image(batch_ys[batch_sample_idx],
-                                               os.path.join(temp_dir, f'{sample_idx}_gt.png'))
+                                save_image(rgb[batch_sample_idx], os.path.join(temp_dir, f'{sample_idx}_rgb.png'))
                                 sample_idx += 1
 
                 eval_inference_start = time.time()
