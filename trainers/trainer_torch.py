@@ -4,6 +4,7 @@ import numpy as np
 import shutil
 import tempfile
 import time
+import math
 
 import torch
 import torch.cuda
@@ -66,29 +67,54 @@ class TorchTrainer(Trainer, abc.ABC):
 
                 sample_idx = 0
 
+                def next_perfect_square(n):
+                    next_n = math.floor(math.sqrt(n)) + 1
+                    return next_n * next_n
+
+                def is_perfect_square(n):
+                    x = math.sqrt(n)
+                    return (x-math.floor(x)) == 0
+
                 def loop():
                     nonlocal sample_idx
                     if self.do_visualize:
                         n = self.trainer.num_samples_to_visualize
+                        # Sample image indices to visualize
                         length = len(self.testing_dl)
                         indices = random.sample(range(length), n)
+                        images = []
+                        # Compute N such that N * N is the next perfect square number
+                        # This is used to merge the different images into a single image
+                        if is_perfect_square(n):
+                            N = math.sqrt(n)
+                        else:
+                            N = math.sqrt(next_perfect_square(n))
+                        N = int(N) # Need it to be an integer
                         for i, (batch_xs, batch_ys) in enumerate(self.testing_dl):
                             if i not in indices:  # TODO works but dirty, find a better solution..
                                 continue
                             batch_xs, batch_ys = batch_xs.to(device), batch_ys.to(device)
+                            output = self.model(batch_xs)
+                            preds = torch.argmax(output, dim=1).float()
+                            if batch_ys is None:
+                                batch_ys = torch.zeros_like(preds)
+                            merged = (2 * preds + batch_ys).int()
+                            green_channel = merged == 3  # true positives
+                            red_channel = merged == 2  # false positive
+                            blue_channel = merged == 1  # false negative
+                            rgb = torch.cat((red_channel, green_channel, blue_channel), dim=1).float()
                             for batch_sample_idx in range(batch_xs.shape[0]):
-                                output = self.model(batch_xs)
-                                preds = torch.argmax(output, dim=1).float()
-                                if batch_ys is None:
-                                    batch_ys = torch.zeros_like(preds)
-                                merged = (2 * preds + batch_ys).int()
-                                green_channel = merged == 3  # true positives
-                                red_channel = merged == 2  # false positive
-                                blue_channel = merged == 1  # false negative
-                                rgb = torch.cat((red_channel, green_channel, blue_channel), dim=1).float()
-                                # TODO: merge multiple images to one big figure to reduce number of requests
-                                save_image(rgb[batch_sample_idx], os.path.join(temp_dir, f'{sample_idx}_rgb.png'))
-                                sample_idx += 1
+                                images.append(rgb[batch_sample_idx])
+                                sample_idx += 1 # TODO probably not necessary anymore since we only log one big image
+                        # If the number of images to visualize is smaller than next perfect square, add black images
+                        while len(images) < N * N:
+                            images.append(torch.zeros_like(images[0]))
+                        arr = []  # Store images concatenated in the last dimension here
+                        for i in range(N):
+                            arr.append(torch.cat(images[(i*N):(i+1)*N], dim=-1))
+                        # Concatenate in the second-to-last dimension to get the final big image
+                        final = torch.cat(arr, dim=-2)
+                        save_image(final, os.path.join(temp_dir, f'{sample_idx}_rgb.png'))
 
                 eval_inference_start = time.time()
                 loop()
@@ -132,7 +158,7 @@ class TorchTrainer(Trainer, abc.ABC):
         for batch, (x, y) in enumerate(train_loader):
             x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
             output = model(x)
-            preds = torch.argmax(output, dim=1).float()[:,None,:,:]
+            preds = torch.argmax(output, dim=1).float()[:, None, :, :]
             # print(output.shape)
             loss = self.loss_function(preds, y)
             loss.requires_grad = True
