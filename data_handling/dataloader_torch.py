@@ -14,12 +14,12 @@ class TorchDataLoader(DataLoader):
 
     def get_dataset_sizes(self, split):
         """
-        Get the sizes of the training, testing and unlabeled datasets associated with this DataLoader.
+        Get the sizes of the training, test and unlabeled datasets associated with this DataLoader.
         Args:
-            split: training/testing splitting ratio \in [0,1]
+            split: training/test splitting ratio \in [0,1]
 
         Returns:
-            Tuple of (int, int, int): sizes of training, testing and unlabeled testing datasets, respectively,
+            Tuple of (int, int, int): sizes of training, test and unlabeled test datasets, respectively,
             in samples
         """
         full_training_data_len = len(self.training_img_paths)
@@ -31,7 +31,7 @@ class TorchDataLoader(DataLoader):
     def get_training_dataloader(self, split, batch_size, preprocessing=None, **args):
         """
         Args:
-            split (float): training/testing splitting ratio, e.g. 0.8 for 80"%" training and 20"%" testing data
+            split (float): training/test splitting ratio, e.g. 0.8 for 80"%" training and 20"%" test data
             batch_size (int): training batch size
             preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
                                       constructing the native dataloader
@@ -61,10 +61,10 @@ class TorchDataLoader(DataLoader):
             Torch Dataloader
         """
         if self.testing_data is None:
-            warnings.warn("You called testing dataloader before training dataloader. \
-                Usually the testing data is created by splitting the training data when calling get_training_dataloader. \
-                    If groundtruth testing data is explicitely available in the Dataset, this will be used, otherwise the complete training dataset will be used.\n \
-                        Call <get_unlabeled_testing_dataloader()> in order to get the testing data of a dataset without annotations.")
+            warnings.warn("You called test dataloader before training dataloader. \
+                Usually the test data is created by splitting the training data when calling get_training_dataloader. \
+                    If groundtruth test data is explicitely available in the Dataset, this will be used, otherwise the complete training dataset will be used.\n \
+                        Call <get_unlabeled_testing_dataloader()> in order to get the test data of a dataset without annotations.")
             if self.test_gt_dir is not None:
                 shuffled_test_img_paths, shuffled_test_gt_paths = utils.consistent_shuffling(self.test_img_paths,
                                                                                              self.test_gt_paths)
@@ -89,7 +89,7 @@ class TorchDataLoader(DataLoader):
             Torch Dataloader
         """
         if self.test_gt_dir is not None:
-            warnings.warn(f"The dataset {self.dataset} doesn't contain unlabeled testing data. The testing data will simply be used without loading the groundtruth")
+            warnings.warn(f"The dataset {self.dataset} doesn't contain unlabeled test data. The test data will simply be used without loading the groundtruth")
         if self.unlabeled_testing_data is None:
             self.unlabeled_testing_data = SegmentationDataset(*utils.consistent_shuffling(self.test_img_paths), None,
                                                               preprocessing)
