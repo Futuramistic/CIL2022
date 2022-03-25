@@ -1,25 +1,17 @@
 import abc
 import mlflow
-import numpy as np
 import shutil
 import tempfile
 import time
-import math
 
 import torch
 import torch.cuda
-from tensorflow import Tensor
 from torchvision.utils import save_image
 
 from .trainer import Trainer
 from utils import *
 
-import torch.nn.functional as F
-from tqdm import tqdm
 
-###########################
-####### NOT TESTED ########
-###########################
 class TorchTrainer(Trainer, abc.ABC):
     def __init__(self, dataloader, model, preprocessing,
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
@@ -72,7 +64,7 @@ class TorchTrainer(Trainer, abc.ABC):
                             nb_cols = math.sqrt(n)
                         else:
                             nb_cols = math.sqrt(next_perfect_square(n))
-                        nb_cols = int(nb_cols) # Need it to be an integer
+                        nb_cols = int(nb_cols)  # Need it to be an integer
                         for i, (batch_xs, batch_ys) in enumerate(self.testing_dl):
                             if i not in indices:  # TODO works but dirty, find a better solution..
                                 continue
@@ -89,13 +81,13 @@ class TorchTrainer(Trainer, abc.ABC):
                             for batch_sample_idx in range(batch_xs.shape[0]):
                                 images.append(rgb[batch_sample_idx])
                         # If the number of images to visualize is smaller than next perfect square, add black images
-                        nb_rows = math.ceil(float(n)/float(nb_cols))  # Number of rows in final image
+                        nb_rows = math.ceil(float(n) / float(nb_cols))  # Number of rows in final image
                         # Append enough black images to complete the last non-empty row
                         while len(images) < nb_cols * nb_rows:
                             images.append(torch.zeros_like(images[0]))
                         arr = []  # Store images concatenated in the last dimension here
                         for i in range(nb_rows):
-                            arr.append(torch.cat(images[(i*nb_cols):(i+1)*nb_cols], dim=-1))
+                            arr.append(torch.cat(images[(i * nb_cols):(i + 1) * nb_cols], dim=-1))
                         # Concatenate in the second-to-last dimension to get the final big image
                         final = torch.cat(arr, dim=-2)
                         save_image(final, os.path.join(temp_dir, f'rgb.png'))
@@ -144,7 +136,6 @@ class TorchTrainer(Trainer, abc.ABC):
             y = torch.squeeze(y, dim=1)  # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
             preds = model(x)
             loss = self.loss_function(preds, y)
-            # print(f'Loss: {loss.item()}')
             opt.zero_grad()
             loss.backward()
             opt.step()
@@ -160,7 +151,6 @@ class TorchTrainer(Trainer, abc.ABC):
                 y = torch.squeeze(y, dim=1)
                 preds = model(x)
                 test_loss += self.loss_function(preds, y).item()
-            print(test_loss)
         test_loss /= len(test_loader.dataset)
         print(f'\nTest loss: {test_loss:.3f}')
         return test_loss
