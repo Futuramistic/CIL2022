@@ -59,37 +59,20 @@ class TorchTrainer(Trainer, abc.ABC):
                 if self.do_visualize:
                     temp_dir = tempfile.mkdtemp()
 
-                def segmentation_to_image(x):
-                    x = (x * 255).astype(int)
-                    if len(x.shape) < 3:
-                        x = np.expand_dims(x, axis=-1)
-                    return x
-
-                sample_idx = 0
-
-                def next_perfect_square(n):
-                    next_n = math.floor(math.sqrt(n)) + 1
-                    return next_n * next_n
-
-                def is_perfect_square(n):
-                    x = math.sqrt(n)
-                    return (x-math.floor(x)) == 0
-
                 def loop():
-                    nonlocal sample_idx
                     if self.do_visualize:
                         n = self.trainer.num_samples_to_visualize
                         # Sample image indices to visualize
                         length = len(self.testing_dl)
                         indices = random.sample(range(length), n)
                         images = []
-                        # Compute N such that N * N is the next perfect square number
+                        # Compute nb_cols such that nb_cols * nb_cols is the next perfect square number
                         # This is used to merge the different images into a single image
                         if is_perfect_square(n):
-                            N = math.sqrt(n)
+                            nb_cols = math.sqrt(n)
                         else:
-                            N = math.sqrt(next_perfect_square(n))
-                        N = int(N) # Need it to be an integer
+                            nb_cols = math.sqrt(next_perfect_square(n))
+                        nb_cols = int(nb_cols) # Need it to be an integer
                         for i, (batch_xs, batch_ys) in enumerate(self.testing_dl):
                             if i not in indices:  # TODO works but dirty, find a better solution..
                                 continue
@@ -105,16 +88,17 @@ class TorchTrainer(Trainer, abc.ABC):
                             rgb = torch.cat((red_channel, green_channel, blue_channel), dim=1).float()
                             for batch_sample_idx in range(batch_xs.shape[0]):
                                 images.append(rgb[batch_sample_idx])
-                                sample_idx += 1 # TODO probably not necessary anymore since we only log one big image
                         # If the number of images to visualize is smaller than next perfect square, add black images
-                        while len(images) < N * N:
+                        nb_rows = math.ceil(float(n)/float(nb_cols))  # Number of rows in final image
+                        # Append enough black images to complete the last non-empty row
+                        while len(images) < nb_cols * nb_rows:
                             images.append(torch.zeros_like(images[0]))
                         arr = []  # Store images concatenated in the last dimension here
-                        for i in range(N):
-                            arr.append(torch.cat(images[(i*N):(i+1)*N], dim=-1))
+                        for i in range(nb_rows):
+                            arr.append(torch.cat(images[(i*nb_cols):(i+1)*nb_cols], dim=-1))
                         # Concatenate in the second-to-last dimension to get the final big image
                         final = torch.cat(arr, dim=-2)
-                        save_image(final, os.path.join(temp_dir, f'{sample_idx}_rgb.png'))
+                        save_image(final, os.path.join(temp_dir, f'rgb.png'))
 
                 eval_inference_start = time.time()
                 loop()
@@ -136,7 +120,7 @@ class TorchTrainer(Trainer, abc.ABC):
                     print(f'\nEvaluation took {"%.4f" % (eval_end - eval_start)}s in total; '
                           f'inference took {"%.4f" % (eval_inference_end - eval_inference_start)}s; '
                           f'MLflow logging took {"%.4f" % (eval_mlflow_end - eval_mlflow_start)}s '
-                          f'(processed {sample_idx} sample(s))')
+                          f'(processed {self.trainer.num_samples_to_visualize} sample(s))')
 
             self.iteration_idx += 1
 

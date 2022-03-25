@@ -5,6 +5,7 @@ DO NOT MOVE!
 
 import os
 import random
+import math
 
 
 # global constants
@@ -39,3 +40,13 @@ def consistent_shuffling(*args):
     z = list(zip(*args))
     random.shuffle(z)
     return list(map(list, zip(*z)))
+
+
+def next_perfect_square(n):
+    next_n = math.floor(math.sqrt(n)) + 1
+    return next_n * next_n
+
+
+def is_perfect_square(n):
+    x = math.sqrt(n)
+    return (x - math.floor(x)) == 0
