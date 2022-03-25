@@ -143,25 +143,24 @@ class TorchTrainer(Trainer, abc.ABC):
     def _fit_model(self, mlflow_run):
         train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                                preprocessing=self.preprocessing)
-        # test_loader = self.dataloader.get_testing_dataloader(batch_size=1, preprocessing=self.preprocessing)
+        test_loader = self.dataloader.get_testing_dataloader(batch_size=1, preprocessing=self.preprocessing)
         device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         print(f'Using device: {device}')
         model = self.model.to(device)
         callback_handler = TorchTrainer.Callback(self, mlflow_run, model)
         for epoch in range(self.num_epochs):
             self._train_step(model, device, train_loader, callback_handler=callback_handler)
-            # self._eval_step(model, device, test_loader)
+            self._eval_step(model, device, test_loader)
 
     def _train_step(self, model, device, train_loader, callback_handler):
         model.train()
         opt = self.optimizer_or_lr
         for batch, (x, y) in enumerate(train_loader):
-            x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
-            output = model(x)
-            preds = torch.argmax(output, dim=1).float()[:, None, :, :]
-            # print(output.shape)
+            x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.long)
+            y = torch.squeeze(y, dim=1)  # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
+            preds = model(x)
             loss = self.loss_function(preds, y)
-            loss.requires_grad = True
+            # print(f'Loss: {loss.item()}')
             opt.zero_grad()
             loss.backward()
             opt.step()
@@ -173,13 +172,13 @@ class TorchTrainer(Trainer, abc.ABC):
         test_loss = 0
         with torch.no_grad():
             for (x, y) in test_loader:
-                x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
-                output = model(x)
-                preds = torch.argmax(output, dim=1).float()[:, None, :, :]
+                x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.long)
+                y = torch.squeeze(y, dim=1)
+                preds = model(x)
                 test_loss += self.loss_function(preds, y).item()
             print(test_loss)
         test_loss /= len(test_loader.dataset)
-        print(f'\nloss: {test_loss:.3f}')
+        print(f'\nTest loss: {test_loss:.3f}')
         return test_loss
 
     def _train(self):
