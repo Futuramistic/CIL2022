@@ -5,6 +5,7 @@ DO NOT MOVE!
 
 import os
 import random
+import math
 
 
 # global constants
@@ -22,6 +23,7 @@ DATASET_ZIP_URLS = {
     # "original_256": "original" dataset, patchified into 256x256 patches and augmented using Preprocessor
     "original_256": "https://polybox.ethz.ch/index.php/s/ncSp9vsJ1HAIHcR/download"
 }
+CODEBASE_SNAPSHOT_ZIP_NAME = "codebase_snapshot.zip"
 MLFLOW_USER = "mlflow_user"
 MLFLOW_HOST = "algvrithm.com"
 MLFLOW_TRACKING_URI = f"http://{MLFLOW_HOST}:8000"
@@ -39,3 +41,13 @@ def consistent_shuffling(*args):
     z = list(zip(*args))
     random.shuffle(z)
     return list(map(list, zip(*z)))
+
+
+def next_perfect_square(n):
+    next_n = math.floor(math.sqrt(n)) + 1
+    return next_n * next_n
+
+
+def is_perfect_square(n):
+    x = math.sqrt(n)
+    return (x - math.floor(x)) == 0

@@ -4,8 +4,14 @@ then passes the remaining command line arguments to the constructor of the corre
 import argparse
 import itertools
 import re
-from models.learning_aerial_image_segmenation_from_online_maps import Deeplabv3, Unet, Fastscnn
 
+from models.learning_aerial_image_segmenation_from_online_maps import Deeplabv3, Unet, Fastscnn
+from models.road_extraction_from_high_res_rsi_using_dl.gl_dense_u_net import *
+
+from data_handling.dataloader_torch import TorchDataLoader
+from data_handling.dataloader_tf import TFDataLoader
+from trainers.u_net import UNetTrainer
+from trainers.gl_dense_u_net import GLDenseUNetTrainer
 
 # dict of model names to corresponding classes
 model_class_dict = {'deeplabv3': Deeplabv3.Deeplabv3,
@@ -35,7 +41,13 @@ try:
     model_class = model_class_dict[known_args.model]
     model = model_class(**{k: v for k, v in arg_dict.items() if k.lower() not in filter_args})
     # TODO: train model, evaluate performance, ...
-    ...
+    
+    # Testing the UNetTrainer
+    # dataloader = TorchDataLoader(dataset='original')
+    # trainer = UNetTrainer(dataloader, model, experiment_name='Vanilla UNet', evaluation_interval=1,
+    #                       num_samples_to_visualize=3)
+    # trainer.train()
+
 except KeyError:
     print('Please specify a valid model using the "--model" parameter. Currently supported: ' +
           ', '.join(model_class_dict.keys()))

@@ -19,7 +19,7 @@ class Trainer(abc.ABC):
             model: the model to train
             experiment_name: name of the experiment to log this training run under in MLflow
             run_name: name of the run to log this training run under in MLflow
-            split: fraction of dataset provided by the DataLoader which to use for training rather than testing
+            split: fraction of dataset provided by the DataLoader which to use for training rather than test
                    (None to use default)
             num_epochs: number of epochs, i.e. passes through the dataset, to train model for (None to use default)
             batch_size: number of samples to use per training iteration (None to use default)

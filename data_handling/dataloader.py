@@ -23,7 +23,7 @@ class DataLoader(abc.ABC):
         self.training_gt_dir = os.path.join(*[*ds_base, "training", "groundtruth"])
         self.test_img_dir = os.path.join(*[*ds_base, "test", "images"])
         self.test_gt_dir = None
-        # some data sets have ground truth for their testing data:
+        # some data sets have ground truth for their test data:
         test_gt_dir = os.path.join(*[*ds_base, "test", "groundtruth"])
         if os.path.exists(test_gt_dir):
             self.test_gt_dir = test_gt_dir
@@ -68,12 +68,12 @@ class DataLoader(abc.ABC):
     @abc.abstractmethod
     def get_dataset_sizes(self, split):
         """
-        Get the sizes of the training, testing and unlabeled datasets associated with this DataLoader.
+        Get the sizes of the training, test and unlabeled datasets associated with this DataLoader.
         Args:
-            split: training/testing splitting ratio \in [0,1]
+            split: training/test splitting ratio \in [0,1]
 
         Returns:
-            Tuple of (int, int, int): sizes of training, testing and unlabeled testing datasets, respectively,
+            Tuple of (int, int, int): sizes of training, test and unlabeled test datasets, respectively,
             in samples
         """
         raise NotImplementedError('must be defined for torch or tensorflow loader')
@@ -82,7 +82,7 @@ class DataLoader(abc.ABC):
     def get_training_dataloader(self, split, batch_size, preprocessing=None, **args):
         """
         Args:
-            split (float): training/testing splitting ratio \in [0,1]
+            split (float): training/test splitting ratio \in [0,1]
             batch_size (int): training batch size
             preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
                                       constructing the native dataloader
