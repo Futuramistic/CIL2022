@@ -1,8 +1,5 @@
 import abc
 import mlflow
-import shutil
-import tempfile
-import time
 
 import torch
 import torch.cuda
@@ -10,6 +7,7 @@ from torchvision.utils import save_image
 
 from .trainer import Trainer
 from utils import *
+import mlflow_logger
 
 
 class TorchTrainer(Trainer, abc.ABC):
@@ -32,6 +30,7 @@ class TorchTrainer(Trainer, abc.ABC):
     class Callback:
         def __init__(self, trainer, mlflow_run, model):
             super().__init__()
+            self.device = None
             self.model = model
             self.trainer = trainer
             self.mlflow_run = mlflow_run
@@ -44,77 +43,52 @@ class TorchTrainer(Trainer, abc.ABC):
 
         def on_train_batch_end(self, device):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                eval_start = time.time()
                 # remember: dataloader may be infinite
-
-                # store segmentations in temp_dir, then upload temp_dir to Mlflow server
+                self.device = device
                 if self.do_visualize:
-                    temp_dir = tempfile.mkdtemp()
-
-                def loop():
-                    if self.do_visualize:
-                        n = self.trainer.num_samples_to_visualize
-                        # Sample image indices to visualize
-                        length = len(self.testing_dl)
-                        indices = random.sample(range(length), n)
-                        images = []
-                        # Compute nb_cols such that nb_cols * nb_cols is the next perfect square number
-                        # This is used to merge the different images into a single image
-                        if is_perfect_square(n):
-                            nb_cols = math.sqrt(n)
-                        else:
-                            nb_cols = math.sqrt(next_perfect_square(n))
-                        nb_cols = int(nb_cols)  # Need it to be an integer
-                        for i, (batch_xs, batch_ys) in enumerate(self.testing_dl):
-                            if i not in indices:  # TODO works but dirty, find a better solution..
-                                continue
-                            batch_xs, batch_ys = batch_xs.to(device), batch_ys.to(device)
-                            output = self.model(batch_xs)
-                            preds = torch.argmax(output, dim=1).float()
-                            if batch_ys is None:
-                                batch_ys = torch.zeros_like(preds)
-                            merged = (2 * preds + batch_ys).int()
-                            green_channel = merged == 3  # true positives
-                            red_channel = merged == 2  # false positive
-                            blue_channel = merged == 1  # false negative
-                            rgb = torch.cat((red_channel, green_channel, blue_channel), dim=1).float()
-                            for batch_sample_idx in range(batch_xs.shape[0]):
-                                images.append(rgb[batch_sample_idx])
-                        # If the number of images to visualize is smaller than next perfect square, add black images
-                        nb_rows = math.ceil(float(n) / float(nb_cols))  # Number of rows in final image
-                        # Append enough black images to complete the last non-empty row
-                        while len(images) < nb_cols * nb_rows:
-                            images.append(torch.zeros_like(images[0]))
-                        arr = []  # Store images concatenated in the last dimension here
-                        for i in range(nb_rows):
-                            arr.append(torch.cat(images[(i * nb_cols):(i + 1) * nb_cols], dim=-1))
-                        # Concatenate in the second-to-last dimension to get the final big image
-                        final = torch.cat(arr, dim=-2)
-                        save_image(final, os.path.join(temp_dir, f'rgb.png'))
-
-                eval_inference_start = time.time()
-                loop()
-                eval_inference_end = time.time()
-
-                # MLflow does not have the functionality to log artifacts per training step, so we have to incorporate
-                # the training step (iteration_idx) into the artifact path
-                eval_mlflow_start = time.time()
-                if self.do_visualize:
-                    mlflow.log_artifacts(temp_dir, 'iteration_%07i' % self.iteration_idx)
-                eval_mlflow_end = time.time()
-
-                if self.do_visualize:
-                    shutil.rmtree(temp_dir)
-
-                eval_end = time.time()
-
-                if MLFLOW_PROFILING:
-                    print(f'\nEvaluation took {"%.4f" % (eval_end - eval_start)}s in total; '
-                          f'inference took {"%.4f" % (eval_inference_end - eval_inference_start)}s; '
-                          f'MLflow logging took {"%.4f" % (eval_mlflow_end - eval_mlflow_start)}s '
-                          f'(processed {self.trainer.num_samples_to_visualize} sample(s))')
+                    mlflow_logger.log_visualizations(self)
 
             self.iteration_idx += 1
+
+        def create_visualizations(self, temp_dir):
+            n = self.trainer.num_samples_to_visualize
+            # Sample image indices to visualize
+            length = len(self.testing_dl)
+            indices = random.sample(range(length), n)
+            images = []
+            # Compute nb_cols such that nb_cols * nb_cols is the next perfect square number
+            # This is used to merge the different images into a single image
+            if is_perfect_square(n):
+                nb_cols = math.sqrt(n)
+            else:
+                nb_cols = math.sqrt(next_perfect_square(n))
+            nb_cols = int(nb_cols)  # Need it to be an integer
+            for i, (batch_xs, batch_ys) in enumerate(self.testing_dl):
+                if i not in indices:  # TODO works but dirty, find a better solution..
+                    continue
+                batch_xs, batch_ys = batch_xs.to(self.device), batch_ys.to(self.device)
+                output = self.model(batch_xs)
+                preds = torch.argmax(output, dim=1).float()
+                if batch_ys is None:
+                    batch_ys = torch.zeros_like(preds)
+                merged = (2 * preds + batch_ys).int()
+                green_channel = merged == 3  # true positives
+                red_channel = merged == 2  # false positive
+                blue_channel = merged == 1  # false negative
+                rgb = torch.cat((red_channel, green_channel, blue_channel), dim=1).float()
+                for batch_sample_idx in range(batch_xs.shape[0]):
+                    images.append(rgb[batch_sample_idx])
+            # If the number of images to visualize is smaller than next perfect square, add black images
+            nb_rows = math.ceil(float(n) / float(nb_cols))  # Number of rows in final image
+            # Append enough black images to complete the last non-empty row
+            while len(images) < nb_cols * nb_rows:
+                images.append(torch.zeros_like(images[0]))
+            arr = []  # Store images concatenated in the last dimension here
+            for i in range(nb_rows):
+                arr.append(torch.cat(images[(i * nb_cols):(i + 1) * nb_cols], dim=-1))
+            # Concatenate in the second-to-last dimension to get the final big image
+            final = torch.cat(arr, dim=-2)
+            save_image(final, os.path.join(temp_dir, f'rgb.png'))
 
     def _fit_model(self, mlflow_run):
         train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
@@ -159,6 +133,8 @@ class TorchTrainer(Trainer, abc.ABC):
         if self.mlflow_experiment_name is not None:
             self._init_mlflow()
             with mlflow.start_run(experiment_id=self.mlflow_experiment_id, run_name=self.mlflow_experiment_name) as run:
+                mlflow_logger.snapshot_codebase()  # snapshot before training as the files may change in-between
                 self._fit_model(mlflow_run=run)
+                mlflow_logger.log_codebase()
         else:
             self._fit_model(mlflow_run=None)

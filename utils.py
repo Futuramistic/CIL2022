@@ -23,6 +23,7 @@ DATASET_ZIP_URLS = {
     # "original_256": "original" dataset, patchified into 256x256 patches and augmented using Preprocessor
     "original_256": "https://polybox.ethz.ch/index.php/s/ncSp9vsJ1HAIHcR/download"
 }
+CODEBASE_SNAPSHOT_ZIP_NAME = "codebase_snapshot.zip"
 MLFLOW_USER = "mlflow_user"
 MLFLOW_HOST = "algvrithm.com"
 MLFLOW_TRACKING_URI = f"http://{MLFLOW_HOST}:8000"
