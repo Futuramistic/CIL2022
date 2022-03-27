@@ -100,8 +100,9 @@ class TorchTrainer(Trainer, abc.ABC):
         callback_handler = TorchTrainer.Callback(self, mlflow_run, model)
         for epoch in range(self.num_epochs):
             self._train_step(model, device, train_loader, callback_handler=callback_handler)
-            self._eval_step(model, device, test_loader)
-
+            last_loss = self._eval_step(model, device, test_loader)
+        return last_loss
+    
     def _train_step(self, model, device, train_loader, callback_handler):
         model.train()
         opt = self.optimizer_or_lr
@@ -134,7 +135,8 @@ class TorchTrainer(Trainer, abc.ABC):
             self._init_mlflow()
             with mlflow.start_run(experiment_id=self.mlflow_experiment_id, run_name=self.mlflow_experiment_name) as run:
                 mlflow_logger.snapshot_codebase()  # snapshot before training as the files may change in-between
-                self._fit_model(mlflow_run=run)
+                last_test_loss = self._fit_model(mlflow_run=run)
                 mlflow_logger.log_codebase()
         else:
-            self._fit_model(mlflow_run=None)
+            last_test_loss = self._fit_model(mlflow_run=None)
+        return last_test_loss

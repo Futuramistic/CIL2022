@@ -4,6 +4,10 @@ import pickle
 import os
 import numpy as np
 from data_handling.dataloader_torch import TorchDataLoader
+from data_handling.dataloader_tf import TFDataLoader
+from trainers.trainer_tf import TFTrainer
+from trainers.trainer_torch import TorchTrainer
+from datetime import datetime
 
 class HyperParamOptimizer:
     """Class for Hyperparameter Optimization
@@ -15,12 +19,15 @@ class HyperParamOptimizer:
         self.param_space = param_space
         self.model_class = param_space['model']['class']
         # create dataloader which is used for all runs
-        self.dataloader = TorchDataLoader(param_space['dataset']['name']) if param_space['model']['is_torch_type'] else None #TODO: Change None to TFDataLoader when implemented
-        
+        self.dataloader = TorchDataLoader(param_space['dataset']['name']) if param_space['model']['is_torch_type'] else TFDataLoader(param_space['dataset']['name'])
         # hyperopt can only minimize loss functions --> change sign if loss has to be maximized
         self.minimize_loss = param_space['training']['minimize_loss']
+        # specify names for mlflow
+        # take name of dictionary as run name, code taken from: https://bytes.com/topic/python/answers/525219-how-do-you-get-name-dictionary
+        self.run_name = filter(lambda x:id(eval(x))==id(param_space),dir())
+        self.exp_name = self.model_class.__name__ # maybe change later
         
-        # prepare file for saving trials and eventually reload trials if file already exists
+        # prepare file for saving trials and eventually reload trials if file already exists        
         # code adapted from https://stackoverflow.com/questions/63599879/can-we-save-the-result-of-the-hyperopt-trials-with-sparktrials
         self.trials_path = param_space['model']['saving_directory']
         if os.path.isdir(self.trials_path):
@@ -60,12 +67,12 @@ class HyperParamOptimizer:
         """
         print(self.model_class)
         model = self.model_class(**hyperparams['model']['kwargs'])
+        # for mlflow logger
+        run_name = f"Hyperopt_{self.run_name}"+"{:%Y_%m_%d_%H_%M}".format(datetime.now())
         
-        # use Trainer here
-        trainer = ...
-        # Trainer(dataLoader = self.dataloader, model = model, **hyperparams['training']['trainer_params'])
-        train_loss = trainer.train()
-        test_loss = trainer.test()
+        #TODO: implement model.get_trainer_class
+        trainer = self.model.get_trainer_class(dataloader = self.dataloader, model=model, experiment_name=self.exp_name, run_name=run_name, **hyperparams['training']['trainer_params'])
+        test_loss = trainer._train()
         
         # save (overwrite) updated trials after each trainig
         with open(self.trials_path, 'r+') as handle:
@@ -76,8 +83,6 @@ class HyperParamOptimizer:
             'loss': test_loss if self.minimize_loss else -test_loss,
             'status': STATUS_OK,
             'trained_model': model,
-            'test_loss': test_loss,
-            'train_loss': train_loss,
             'params': hyperparams
         }
     

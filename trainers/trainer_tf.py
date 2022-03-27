@@ -118,15 +118,16 @@ class TFTrainer(Trainer, abc.ABC):
     def _fit_model(self, mlflow_run):
         dataset = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                           preprocessing=self.preprocessing)
-        self.model.fit(dataset, epochs=self.num_epochs, steps_per_epoch=self.steps_per_training_epoch,
+        last_test_loss = self.model.fit(dataset, epochs=self.num_epochs, steps_per_epoch=self.steps_per_training_epoch,
                        callbacks=[TFTrainer.Callback(self, mlflow_run)])
+        return last_test_loss
 
     def _train(self):
         if self.mlflow_experiment_name is not None:
             self._init_mlflow()
             self._compile_model()
             with mlflow.start_run(experiment_id=self.mlflow_experiment_id, run_name=self.mlflow_experiment_name) as run:
-                self._fit_model(mlflow_run=run)
+                return self._fit_model(mlflow_run=run)
         else:
             self._compile_model()
-            self._fit_model(mlflow_run=None)
+            return self._fit_model(mlflow_run=None)

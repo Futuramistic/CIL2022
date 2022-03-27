@@ -7,7 +7,7 @@ space_Unet_1 = {
         'class': UNet,
         'is_torch_type': True, # always specify: "torch" or "tensor"
         'saving_directory': f"{ROOT_DIR}/archive/models/UNet_2022-03-16_21_25",
-        # always use kwargs for class/method-specific parameters, as hyperopt is written generically
+        # use kwargs for class-specific parameters, as hyperopt is written generically
         'kwargs': {
             'n_channels': 3,
             'n_classes': 2
@@ -16,7 +16,7 @@ space_Unet_1 = {
     'optimizer': {
         'method': 'Adam',
         'kwargs': { # always use kwargs for class/method-specific parameters, as hyperopt is written generically
-            'lr': hp.uniform('lr', low=1e-5, high=1e-1), 
+            'lr': hp.uniform('lr', low=1e-5, high=1e-1),
             'lr_decay': hp.quniform('lr_decay', low=100, high=1000, q=1)
         }
     },
