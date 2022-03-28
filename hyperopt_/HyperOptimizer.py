@@ -8,6 +8,7 @@ from data_handling.dataloader_tf import TFDataLoader
 from trainers.trainer_tf import TFTrainer
 from trainers.trainer_torch import TorchTrainer
 from datetime import datetime
+from factory.factory import Factory
 
 class HyperParamOptimizer:
     """Class for Hyperparameter Optimization
@@ -15,11 +16,12 @@ class HyperParamOptimizer:
             param_space (Dictionary) - hyparparameter search space, beware that no two params are called the same, see param_spaces_UNet.py for an example
     """
     def __init__(self, param_space):
-        # set often used parameters
         self.param_space = param_space
-        self.model_class = param_space['model']['class']
-        # create dataloader which is used for all runs
-        self.dataloader = TorchDataLoader(param_space['dataset']['name']) if param_space['model']['is_torch_type'] else TFDataLoader(param_space['dataset']['name'])
+        factory = Factory.get_factory(param_space['model']['model_type'].lower())
+        self.model_class = factory.get_model_class()
+        self.trainer_class = factory.get_trainer_class()
+        # already initializer dataloader, because only one is needed
+        self.dataloader = factory.get_dataloader_class()(param_space['dataset']['name'])
         # hyperopt can only minimize loss functions --> change sign if loss has to be maximized
         self.minimize_loss = param_space['training']['minimize_loss']
         # specify names for mlflow
@@ -65,13 +67,12 @@ class HyperParamOptimizer:
         Returns:
         output (Dictionary[loss, status, and other things])
         """
-        print(self.model_class)
-        model = self.model_class(**hyperparams['model']['kwargs'])
         # for mlflow logger
         run_name = f"Hyperopt_{self.run_name}"+"{:%Y_%m_%d_%H_%M}".format(datetime.now())
         
-        #TODO: implement model.get_trainer_class
-        trainer = self.model.get_trainer_class(dataloader = self.dataloader, model=model, experiment_name=self.exp_name, run_name=run_name, **hyperparams['training']['trainer_params'])
+        model = self.model_class(**hyperparams['model']['kwargs'])
+        print(self.trainer_class)
+        trainer = self.trainer_class(**hyperparams['training']['trainer_params'], dataloader = self.dataloader, model=model, experiment_name=self.exp_name, run_name=run_name)
         test_loss = trainer._train()
         
         # save (overwrite) updated trials after each trainig

@@ -1,4 +1,6 @@
 import abc
+from utils import MODEL_CLASS_DICT
+
 from trainers.u_net import UNetTrainer
 from trainers.gl_dense_u_net import GLDenseUNetTrainer
 from trainers.trainer_torch import TorchTrainer
@@ -11,8 +13,7 @@ from models.learning_aerial_image_segmenation_from_online_maps.Deeplabv3 import 
 from data_handling.dataloader_tf import TFDataLoader
 from data_handling.dataloader_torch import TorchDataLoader
 
-@abc
-class Factory(abc):
+class Factory(abc.ABC):
     """Abstract class for the factory method, in order to create corresponding trainer and dataloader for a specific model.
     Use the static method "get_factory(model_name: string) to get the corresponding factory class
     """
@@ -31,14 +32,19 @@ class Factory(abc):
     
     @staticmethod
     def get_factory(model_name):
-        if model_name == "Unet":
+        if model_name == "unet":
             return UNetFactory()
         elif model_name == "deeplabv3":
             return DeepLabV3Factory()
         elif model_name == "GLDenseUnet":
             return GLDenseUnetFactory()
         else:
-            raise NotImplementedError(f"The factory for the model {model_name} doesn't extist yet. Check for Implementation in factory.py and whether you spelled the model name correctly.")
+            try:
+                MODEL_CLASS_DICT[model_name]
+                raise NotImplementedError(f"The factory for the model {model_name} doesn't extist yet. Check for Implementation in factory.factory.py")
+            except KeyError:
+                print("Check if you wrote the model name correctly and added the model to utils.MODEL_CLASS_DICT.")
+                return
 
 class UNetFactory(Factory):
     def get_trainer_class(self):
