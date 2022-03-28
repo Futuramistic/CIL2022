@@ -1,6 +1,8 @@
+from utils import ROOT_DIR
+# TODO
 GLDenseNet_1 = {
     'model': {
-        'model_type': , # string, like in utils.MODEL_CLASS_DICT
+        'model_type': 'gldensenet', # string, like in utils.MODEL_CLASS_DICT
         'saving_directory': f"{ROOT_DIR}/archive/models/...",
         # use kwargs for class-specific parameters, as hyperopt is written generically
         'kwargs': {...
