@@ -6,12 +6,19 @@ DO NOT MOVE!
 import os
 import random
 import math
+from models.learning_aerial_image_segmenation_from_online_maps import Deeplabv3, Unet, Fastscnn
+from models.road_extraction_from_high_res_rsi_using_dl.gl_dense_u_net import *
 
 
-# global constants
+###########################################################################################
+##################################    global constants    #################################
+###########################################################################################
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 ACCEPTED_IMAGE_EXTENSIONS = [".png", ".jpeg", ".jpg", ".gif"]
+MODEL_CLASS_DICT = {'deeplabv3': Deeplabv3.Deeplabv3,
+                    'fastscnn': Fastscnn.FastSCNN,
+                    'unet': Unet.UNet}
 DEFAULT_TRAIN_FRACTION = 0.8
 DATASET_ZIP_URLS = {
     # "original": dataset used in the ETHZ CIL Road Segmentation 2022 Kaggle competition
@@ -31,7 +38,9 @@ MLFLOW_PASS_URL = "https://algvrithm.com/files/mlflow_cil_pass.txt"
 MLFLOW_PROFILING = True
 
 
-# helper functions
+###########################################################################################
+##################################    helper functions    #################################
+###########################################################################################
 
 def consistent_shuffling(*args):
     """

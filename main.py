@@ -5,18 +5,13 @@ import argparse
 import itertools
 import re
 
-from models.learning_aerial_image_segmenation_from_online_maps import Deeplabv3, Unet, Fastscnn
-from models.road_extraction_from_high_res_rsi_using_dl.gl_dense_u_net import *
-
 from data_handling.dataloader_torch import TorchDataLoader
 from data_handling.dataloader_tf import TFDataLoader
 from trainers.u_net import UNetTrainer
 from trainers.gl_dense_u_net import GLDenseUNetTrainer
 
-# dict of model names to corresponding classes
-model_class_dict = {'deeplabv3': Deeplabv3.Deeplabv3,
-                    'fastscnn': Fastscnn.FastSCNN,
-                    'unet': Unet.UNet}
+from utils import MODEL_CLASS_DICT
+
 # list of arguments to avoid passing to constructor of model class
 filter_args = ['h', 'model', 'm']
 
@@ -38,7 +33,7 @@ unknown_args_dict = dict(map(lambda arg: (remove_leading_dashes(arg.split('=')[0
 arg_dict = {**known_args_dict, **unknown_args_dict}
 
 try:
-    model_class = model_class_dict[known_args.model]
+    model_class = MODEL_CLASS_DICT[known_args.model]
     model = model_class(**{k: v for k, v in arg_dict.items() if k.lower() not in filter_args})
     # TODO: train model, evaluate performance, ...
     
@@ -50,4 +45,4 @@ try:
 
 except KeyError:
     print('Please specify a valid model using the "--model" parameter. Currently supported: ' +
-          ', '.join(model_class_dict.keys()))
+          ', '.join(MODEL_CLASS_DICT.keys()))
