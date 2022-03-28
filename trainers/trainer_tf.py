@@ -8,6 +8,7 @@ import tensorflow as tf
 import tensorflow.keras as K
 import time
 
+import mlflow_logger
 from .trainer import Trainer
 from utils import *
 
@@ -58,59 +59,54 @@ class TFTrainer(Trainer, abc.ABC):
 
         def on_train_batch_end(self, batch, logs=None):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                eval_start = time.time()
                 # remember: dataloader may be infinite
-
-                # store segmentations in temp_dir, then upload temp_dir to Mlflow server
                 if self.do_visualize:
-                    temp_dir = tempfile.mkdtemp()
-
-                def segmentation_to_image(x):
-                    x = (x * 255).astype(int)
-                    if len(x.shape) < 3:
-                        x = np.expand_dims(x, axis=-1)
-                    return x
-
-                sample_idx = 0
-
-                def loop():
-                    nonlocal sample_idx
-                    if self.do_visualize:
-                        for batch_xs, batch_ys in self.testing_dl.take(self.trainer.num_samples_to_visualize):
-                            for batch_sample_idx in range(batch_xs.shape[0]):
-                                logits = self.model.predict(batch_xs)
-                                preds = np.argmax(logits, axis=-1)
-                                # TODO: merge prediction and ground truth into one image using colors, to reduce traffic
-                                # TODO: merge multiple images to one big figure to reduce number of requests
-                                K.preprocessing.image.save_img(os.path.join(temp_dir, f'{sample_idx}_pred.png'),
-                                                               segmentation_to_image(preds[batch_sample_idx]))
-                                if batch_ys is not None:
-                                    K.preprocessing.image.save_img(os.path.join(temp_dir, f'{sample_idx}_gt.png'),
-                                                                   segmentation_to_image(batch_ys[batch_sample_idx].numpy()))
-                                sample_idx += 1
-
-                eval_inference_start = time.time()
-                loop()
-                eval_inference_end = time.time()
-
-                # MLflow does not have the functionality to log artifacts per training step, so we have to incorporate
-                # the training step (iteration_idx) into the artifact path
-                eval_mlflow_start = time.time()
-                if self.do_visualize:
-                    mlflow.log_artifacts(temp_dir, 'iteration_%07i' % self.iteration_idx)
-                eval_mlflow_end = time.time()
-
-                if self.do_visualize:
-                    shutil.rmtree(temp_dir)
-
-                eval_end = time.time()
-
-                if MLFLOW_PROFILING:
-                    print(f'\nEvaluation took {"%.4f"%(eval_end - eval_start)}s in total; '
-                          f'inference took {"%.4f"%(eval_inference_end - eval_inference_start)}s; '
-                          f'MLflow logging took {"%.4f"%(eval_mlflow_end - eval_mlflow_start)}s '
-                          f'(processed {sample_idx} sample(s))')
+                    mlflow_logger.log_visualizations(self)
             self.iteration_idx += 1
+
+        def create_visualizations(self, temp_dir):
+            def segmentation_to_image(x):
+                x = (x * 255).astype(int)
+                if len(x.shape) < 3:
+                    x = np.expand_dims(x, axis=-1)
+                return x
+
+            n = self.trainer.num_samples_to_visualize
+            if is_perfect_square(n):
+                nb_cols = math.sqrt(n)
+            else:
+                nb_cols = math.sqrt(next_perfect_square(n))
+            nb_cols = int(nb_cols)  # Need it to be an integer
+            images = []
+
+            # TODO batch_xs does not actually contain a batch, only a single image
+            # It is just iterating over the selected images, which is not optimal performance-wise
+            for batch_xs, batch_ys in self.testing_dl.take(self.trainer.num_samples_to_visualize):
+                output = self.model.predict(batch_xs)
+                preds = tf.argmax(output, axis=-1)
+                if batch_ys is None:
+                    batch_ys = tf.zeros_like(preds)
+                batch_ys = tf.squeeze(batch_ys, axis=-1)
+                preds = tf.cast(preds, dtype=tf.uint8)
+                merged = (2 * preds + batch_ys).numpy()
+                green_channel = merged == 3  # true positives
+                red_channel = merged == 2  # false positive
+                blue_channel = merged == 1  # false negative
+                rgb = np.concatenate((red_channel, green_channel, blue_channel), axis=0)
+                images.append(rgb)
+
+            nb_rows = math.ceil(float(n) / float(nb_cols))  # Number of rows in final image
+            # Append enough black images to complete the last non-empty row
+            while len(images) < nb_cols * nb_rows:
+                images.append(tf.zeros_like(images[0]))
+            arr = []  # Store images concatenated in the last dimension here
+            for i in range(nb_rows):
+                row = np.concatenate(images[(i * nb_cols):(i + 1) * nb_cols], axis=-1)
+                arr.append(row)
+            # Concatenate in the second-to-last dimension to get the final big image
+            final = np.concatenate(arr, axis=-2)
+            K.preprocessing.image.save_img(os.path.join(temp_dir, f'rgb.png'),
+                                           segmentation_to_image(final), data_format="channels_first")
 
     def _compile_model(self):
         self.model.compile(loss=self.loss_function, optimizer=self.optimizer_or_lr)

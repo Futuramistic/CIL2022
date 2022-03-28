@@ -7,6 +7,7 @@ import re
 
 from data_handling.dataloader_torch import TorchDataLoader
 from data_handling.dataloader_tf import TFDataLoader
+from models.road_extraction_from_high_res_rsi_using_dl.gl_dense_u_net import GLDenseUNet
 from trainers.u_net import UNetTrainer
 from trainers.gl_dense_u_net import GLDenseUNetTrainer
 
@@ -41,6 +42,12 @@ try:
     # dataloader = TorchDataLoader(dataset='original')
     # trainer = UNetTrainer(dataloader, model, experiment_name='Vanilla UNet', evaluation_interval=1,
     #                       num_samples_to_visualize=3)
+    # trainer.train()
+
+    # model = GLDenseUNet(input_shape=[256, 256, 3])
+    # dataloader = TFDataLoader(dataset='original_256')
+    # trainer = GLDenseUNetTrainer(dataloader, model, experiment_name='Vanilla GLDenseUNet',
+    #                              evaluation_interval=1, num_samples_to_visualize=3)
     # trainer.train()
 
 except KeyError:

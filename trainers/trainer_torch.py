@@ -63,6 +63,7 @@ class TorchTrainer(Trainer, abc.ABC):
             else:
                 nb_cols = math.sqrt(next_perfect_square(n))
             nb_cols = int(nb_cols)  # Need it to be an integer
+
             for i, (batch_xs, batch_ys) in enumerate(self.testing_dl):
                 if i not in indices:  # TODO works but dirty, find a better solution..
                     continue
@@ -78,7 +79,7 @@ class TorchTrainer(Trainer, abc.ABC):
                 rgb = torch.cat((red_channel, green_channel, blue_channel), dim=1).float()
                 for batch_sample_idx in range(batch_xs.shape[0]):
                     images.append(rgb[batch_sample_idx])
-            # If the number of images to visualize is smaller than next perfect square, add black images
+
             nb_rows = math.ceil(float(n) / float(nb_cols))  # Number of rows in final image
             # Append enough black images to complete the last non-empty row
             while len(images) < nb_cols * nb_rows:
