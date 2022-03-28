@@ -123,7 +123,9 @@ class TFTrainer(Trainer, abc.ABC):
             self._init_mlflow()
             self._compile_model()
             with mlflow.start_run(experiment_id=self.mlflow_experiment_id, run_name=self.mlflow_experiment_name) as run:
-                return self._fit_model(mlflow_run=run)
+                mlflow_logger.snapshot_codebase()  # snapshot before training as the files may change in-between
+                self._fit_model(mlflow_run=run)
+                mlflow_logger.log_codebase()
         else:
             self._compile_model()
             return self._fit_model(mlflow_run=None)
