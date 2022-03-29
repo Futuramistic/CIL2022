@@ -6,6 +6,7 @@ import time
 
 from data_handling.dataloader import DataLoader
 from utils import *
+import mlflow_logger
 
 
 class Trainer(abc.ABC):
@@ -98,8 +99,23 @@ class Trainer(abc.ABC):
         raise NotImplementedError('Must be defined for trainer.')
 
     @abc.abstractmethod
-    def train(self):
+    def _fit_model(self, mlflow_run):
         """
-        Trains the model.
+        Fit the model.
         """
         raise NotImplementedError('Must be defined for trainer.')
+
+    def train(self):
+        """
+        Trains the model
+        """
+        if self.mlflow_experiment_name is not None:
+            self._init_mlflow()
+            with mlflow.start_run(experiment_id=self.mlflow_experiment_id, run_name=self.mlflow_experiment_name) as run:
+                mlflow_logger.log_hyperparams(self._get_hyperparams())
+                mlflow_logger.snapshot_codebase()  # snapshot before training as the files may change in-between
+                last_test_loss = self._fit_model(mlflow_run=run)
+                mlflow_logger.log_codebase()
+        else:
+            last_test_loss = self._fit_model(mlflow_run=None)
+        return last_test_loss

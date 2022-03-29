@@ -60,6 +60,3 @@ class GLDenseUNetTrainer(TFTrainer):
         lr_schedule = K.optimizers.schedules.ExponentialDecay(initial_learning_rate=lr, decay_rate=0.1,
                                                               decay_steps=30000, staircase=True)
         return K.optimizers.Adam(lr_schedule)
-
-    def train(self):
-        self._train()

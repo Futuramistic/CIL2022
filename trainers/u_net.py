@@ -21,10 +21,10 @@ class UNetTrainer(TorchTrainer):
             split = DEFAULT_TRAIN_FRACTION
 
         if batch_size is None:
-            batch_size = 1
+            batch_size = 4  # 1
 
         if num_epochs is None:
-            num_epochs = 5
+            num_epochs = 1  # 5
 
         if optimizer is None:
             optimizer = optim.RMSprop(model.parameters(), lr=1e-5, weight_decay=1e-8, momentum=0.9)
@@ -49,6 +49,3 @@ class UNetTrainer(TorchTrainer):
     @staticmethod
     def get_default_optimizer_with_lr(lr):
         pass
-
-    def train(self):
-        self._train()

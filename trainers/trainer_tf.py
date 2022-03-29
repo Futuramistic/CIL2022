@@ -112,20 +112,9 @@ class TFTrainer(Trainer, abc.ABC):
         self.model.compile(loss=self.loss_function, optimizer=self.optimizer_or_lr)
 
     def _fit_model(self, mlflow_run):
+        self._compile_model()
         dataset = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                           preprocessing=self.preprocessing)
         last_test_loss = self.model.fit(dataset, epochs=self.num_epochs, steps_per_epoch=self.steps_per_training_epoch,
                        callbacks=[TFTrainer.Callback(self, mlflow_run)])
         return last_test_loss
-
-    def _train(self):
-        if self.mlflow_experiment_name is not None:
-            self._init_mlflow()
-            self._compile_model()
-            with mlflow.start_run(experiment_id=self.mlflow_experiment_id, run_name=self.mlflow_experiment_name) as run:
-                mlflow_logger.snapshot_codebase()  # snapshot before training as the files may change in-between
-                self._fit_model(mlflow_run=run)
-                mlflow_logger.log_codebase()
-        else:
-            self._compile_model()
-            return self._fit_model(mlflow_run=None)
