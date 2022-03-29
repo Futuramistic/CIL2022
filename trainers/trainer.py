@@ -109,6 +109,8 @@ class Trainer(abc.ABC):
         """
         Trains the model
         """
+        if self.do_checkpoint and not os.path.exists(CHECKPOINTS_DIR):
+            os.makedirs(CHECKPOINTS_DIR)
         if self.mlflow_experiment_name is not None:
             self._init_mlflow()
             with mlflow.start_run(experiment_id=self.mlflow_experiment_id, run_name=self.mlflow_experiment_name) as run:
@@ -116,6 +118,8 @@ class Trainer(abc.ABC):
                 mlflow_logger.snapshot_codebase()  # snapshot before training as the files may change in-between
                 last_test_loss = self._fit_model(mlflow_run=run)
                 mlflow_logger.log_codebase()
+                if self.do_checkpoint:
+                    mlflow_logger.log_checkpoints()
         else:
             last_test_loss = self._fit_model(mlflow_run=None)
         return last_test_loss

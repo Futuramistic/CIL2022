@@ -19,7 +19,7 @@ def log_visualizations(callback):
     callback.create_visualizations(temp_dir)
     eval_inference_end = time.time()
 
-    # MLflow does not have the functionality to log artifacts per training step,
+    # MLFlow does not have the functionality to log artifacts per training step,
     # so we have to incorporate the training step (iteration_idx) into the artifact path
     eval_mlflow_start = time.time()
     mlflow.log_artifacts(temp_dir, 'training/iteration_%07i' % callback.iteration_idx)
@@ -51,29 +51,37 @@ def log_codebase():
     """
     Log the codebase to MLFlow
     """
+    print('\nLogging codebase to MLFlow...')
     mlflow.log_artifact(CODEBASE_SNAPSHOT_ZIP_NAME, f'codebase/')
+    print('Logging codebase successful')
     os.remove(CODEBASE_SNAPSHOT_ZIP_NAME)
 
 
-def log_checkpoint(model, epoch, optimizer_or_lr, save_fct):
+def log_checkpoints():
     """
     Log a checkpoint to MLFlow
     """
-    path = 'checkpoints'
-    if not os.path.exists(path):
-        os.makedirs(path)
-    checkpoint_name = f'{path}/checkpoint_{epoch}.pt'
-    save_fct({
-        'epoch': epoch,
-        'model': model.state_dict(),
-        'optimizer': optimizer_or_lr.state_dict()
-    }, checkpoint_name)
-    mlflow.log_artifact(checkpoint_name, f'{path}/')
+    print('\nLogging checkpoints to MLFlow...')
+    mlflow.log_artifact(CHECKPOINTS_DIR, '')
+    print('Logging checkpoints successful')
+    shutil.rmtree(CHECKPOINTS_DIR)  # Remove the directory and its contents
+    os.makedirs(CHECKPOINTS_DIR)  # Recreate an empty directory
 
 
-def log_metrics(loss):
-    mlflow.log_metrics({'loss': loss})
+def log_metrics(metrics: Dict[str, Any]):
+    """
+    Log metrics to MLFlow
+    Args:
+        metrics (Dict[str, Any]): dictionary of metrics to log
+    """
+    mlflow.log_metrics(metrics)
 
 
 def log_hyperparams(hyperparams: Dict[str, Any]):
+    """
+    Log hyperparameters to tensorflow
+
+    Args:
+        hyperparams (Dict[str, Any]): dictionary of hyperparameters to log
+    """
     mlflow.log_params(hyperparams)

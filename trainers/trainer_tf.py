@@ -7,6 +7,8 @@ import tempfile
 import tensorflow as tf
 import tensorflow.keras as K
 import time
+import tensorflow.keras.callbacks
+from tensorflow.keras.callbacks import ModelCheckpoint
 
 import mlflow_logger
 from .trainer import Trainer
@@ -52,7 +54,7 @@ class TFTrainer(Trainer, abc.ABC):
             pass
 
         def on_epoch_end(self, epoch, logs=None):
-            pass
+            mlflow_logger.log_metrics(logs)
 
         def on_train_batch_begin(self, batch, logs=None):
             pass
@@ -115,6 +117,12 @@ class TFTrainer(Trainer, abc.ABC):
         self._compile_model()
         dataset = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                           preprocessing=self.preprocessing)
+        callbacks = [TFTrainer.Callback(self, mlflow_run)]
+        if self.do_checkpoint:
+            checkpoint_path = "{dir}".format(dir=CHECKPOINTS_DIR) + "cp-{epoch:04d}.ckpt"
+            checkpoint_callback = ModelCheckpoint(filepath=checkpoint_path, verbose=1,
+                                                  save_freq=self.checkpoint_interval * self.steps_per_training_epoch)
+            callbacks.append(checkpoint_callback)
         last_test_loss = self.model.fit(dataset, epochs=self.num_epochs, steps_per_epoch=self.steps_per_training_epoch,
-                       callbacks=[TFTrainer.Callback(self, mlflow_run)])
+                                        callbacks=callbacks)
         return last_test_loss

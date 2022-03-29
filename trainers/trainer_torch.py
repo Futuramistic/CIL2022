@@ -91,6 +91,14 @@ class TorchTrainer(Trainer, abc.ABC):
             final = torch.cat(arr, dim=-2)
             save_image(final, os.path.join(temp_dir, f'rgb.png'))
 
+    def _save_checkpoint(self, model, epoch):
+        checkpoint_name = f'{CHECKPOINTS_DIR}/cp_{epoch}.pt'
+        torch.save({
+            'epoch': epoch,
+            'model': model.state_dict(),
+            'optimizer': self.optimizer_or_lr.state_dict()
+        }, checkpoint_name)
+
     def _fit_model(self, mlflow_run):
         train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                                preprocessing=self.preprocessing)
@@ -102,9 +110,9 @@ class TorchTrainer(Trainer, abc.ABC):
         for epoch in range(self.num_epochs):
             self._train_step(model, device, train_loader, callback_handler=callback_handler)
             last_loss = self._eval_step(model, device, test_loader)
-            mlflow_logger.log_metrics(last_loss)
+            mlflow_logger.log_metrics({'loss': last_loss})
             if self.do_checkpoint and not epoch % self.checkpoint_interval:
-                mlflow_logger.log_checkpoint(model, epoch, self.optimizer_or_lr, torch.save)
+                self._save_checkpoint(model, epoch)
         return last_loss
 
     def _train_step(self, model, device, train_loader, callback_handler):
