@@ -4,6 +4,7 @@ import mlflow
 import tempfile
 import shutil
 import time
+from typing import Dict, Any
 
 
 def log_visualizations(callback):
@@ -52,3 +53,27 @@ def log_codebase():
     """
     mlflow.log_artifact(CODEBASE_SNAPSHOT_ZIP_NAME, f'codebase/')
     os.remove(CODEBASE_SNAPSHOT_ZIP_NAME)
+
+
+def log_checkpoint(model, epoch, optimizer_or_lr, save_fct):
+    """
+    Log a checkpoint to MLFlow
+    """
+    path = 'checkpoints'
+    if not os.path.exists(path):
+        os.makedirs(path)
+    checkpoint_name = f'{path}/checkpoint_{epoch}.pt'
+    save_fct({
+        'epoch': epoch,
+        'model': model.state_dict(),
+        'optimizer': optimizer_or_lr.state_dict()
+    }, checkpoint_name)
+    mlflow.log_artifact(checkpoint_name, f'{path}/')
+
+
+def log_metrics(loss):
+    mlflow.log_metrics({'loss': loss})
+
+
+def log_hyperparams(hyperparams: Dict[str, Any]):
+    mlflow.log_params(hyperparams)

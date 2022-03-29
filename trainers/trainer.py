@@ -46,9 +46,7 @@ class Trainer(abc.ABC):
         self.evaluation_interval = evaluation_interval
         self.num_samples_to_visualize = num_samples_to_visualize if num_samples_to_visualize is not None else 6
         self.checkpoint_interval = checkpoint_interval
-
-        if checkpoint_interval is not None and checkpoint_interval > 0:
-            raise NotImplementedError()
+        self.do_checkpoint = self.checkpoint_interval is not None and self.checkpoint_interval > 0
 
     def _init_mlflow(self):
         self.mlflow_experiment_id = None
@@ -73,6 +71,19 @@ class Trainer(abc.ABC):
                 self.mlflow_experiment_id = mlflow.create_experiment(self.mlflow_experiment_name)
             else:
                 self.mlflow_experiment_id = experiment.experiment_id
+
+    def _get_hyperparams(self):
+        """
+        Returns a dict of what is considered a hyperparameter
+        Please add any hyperparameter that you want to be logged to MLFlow
+        """
+        return {
+            'split': self.split,
+            'epochs': self.num_epochs,
+            'batch size': self.batch_size,
+            'optimizer': self.optimizer_or_lr,
+            'loss function': self.loss_function,
+        }
 
     @staticmethod
     @abc.abstractmethod

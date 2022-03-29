@@ -39,10 +39,10 @@ try:
     # TODO: train model, evaluate performance, ...
     
     # Testing the UNetTrainer
-    # dataloader = TorchDataLoader(dataset='original')
-    # trainer = UNetTrainer(dataloader, model, experiment_name='Vanilla UNet', evaluation_interval=1,
-    #                       num_samples_to_visualize=3)
-    # trainer.train()
+    dataloader = TorchDataLoader(dataset='original')
+    trainer = UNetTrainer(dataloader, model, experiment_name='Vanilla UNet',
+                          evaluation_interval=5, num_samples_to_visualize=3, checkpoint_interval=1)
+    trainer.train()
 
     # model = GLDenseUNet(input_shape=[256, 256, 3])
     # dataloader = TFDataLoader(dataset='original_256')
