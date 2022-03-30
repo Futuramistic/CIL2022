@@ -126,6 +126,18 @@ class Trainer(abc.ABC):
         return last_test_loss
 
     @staticmethod
+    def _fill_images_array(preds, batch_ys, images):
+        if batch_ys is None:
+            batch_ys = np.zeros_like(preds)
+        merged = (2 * preds + batch_ys)
+        green_channel = merged == 3  # true positives
+        red_channel = merged == 2  # false positive
+        blue_channel = merged == 1  # false negative
+        rgb = np.concatenate((red_channel, green_channel, blue_channel), axis=1)
+        for batch_sample_idx in range(preds.shape[0]):
+            images.append(rgb[batch_sample_idx])
+
+    @staticmethod
     def _save_image_array(images, directory):
 
         def segmentation_to_image(x):

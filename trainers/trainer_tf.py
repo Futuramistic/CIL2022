@@ -68,15 +68,7 @@ class TFTrainer(Trainer, abc.ABC):
             preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
             batch_ys = np.moveaxis(batch_ys, -1, 1)  # TODO only do this if we know the network uses HWC format
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
-            if batch_ys is None:
-                batch_ys = np.zeros_like(preds)
-            merged = (2 * preds + batch_ys)
-            green_channel = merged == 3  # true positives
-            red_channel = merged == 2  # false positive
-            blue_channel = merged == 1  # false negative
-            rgb = np.concatenate((red_channel, green_channel, blue_channel), axis=1)
-            for batch_sample_idx in range(batch_xs.shape[0]):
-                images.append(rgb[batch_sample_idx])
+            self._fill_images_array(preds, batch_ys, images)
             break  # Only operate on one batch of 'self.trainer.num_samples_to_visualize' samples
 
         self._save_image_array(images, directory)
