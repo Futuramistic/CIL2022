@@ -126,7 +126,7 @@ class Trainer(abc.ABC):
         return last_test_loss
 
     @staticmethod
-    def save_image_array(images, temp_dir):
+    def _save_image_array(images, directory):
 
         def segmentation_to_image(x):
             x = (x * 255).astype(int)
@@ -151,5 +151,5 @@ class Trainer(abc.ABC):
             arr.append(row)
         # Concatenate in the second-to-last dimension to get the final big image
         final = np.concatenate(arr, axis=-2)
-        K.preprocessing.image.save_img(os.path.join(temp_dir, f'rgb.png'),
+        K.preprocessing.image.save_img(os.path.join(directory, f'rgb.png'),
                                        segmentation_to_image(final), data_format="channels_first")

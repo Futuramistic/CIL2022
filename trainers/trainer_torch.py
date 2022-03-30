@@ -43,7 +43,7 @@ class TorchTrainer(Trainer, abc.ABC):
                     mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
             self.iteration_idx += 1
 
-    def create_visualizations(self):
+    def create_visualizations(self, directory):
         # Sample image indices to visualize
         length = len(self.test_loader)
         indices = random.sample(range(length), self.num_samples_to_visualize)
@@ -65,7 +65,8 @@ class TorchTrainer(Trainer, abc.ABC):
             rgb = np.concatenate((red_channel, green_channel, blue_channel), axis=1)
             for batch_sample_idx in range(batch_xs.shape[0]):
                 images.append(rgb[batch_sample_idx])
-        return images
+
+        self._save_image_array(images, directory)
 
     def _save_checkpoint(self, model, epoch):
         checkpoint_name = f'{CHECKPOINTS_DIR}/cp_{epoch}.pt'
@@ -103,7 +104,7 @@ class TorchTrainer(Trainer, abc.ABC):
             opt.zero_grad()
             loss.backward()
             opt.step()
-            callback_handler.on_train_batch_end(device)
+            callback_handler.on_train_batch_end()
         self.scheduler.step()
 
     def _eval_step(self, model, device, test_loader):

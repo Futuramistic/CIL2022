@@ -16,8 +16,7 @@ def log_visualizations(trainer, iteration_index):
     temp_dir = tempfile.mkdtemp()
 
     eval_inference_start = time.time()
-    images = trainer.create_visualizations()
-    trainer.save_image_array(images, temp_dir)
+    trainer.create_visualizations(temp_dir)
     eval_inference_end = time.time()
 
     # MLFlow does not have the functionality to log artifacts per training step,

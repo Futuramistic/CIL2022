@@ -56,7 +56,7 @@ class TFTrainer(Trainer, abc.ABC):
                     mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
             self.iteration_idx += 1
 
-    def create_visualizations(self):
+    def create_visualizations(self, directory):
         images = []
         num_samples = self.num_samples_to_visualize
 
@@ -78,7 +78,8 @@ class TFTrainer(Trainer, abc.ABC):
             for batch_sample_idx in range(batch_xs.shape[0]):
                 images.append(rgb[batch_sample_idx])
             break  # Only operate on one batch of 'self.trainer.num_samples_to_visualize' samples
-        return images
+
+        self._save_image_array(images, directory)
 
     def _compile_model(self):
         self.model.compile(loss=self.loss_function, optimizer=self.optimizer_or_lr)
