@@ -29,50 +29,43 @@ class TorchTrainer(Trainer, abc.ABC):
     class Callback:
         def __init__(self, trainer, mlflow_run, model):
             super().__init__()
-            self.device = None
             self.model = model
             self.trainer = trainer
             self.mlflow_run = mlflow_run
             self.do_evaluate = self.trainer.evaluation_interval is not None and self.trainer.evaluation_interval > 0
             self.iteration_idx = 0
-            self.testing_dl = self.trainer.dataloader.get_testing_dataloader(batch_size=1,
-                                                                             preprocessing=self.trainer.preprocessing)
             self.do_visualize = self.trainer.num_samples_to_visualize is not None and \
                                 self.trainer.num_samples_to_visualize > 0
 
-        def on_train_batch_end(self, device):
+        def on_train_batch_end(self):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                # remember: dataloader may be infinite
-                self.device = device
                 if self.do_visualize:
-                    mlflow_logger.log_visualizations(self)
-
+                    mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
             self.iteration_idx += 1
 
-        def create_visualizations(self, temp_dir):
-            # Sample image indices to visualize
-            length = len(self.testing_dl)
-            indices = random.sample(range(length), self.trainer.num_samples_to_visualize)
-            images = []
+    def create_visualizations(self):
+        # Sample image indices to visualize
+        length = len(self.test_loader)
+        indices = random.sample(range(length), self.num_samples_to_visualize)
+        images = []
 
-            for i, (batch_xs, batch_ys) in enumerate(self.testing_dl):
-                if i not in indices:  # TODO works but dirty, find a better solution..
-                    continue
-                batch_xs, batch_ys = batch_xs.to(self.device), batch_ys.numpy()
-                output = self.model(batch_xs)
-                preds = torch.argmax(output, dim=1).cpu().numpy()
-                # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
-                if batch_ys is None:
-                    batch_ys = np.zeros_like(preds)
-                merged = (2 * preds + batch_ys)
-                green_channel = merged == 3  # true positives
-                red_channel = merged == 2  # false positive
-                blue_channel = merged == 1  # false negative
-                rgb = np.concatenate((red_channel, green_channel, blue_channel), axis=1)
-                for batch_sample_idx in range(batch_xs.shape[0]):
-                    images.append(rgb[batch_sample_idx])
-
-            self.trainer.save_image_array(images, temp_dir)
+        for i, (batch_xs, batch_ys) in enumerate(self.test_loader):
+            if i not in indices:  # TODO works but dirty, find a better solution..
+                continue
+            batch_xs, batch_ys = batch_xs.to(self.device), batch_ys.numpy()
+            output = self.model(batch_xs)
+            preds = torch.argmax(output, dim=1).cpu().numpy()
+            # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
+            if batch_ys is None:
+                batch_ys = np.zeros_like(preds)
+            merged = (2 * preds + batch_ys)
+            green_channel = merged == 3  # true positives
+            red_channel = merged == 2  # false positive
+            blue_channel = merged == 1  # false negative
+            rgb = np.concatenate((red_channel, green_channel, blue_channel), axis=1)
+            for batch_sample_idx in range(batch_xs.shape[0]):
+                images.append(rgb[batch_sample_idx])
+        return images
 
     def _save_checkpoint(self, model, epoch):
         checkpoint_name = f'{CHECKPOINTS_DIR}/cp_{epoch}.pt'
@@ -83,16 +76,17 @@ class TorchTrainer(Trainer, abc.ABC):
         }, checkpoint_name)
 
     def _fit_model(self, mlflow_run):
-        train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
-                                                               preprocessing=self.preprocessing)
-        test_loader = self.dataloader.get_testing_dataloader(batch_size=1, preprocessing=self.preprocessing)
-        device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-        print(f'Using device: {device}')
-        model = self.model.to(device)
+        self.train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
+                                                                    preprocessing=self.preprocessing)
+        self.test_loader = self.dataloader.get_testing_dataloader(batch_size=1,
+                                                                  preprocessing=self.preprocessing)
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        print(f'Using device: {self.device}')
+        model = self.model.to(self.device)
         callback_handler = TorchTrainer.Callback(self, mlflow_run, model)
         for epoch in range(self.num_epochs):
-            self._train_step(model, device, train_loader, callback_handler=callback_handler)
-            last_loss = self._eval_step(model, device, test_loader)
+            self._train_step(model, self.device, self.train_loader, callback_handler=callback_handler)
+            last_loss = self._eval_step(model, self.device, self.test_loader)
             mlflow_logger.log_metrics({'loss': last_loss})
             if self.do_checkpoint and not epoch % self.checkpoint_interval:
                 self._save_checkpoint(model, epoch)

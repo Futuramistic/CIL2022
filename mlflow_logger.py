@@ -7,7 +7,7 @@ import time
 from typing import Dict, Any
 
 
-def log_visualizations(callback):
+def log_visualizations(trainer, iteration_index):
     """
     Log the segmentations to MLFlow as images
     """
@@ -16,13 +16,14 @@ def log_visualizations(callback):
     temp_dir = tempfile.mkdtemp()
 
     eval_inference_start = time.time()
-    callback.create_visualizations(temp_dir)
+    images = trainer.create_visualizations()
+    trainer.save_image_array(images, temp_dir)
     eval_inference_end = time.time()
 
     # MLFlow does not have the functionality to log artifacts per training step,
     # so we have to incorporate the training step (iteration_idx) into the artifact path
     eval_mlflow_start = time.time()
-    mlflow.log_artifacts(temp_dir, 'training/iteration_%07i' % callback.iteration_idx)
+    mlflow.log_artifacts(temp_dir, 'training/iteration_%07i' % iteration_index)
     eval_mlflow_end = time.time()
 
     shutil.rmtree(temp_dir)
@@ -32,7 +33,7 @@ def log_visualizations(callback):
         print(f'\nEvaluation took {"%.4f" % (eval_end - eval_start)}s in total; '
               f'inference took {"%.4f" % (eval_inference_end - eval_inference_start)}s; '
               f'MLflow logging took {"%.4f" % (eval_mlflow_end - eval_mlflow_start)}s '
-              f'(processed {callback.trainer.num_samples_to_visualize} sample(s))')
+              f'(processed {trainer.num_samples_to_visualize} sample(s))')
 
 
 def snapshot_codebase():

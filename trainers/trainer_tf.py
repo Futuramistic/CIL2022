@@ -32,8 +32,6 @@ class TFTrainer(Trainer, abc.ABC):
             self.mlflow_run = mlflow_run
             self.do_evaluate = self.trainer.evaluation_interval is not None and self.trainer.evaluation_interval > 0
             self.iteration_idx = 0
-            self.testing_dl = self.trainer.dataloader.get_testing_dataloader(split=self.trainer.split, batch_size=1,
-                                                                             preprocessing=self.trainer.preprocessing)
             self.do_visualize = self.trainer.num_samples_to_visualize is not None and \
                                 self.trainer.num_samples_to_visualize > 0
 
@@ -54,49 +52,49 @@ class TFTrainer(Trainer, abc.ABC):
 
         def on_train_batch_end(self, batch, logs=None):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                # remember: dataloader may be infinite
                 if self.do_visualize:
-                    mlflow_logger.log_visualizations(self)
+                    mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
             self.iteration_idx += 1
 
-        def create_visualizations(self, temp_dir):
-            images = []
-            num_samples = self.trainer.num_samples_to_visualize
+    def create_visualizations(self):
+        images = []
+        num_samples = self.num_samples_to_visualize
 
-            for batch_xs, batch_ys in self.testing_dl.shuffle(10*num_samples).batch(num_samples):
-                batch_xs = tf.squeeze(batch_xs, axis=1)
-                batch_ys = tf.squeeze(batch_ys, axis=1).numpy()
-                output = self.model.predict(batch_xs)
-                preds = tf.argmax(output, axis=-1).numpy()  # taking the argmax removes the last dim
-                preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
-                batch_ys = np.moveaxis(batch_ys, -1, 1)  # TODO only do this if we know the network uses HWC format
-                # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
-                if batch_ys is None:
-                    batch_ys = np.zeros_like(preds)
-                merged = (2 * preds + batch_ys)
-                green_channel = merged == 3  # true positives
-                red_channel = merged == 2  # false positive
-                blue_channel = merged == 1  # false negative
-                rgb = np.concatenate((red_channel, green_channel, blue_channel), axis=1)
-                for batch_sample_idx in range(batch_xs.shape[0]):
-                    images.append(rgb[batch_sample_idx])
-                break  # Only operate on one batch of 'self.trainer.num_samples_to_visualize' samples
-
-            self.trainer.save_image_array(images, temp_dir)
+        for batch_xs, batch_ys in self.test_loader.shuffle(10 * num_samples).batch(num_samples):
+            batch_xs = tf.squeeze(batch_xs, axis=1)
+            batch_ys = tf.squeeze(batch_ys, axis=1).numpy()
+            output = self.model.predict(batch_xs)
+            preds = tf.argmax(output, axis=-1).numpy()  # taking the argmax removes the last dim
+            preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
+            batch_ys = np.moveaxis(batch_ys, -1, 1)  # TODO only do this if we know the network uses HWC format
+            # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
+            if batch_ys is None:
+                batch_ys = np.zeros_like(preds)
+            merged = (2 * preds + batch_ys)
+            green_channel = merged == 3  # true positives
+            red_channel = merged == 2  # false positive
+            blue_channel = merged == 1  # false negative
+            rgb = np.concatenate((red_channel, green_channel, blue_channel), axis=1)
+            for batch_sample_idx in range(batch_xs.shape[0]):
+                images.append(rgb[batch_sample_idx])
+            break  # Only operate on one batch of 'self.trainer.num_samples_to_visualize' samples
+        return images
 
     def _compile_model(self):
         self.model.compile(loss=self.loss_function, optimizer=self.optimizer_or_lr)
 
     def _fit_model(self, mlflow_run):
         self._compile_model()
-        dataset = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
-                                                          preprocessing=self.preprocessing)
+        self.train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
+                                                                    preprocessing=self.preprocessing)
+        self.test_loader = self.dataloader.get_testing_dataloader(split=self.split, batch_size=1,
+                                                                  preprocessing=self.preprocessing)
         callbacks = [TFTrainer.Callback(self, mlflow_run)]
         if self.do_checkpoint:
             checkpoint_path = "{dir}".format(dir=CHECKPOINTS_DIR) + "cp-{epoch:04d}.ckpt"
             checkpoint_callback = ModelCheckpoint(filepath=checkpoint_path, verbose=1,
                                                   save_freq=self.checkpoint_interval * self.steps_per_training_epoch)
             callbacks.append(checkpoint_callback)
-        last_test_loss = self.model.fit(dataset, epochs=self.num_epochs, steps_per_epoch=self.steps_per_training_epoch,
-                                        callbacks=callbacks)
+        last_test_loss = self.model.fit(self.train_loader, epochs=self.num_epochs,
+                                        steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks)
         return last_test_loss
