@@ -7,6 +7,7 @@ import time
 from data_handling.dataloader import DataLoader
 from utils import *
 import mlflow_logger
+import numpy as np
 
 
 class Trainer(abc.ABC):
@@ -123,3 +124,32 @@ class Trainer(abc.ABC):
         else:
             last_test_loss = self._fit_model(mlflow_run=None)
         return last_test_loss
+
+    @staticmethod
+    def save_image_array(images, temp_dir):
+
+        def segmentation_to_image(x):
+            x = (x * 255).astype(int)
+            if len(x.shape) < 3:  # if this is true, there are probably bigger problems somewhere else
+                x = np.expand_dims(x, axis=0)  # CHW format
+            return x
+
+        n = len(images)
+        if is_perfect_square(n):
+            nb_cols = math.sqrt(n)
+        else:
+            nb_cols = math.sqrt(next_perfect_square(n))
+        nb_cols = int(nb_cols)  # Need it to be an integer
+        nb_rows = math.ceil(float(n) / float(nb_cols))  # Number of rows in final image
+
+        # Append enough black images to complete the last non-empty row
+        while len(images) < nb_cols * nb_rows:
+            images.append(np.zeros_like(images[0]))
+        arr = []  # Store images concatenated in the last dimension here
+        for i in range(nb_rows):
+            row = np.concatenate(images[(i * nb_cols):(i + 1) * nb_cols], axis=-1)
+            arr.append(row)
+        # Concatenate in the second-to-last dimension to get the final big image
+        final = np.concatenate(arr, axis=-2)
+        K.preprocessing.image.save_img(os.path.join(temp_dir, f'rgb.png'),
+                                       segmentation_to_image(final), data_format="channels_first")

@@ -1,13 +1,12 @@
 import abc
-import mlflow
 
 import torch
 import torch.cuda
-from torchvision.utils import save_image
 
 from .trainer import Trainer
 from utils import *
 import mlflow_logger
+import numpy as np
 
 
 class TorchTrainer(Trainer, abc.ABC):
@@ -51,45 +50,29 @@ class TorchTrainer(Trainer, abc.ABC):
             self.iteration_idx += 1
 
         def create_visualizations(self, temp_dir):
-            n = self.trainer.num_samples_to_visualize
             # Sample image indices to visualize
             length = len(self.testing_dl)
-            indices = random.sample(range(length), n)
+            indices = random.sample(range(length), self.trainer.num_samples_to_visualize)
             images = []
-            # Compute nb_cols such that nb_cols * nb_cols is the next perfect square number
-            # This is used to merge the different images into a single image
-            if is_perfect_square(n):
-                nb_cols = math.sqrt(n)
-            else:
-                nb_cols = math.sqrt(next_perfect_square(n))
-            nb_cols = int(nb_cols)  # Need it to be an integer
 
             for i, (batch_xs, batch_ys) in enumerate(self.testing_dl):
                 if i not in indices:  # TODO works but dirty, find a better solution..
                     continue
-                batch_xs, batch_ys = batch_xs.to(self.device), batch_ys.to(self.device)
+                batch_xs, batch_ys = batch_xs.to(self.device), batch_ys.numpy()
                 output = self.model(batch_xs)
-                preds = torch.argmax(output, dim=1).float()
+                preds = torch.argmax(output, dim=1).cpu().numpy()
+                # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
                 if batch_ys is None:
-                    batch_ys = torch.zeros_like(preds)
-                merged = (2 * preds + batch_ys).int()
+                    batch_ys = np.zeros_like(preds)
+                merged = (2 * preds + batch_ys)
                 green_channel = merged == 3  # true positives
                 red_channel = merged == 2  # false positive
                 blue_channel = merged == 1  # false negative
-                rgb = torch.cat((red_channel, green_channel, blue_channel), dim=1).float()
+                rgb = np.concatenate((red_channel, green_channel, blue_channel), axis=1)
                 for batch_sample_idx in range(batch_xs.shape[0]):
                     images.append(rgb[batch_sample_idx])
 
-            nb_rows = math.ceil(float(n) / float(nb_cols))  # Number of rows in final image
-            # Append enough black images to complete the last non-empty row
-            while len(images) < nb_cols * nb_rows:
-                images.append(torch.zeros_like(images[0]))
-            arr = []  # Store images concatenated in the last dimension here
-            for i in range(nb_rows):
-                arr.append(torch.cat(images[(i * nb_cols):(i + 1) * nb_cols], dim=-1))
-            # Concatenate in the second-to-last dimension to get the final big image
-            final = torch.cat(arr, dim=-2)
-            save_image(final, os.path.join(temp_dir, f'rgb.png'))
+            self.trainer.save_image_array(images, temp_dir)
 
     def _save_checkpoint(self, model, epoch):
         checkpoint_name = f'{CHECKPOINTS_DIR}/cp_{epoch}.pt'

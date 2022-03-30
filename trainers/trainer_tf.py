@@ -1,13 +1,6 @@
 import abc
-import itertools
-import mlflow
 import numpy as np
-import shutil
-import tempfile
 import tensorflow as tf
-import tensorflow.keras as K
-import time
-import tensorflow.keras.callbacks
 from tensorflow.keras.callbacks import ModelCheckpoint
 
 import mlflow_logger
@@ -67,48 +60,29 @@ class TFTrainer(Trainer, abc.ABC):
             self.iteration_idx += 1
 
         def create_visualizations(self, temp_dir):
-            def segmentation_to_image(x):
-                x = (x * 255).astype(int)
-                if len(x.shape) < 3:
-                    x = np.expand_dims(x, axis=-1)
-                return x
-
-            n = self.trainer.num_samples_to_visualize
-            if is_perfect_square(n):
-                nb_cols = math.sqrt(n)
-            else:
-                nb_cols = math.sqrt(next_perfect_square(n))
-            nb_cols = int(nb_cols)  # Need it to be an integer
             images = []
+            num_samples = self.trainer.num_samples_to_visualize
 
-            # TODO batch_xs does not actually contain a batch, only a single image
-            # It is just iterating over the selected images, which is not optimal performance-wise
-            for batch_xs, batch_ys in self.testing_dl.take(self.trainer.num_samples_to_visualize):
+            for batch_xs, batch_ys in self.testing_dl.shuffle(10*num_samples).batch(num_samples):
+                batch_xs = tf.squeeze(batch_xs, axis=1)
+                batch_ys = tf.squeeze(batch_ys, axis=1).numpy()
                 output = self.model.predict(batch_xs)
-                preds = tf.argmax(output, axis=-1)
+                preds = tf.argmax(output, axis=-1).numpy()  # taking the argmax removes the last dim
+                preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
+                batch_ys = np.moveaxis(batch_ys, -1, 1)  # TODO only do this if we know the network uses HWC format
+                # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
                 if batch_ys is None:
-                    batch_ys = tf.zeros_like(preds)
-                batch_ys = tf.squeeze(batch_ys, axis=-1)
-                preds = tf.cast(preds, dtype=tf.uint8)
-                merged = (2 * preds + batch_ys).numpy()
+                    batch_ys = np.zeros_like(preds)
+                merged = (2 * preds + batch_ys)
                 green_channel = merged == 3  # true positives
                 red_channel = merged == 2  # false positive
                 blue_channel = merged == 1  # false negative
-                rgb = np.concatenate((red_channel, green_channel, blue_channel), axis=0)
-                images.append(rgb)
+                rgb = np.concatenate((red_channel, green_channel, blue_channel), axis=1)
+                for batch_sample_idx in range(batch_xs.shape[0]):
+                    images.append(rgb[batch_sample_idx])
+                break  # Only operate on one batch of 'self.trainer.num_samples_to_visualize' samples
 
-            nb_rows = math.ceil(float(n) / float(nb_cols))  # Number of rows in final image
-            # Append enough black images to complete the last non-empty row
-            while len(images) < nb_cols * nb_rows:
-                images.append(tf.zeros_like(images[0]))
-            arr = []  # Store images concatenated in the last dimension here
-            for i in range(nb_rows):
-                row = np.concatenate(images[(i * nb_cols):(i + 1) * nb_cols], axis=-1)
-                arr.append(row)
-            # Concatenate in the second-to-last dimension to get the final big image
-            final = np.concatenate(arr, axis=-2)
-            K.preprocessing.image.save_img(os.path.join(temp_dir, f'rgb.png'),
-                                           segmentation_to_image(final), data_format="channels_first")
+            self.trainer.save_image_array(images, temp_dir)
 
     def _compile_model(self):
         self.model.compile(loss=self.loss_function, optimizer=self.optimizer_or_lr)
