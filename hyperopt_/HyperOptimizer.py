@@ -36,6 +36,7 @@ class HyperParamOptimizer:
             with open(self.trials_path, 'rb') as file:
                 self.trials = pickle.load(file)
         else:
+            open(self.trials_path, 'w')
             self.trials = Trials()
     
     def run(self, n_runs):
@@ -69,45 +70,40 @@ class HyperParamOptimizer:
         """
         # for mlflow logger
         run_name = f"Hyperopt_{self.run_name}"+"{:%Y_%m_%d_%H_%M}".format(datetime.now())
+        print(type(self.trials))
+        with open(self.trials_path, 'wb') as handle:
+            pickle.dump(self.trials, handle)
         
         model = self.model_class(**hyperparams['model']['kwargs'])
-        print(self.trainer_class)
         trainer = self.trainer_class(**hyperparams['training']['trainer_params'], dataloader = self.dataloader, model=model, experiment_name=self.exp_name, run_name=run_name)
-        test_loss = trainer._train()
+        test_loss = trainer.train()
         
         # save (overwrite) updated trials after each trainig
-        with open(self.trials_path, 'r+') as handle:
-            handle.truncate(0)
-            pickle.dump(
-                self.trials, handle)
+        with open(self.trials_path, 'wb') as handle:
+            pickle.dump(self.trials, handle)
         return {
             'loss': test_loss if self.minimize_loss else -test_loss,
             'status': STATUS_OK,
             'trained_model': model,
             'params': hyperparams
         }
-    
-    def get_best_model(self, trials_path = None):
+        
+    @staticmethod
+    def get_best_model(trials_path):
         """
         Returns the optimal model trained in previous trials under the trials_path (use ROOT_DIR)
         """
-        if trials_path is None:
-            with open(self.trials_path, 'rb') as file:
-                    trials = pickle.load(file)
-        else:
-            with open(trials_path, 'rb') as file:
-                    trials = pickle.load(file)
-        model = self.__get_best_model(trials)
-        return model
+        with open(trials_path, 'rb') as file:
+            trials = pickle.load(file)
+        best_trial = HyperParamOptimizer.get_best_trial(trials)
+        print(best_trial)
+        return best_trial['result']['trained_model']
     
-    def __get_best_trial(self, trials):
+    @staticmethod
+    def get_best_trial(trials):
         # code adapted from https://stackoverflow.com/questions/54273199/how-to-save-the-best-hyperopt-optimized-keras-models-and-its-weights
         valid_trial_list = [trial for trial in trials if STATUS_OK == trial['result']['status']]
-        losses = [ float(trial['result']['loss']) for trial in valid_trial_list]
+        losses = [float(trial['result']['loss']) for trial in valid_trial_list]
         index_having_minumum_loss = np.argmin(losses)
         best_trial_obj = valid_trial_list[index_having_minumum_loss]
         return best_trial_obj
-    
-    def __get_best_model(self, trials):
-        best_trial = self.__get_best_trial(trials)
-        return best_trial['result']['trained_model']
