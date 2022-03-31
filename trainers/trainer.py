@@ -1,8 +1,10 @@
 import abc
 import mlflow
 import pexpect
+import wexpect
 import requests
 import time
+import os
 
 from data_handling.dataloader import DataLoader
 from utils import *
@@ -49,12 +51,17 @@ class Trainer(abc.ABC):
         self.num_samples_to_visualize = num_samples_to_visualize if num_samples_to_visualize is not None else 6
         self.checkpoint_interval = checkpoint_interval
         self.do_checkpoint = self.checkpoint_interval is not None and self.checkpoint_interval > 0
+        self.is_windows = os.name == 'nt'
 
     def _init_mlflow(self):
         self.mlflow_experiment_id = None
         if self.mlflow_experiment_name is not None:
             def add_known_hosts(host, user, password):
-                child = pexpect.spawn('ssh %s@%s' % (user, host))
+                if self.is_windows:
+                    # pexpect.spawn not supported on windows
+                    child = wexpect.spawn('ssh %s@%s' % (user, host))
+                else:
+                    child = pexpect.spawn('ssh %s@%s' % (user, host))
                 i = child.expect(['.* password:', '.* (yes/no)?'])
                 if i == 1:
                     child.sendline('yes')
