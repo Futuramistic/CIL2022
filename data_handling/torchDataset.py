@@ -1,7 +1,9 @@
 # code taken and adapted from
 # https://pyimagesearch.com/2021/11/08/u-net-training-image-segmentation-models-in-pytorch/ and pytorch Data Tutorial
 
+from PIL import Image
 from torch.utils.data import Dataset
+from torchvision import transforms
 from torchvision.io import read_image
 
 
@@ -19,7 +21,8 @@ class SegmentationDataset(Dataset):
         # grab the image path from the current index
         img_path = self.img_paths[idx]
         # load the image from disk
-        image = read_image(img_path)
+        image_pil = Image.open(img_path)
+        image = transforms.ToTensor()(image_pil)
         
         # in case there is no groundTruth, only return the image
         if self.gt_paths is None:
@@ -29,7 +32,8 @@ class SegmentationDataset(Dataset):
             return image
         
         # there is groundtruth
-        gt = read_image(self.gt_paths[idx])
+        gt_pil = Image.open(self.gt_paths[idx])
+        gt = transforms.ToTensor()(gt_pil)
         # check to see if we are applying any transformations
         if self.preprocessing is not None:
             # apply the transformations to both image and its mask

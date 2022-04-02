@@ -1,8 +1,10 @@
 import abc
 import mlflow
 import pexpect
-import wexpect
+import paramiko
+import pysftp
 import requests
+import socket
 import time
 import os
 
@@ -56,13 +58,16 @@ class Trainer(abc.ABC):
     def _init_mlflow(self):
         self.mlflow_experiment_id = None
         if self.mlflow_experiment_name is not None:
-            def add_known_hosts(host, user, password):
+            def add_known_hosts(host, user, password, jump_host=None):
+                spawn_str =\
+                    'ssh %s@%s' % (user, host) if jump_host is None else 'ssh -J %s %s@%s' % (jump_host, user, host)
                 if self.is_windows:
                     # pexpect.spawn not supported on windows
-                    child = wexpect.spawn('ssh %s@%s' % (user, host))
+                    import wexpect
+                    child = wexpect.spawn(spawn_str)
                 else:
-                    child = pexpect.spawn('ssh %s@%s' % (user, host))
-                i = child.expect(['.* password:', '.* (yes/no)?'])
+                    child = pexpect.spawn(spawn_str)
+                i = child.expect(['.*ssword.*', '.*(yes/no).*'])
                 if i == 1:
                     child.sendline('yes')
                     child.expect('.* password:')
@@ -71,8 +76,41 @@ class Trainer(abc.ABC):
                 time.sleep(1)
                 child.sendline('exit')
 
+                if jump_host is not None:
+                    # monkey-patch pysftp to use the provided jump host
+
+                    def new_start_transport(self, host, port):
+                        try:
+                            jumpbox = paramiko.SSHClient()
+                            jumpbox.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                            jumpbox.connect(jump_host)
+
+                            jumpbox_transport = jumpbox.get_transport()
+                            dest_addr = (host, port)
+                            jumpbox_channel = jumpbox_transport.open_channel('direct-tcpip', dest_addr, ('', 0))
+
+                            target = paramiko.SSHClient()
+                            target.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                            target.connect(host, port, user, password, sock=jumpbox_channel)
+
+                            self._transport = target.get_transport()
+                            self._transport.connect = lambda *args, **kwargs: None  # ignore subsequent connect calls
+
+                            # set security ciphers if set
+                            if self._cnopts.ciphers is not None:
+                                ciphers = self._cnopts.ciphers
+                                self._transport.get_security_options().ciphers = ciphers
+                        except (AttributeError, socket.gaierror):
+                            # couldn't connect
+                            raise pysftp.ConnectionException(host, port)
+
+                    pysftp.Connection._start_transport = new_start_transport
+
             mlflow_pass = requests.get(MLFLOW_PASS_URL).text
-            add_known_hosts(MLFLOW_HOST, MLFLOW_USER, mlflow_pass)
+            try:
+                add_known_hosts(MLFLOW_HOST, MLFLOW_USER, mlflow_pass)
+            except:
+                add_known_hosts(MLFLOW_HOST, MLFLOW_USER, mlflow_pass, MLFLOW_JUMP_HOST)
 
             mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
             experiment = mlflow.get_experiment_by_name(self.mlflow_experiment_name)
