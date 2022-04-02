@@ -38,8 +38,8 @@ class UNetTrainer(TorchTrainer):
         if evaluation_interval is None:
             evaluation_interval = 10
 
-        # convert training samples to float32 \in [0, 1] & remove A channel;
-        # convert test samples to int \in {0, 1} & remove A channel
+        # convert samples to float32 \in [0, 1] & remove A channel;
+        # convert ground truth to int \in {0, 1} & remove A channel
         preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
 
         super().__init__(dataloader, model, preprocessing, experiment_name, run_name, split,
