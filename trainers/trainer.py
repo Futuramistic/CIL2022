@@ -70,20 +70,24 @@ class Trainer(abc.ABC):
                 i = child.expect(['.*ssword.*', '.*(yes/no).*'])
                 if i == 1:
                     child.sendline('yes')
-                    child.expect('.* password:')
+                    child.expect('.*ssword.*')
                 child.sendline(password)
                 child.expect('.*')
                 time.sleep(1)
                 child.sendline('exit')
 
                 if jump_host is not None:
+                    if self.is_windows:
+                        raise RuntimeError('Use of jump hosts for Trainer not supported on Windows machines')
+
                     # monkey-patch pysftp to use the provided jump host
 
                     def new_start_transport(self, host, port):
                         try:
                             jumpbox = paramiko.SSHClient()
                             jumpbox.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                            jumpbox.connect(jump_host)
+                            jumpbox.connect(jump_host,
+                                            key_filename=os.path.join(*[os.getenv('HOME'), '.ssh', 'id_' + jump_host]))
 
                             jumpbox_transport = jumpbox.get_transport()
                             dest_addr = (host, port)
@@ -94,7 +98,7 @@ class Trainer(abc.ABC):
                             target.connect(host, port, user, password, sock=jumpbox_channel)
 
                             self._transport = target.get_transport()
-                            self._transport.connect = lambda *args, **kwargs: None  # ignore subsequent connect calls
+                            self._transport.connect = lambda *args, **kwargs: None  # ignore subsequent "connect" calls
 
                             # set security ciphers if set
                             if self._cnopts.ciphers is not None:
