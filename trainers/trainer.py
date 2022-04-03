@@ -24,7 +24,8 @@ class Trainer(abc.ABC):
             dataloader: the DataLoader to use when training the model
             model: the model to train
             experiment_name: name of the experiment to log this training run under in MLflow
-            run_name: name of the run to log this training run under in MLflow
+            run_name: name of the run to log this training run under in MLflow (None to use default name assigned by
+                      MLflow)
             split: fraction of dataset provided by the DataLoader which to use for training rather than test
                    (None to use default)
             num_epochs: number of epochs, i.e. passes through the dataset, to train model for (None to use default)
@@ -138,11 +139,12 @@ class Trainer(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def get_default_optimizer_with_lr(lr):
+    def get_default_optimizer_with_lr(lr, model):
         """
-        Constructs and returns the default optimizer for this method, with the given learning rate.
+        Constructs and returns the default optimizer for this method, with the given learning rate and model.
         Args:
             lr: the learning rate to use
+            model: the model to use
 
         Returns: optimizer object (subclass-dependent)
         """

@@ -32,19 +32,18 @@ class Factory(abc.ABC):
     
     @staticmethod
     def get_factory(model_name):
-        if model_name == "unet":
+        model_name_lower = model_name.lower()
+        if model_name_lower == "unet":
             return UNetFactory()
-        elif model_name == "deeplabv3":
+        elif model_name_lower == "deeplabv3":
             return DeepLabV3Factory()
-        elif model_name == "GLDenseUnet":
+        elif model_name_lower in ["gldenseunet", "gl-dense-u-net"]:
             return GLDenseUnetFactory()
         else:
-            try:
-                MODEL_CLASS_DICT[model_name]
-                raise NotImplementedError(f"The factory for the model {model_name} doesn't extist yet. Check for Implementation in factory.factory.py")
-            except KeyError:
+            if next(filter(lambda m: m.lower() == model_name_lower, MODEL_CLASS_DICT), None) is not None:
+                raise NotImplementedError(f"The factory for the model {model_name} doesn't exist yet. Check for Implementation in factory.factory.py")
+            else:
                 print("Check if you wrote the model name correctly and added the model to utils.MODEL_CLASS_DICT.")
-                return
 
 class UNetFactory(Factory):
     def get_trainer_class(self):

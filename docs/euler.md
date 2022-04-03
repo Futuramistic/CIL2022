@@ -71,7 +71,7 @@
   - for details and a list of available GPUs, see https://scicomp.ethz.ch/wiki/Getting_started_with_GPUs
   - in general, the better the GPU, the longer the job will stay queued
   - do not forget to add ```NVIDIA``` before the GPU name, else the job will stay queued forever!
-  - example: ```bsub -n 1 -W 12:00 -R "rusage[ngpus_excl_p=1, mem=4096]" -R "select[gpu_model0==NVIDIAGeForceGTX1080]" "python main.py --model=unet --n_channels=3 --n_classes=2"```
+  - example: ```bsub -n 1 -W 12:00 -R "rusage[ngpus_excl_p=1, mem=4096]" -R "select[gpu_model0==NVIDIAGeForceGTX1080]" "python main.py --model=unet --n_channels=3 --n_classes=2 --dataset=original --experiment_name=\"Vanilla U-Net on Euler\""```
     - find node with at least 4096MB of CPU RAM and a GTX 1080; run ```python main.py --model=unet --n_channels=3 --n_classes=2```; limit runtime to 12 hours
 - to show list of pending/running jobs with current status, run ```bjobs```
   - ```PEND``` means your job is still queued, ```RUN``` means it's running
