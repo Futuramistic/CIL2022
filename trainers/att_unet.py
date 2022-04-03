@@ -9,7 +9,7 @@ from utils import *
 from losses.diceLoss import DiceLoss
 
 
-class AttUNet(TFTrainer):
+class AttUNetTrainer(TFTrainer):
     """
     Trainer for the GL-Dense-U-Net model.
     """
