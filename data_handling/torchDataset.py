@@ -10,7 +10,7 @@ class SegmentationDataset(Dataset):
         self.img_paths = img_paths
         self.gt_paths = gt_paths
         self.preprocessing = preprocessing
-  
+
     def __len__(self):
         # return the number of total samples contained in the dataset
         return len(self.img_paths)
@@ -20,14 +20,14 @@ class SegmentationDataset(Dataset):
         img_path = self.img_paths[idx]
         # load the image from disk
         image = read_image(img_path)
-        
+
         # in case there is no groundTruth, only return the image
         if self.gt_paths is None:
             if self.preprocessing is not None:
                 # apply the transformations to both image and its mask
                 image = self.preprocessing(x=image, is_gt=False)
             return image
-        
+
         # there is groundtruth
         gt = read_image(self.gt_paths[idx])
         # check to see if we are applying any transformations

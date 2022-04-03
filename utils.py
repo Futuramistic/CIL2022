@@ -35,6 +35,7 @@ CHECKPOINTS_DIR = "checkpoints/"
 MLFLOW_USER = "mlflow_user"
 MLFLOW_HOST = "algvrithm.com"
 MLFLOW_TRACKING_URI = f"http://{MLFLOW_HOST}:8000"
+MLFLOW_JUMP_HOST = "eu-login-01"
 MLFLOW_PASS_URL = "https://algvrithm.com/files/mlflow_cil_pass.txt"
 MLFLOW_PROFILING = True
 

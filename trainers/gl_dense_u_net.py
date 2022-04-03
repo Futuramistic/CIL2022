@@ -32,9 +32,9 @@ class GLDenseUNetTrainer(TFTrainer):
             num_epochs = math.ceil(100000 / steps_per_training_epoch)
 
         if optimizer_or_lr is None:
-            optimizer_or_lr = GLDenseUNetTrainer.get_default_optimizer_with_lr(1e-3)
+            optimizer_or_lr = GLDenseUNetTrainer.get_default_optimizer_with_lr(1e-3, model)
         elif isinstance(optimizer_or_lr, int) or isinstance(optimizer_or_lr, float):
-            optimizer_or_lr = GLDenseUNetTrainer.get_default_optimizer_with_lr(optimizer_or_lr)
+            optimizer_or_lr = GLDenseUNetTrainer.get_default_optimizer_with_lr(optimizer_or_lr, model)
 
         if loss_function is None:
             loss_function = K.losses.CategoricalCrossentropy(from_logits=True,
@@ -43,8 +43,8 @@ class GLDenseUNetTrainer(TFTrainer):
         if evaluation_interval is None:
             evaluation_interval = 10
 
-        # convert training samples to float32 \in [0, 1] & remove A channel;
-        # convert test samples to int \in {0, 1} & remove A channel
+        # convert samples to float32 \in [0, 1] & remove A channel;
+        # convert ground truth to int \in {0, 1} & remove A channel
         preprocessing =\
             lambda x, is_gt: (tf.cast(x[:, :, :3], dtype=tf.float32) / 255.0) if not is_gt \
             else (x[:, :, :1] // 255)
@@ -54,7 +54,7 @@ class GLDenseUNetTrainer(TFTrainer):
                          num_samples_to_visualize, checkpoint_interval)
 
     @staticmethod
-    def get_default_optimizer_with_lr(lr):
+    def get_default_optimizer_with_lr(lr, model):
         # uses learning rate decay; see
         # https://github.com/cugxyy/GL-Dense-U-Net/blob/ce104189692dd8e1a22ddcabc9f2f685a8345806/Model/multi_gpu_train.py
         lr_schedule = K.optimizers.schedules.ExponentialDecay(initial_learning_rate=lr, decay_rate=0.1,

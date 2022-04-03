@@ -12,7 +12,7 @@ import numpy as np
 class TorchTrainer(Trainer, abc.ABC):
     def __init__(self, dataloader, model, preprocessing,
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
-                 optimizer=None, scheduler=None, loss_function=None, evaluation_interval=None,
+                 optimizer_or_lr=None, scheduler=None, loss_function=None, evaluation_interval=None,
                  num_samples_to_visualize=None, checkpoint_interval=None):
         """
         Abstract class for Torch-based model trainers.
@@ -20,7 +20,7 @@ class TorchTrainer(Trainer, abc.ABC):
             dataloader: the DataLoader to use when training the model
             model: the model to train
         """
-        super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer,
+        super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, evaluation_interval, num_samples_to_visualize, checkpoint_interval)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
