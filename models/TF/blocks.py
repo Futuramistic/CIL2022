@@ -32,9 +32,9 @@ class Convo_Block(tf.keras.layers.Layer):
     # Expose training:
     # - Dropout -> only performed while training
     # - BatchNorm -> performs differently when predicting
-    def call(self, inputs, training=None, **kwargs):
-        x = self.convorelu1(inputs,training,**kwargs)
-        return self.convorelu2(x,training,**kwargs)
+    def call(self, inputs, **kwargs):
+        x = self.convorelu1(inputs,**kwargs)
+        return self.convorelu2(x,**kwargs)
 
 class Down_Block(tf.keras.layers.Layer):
     def __init__(self,name="down-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,**kwargs):
@@ -43,9 +43,9 @@ class Down_Block(tf.keras.layers.Layer):
         self.pool = MaxPool2D(pool_size=(2,2),strides=2,padding='same',name=name+"-max-pool")
     
     # Expose training
-    def call(self,input,training=None):
-        x1 = self.convo_block(input,training=training)
-        x2 = self.pool(x1)
+    def call(self,input,**kwargs):
+        x1 = self.convo_block(input,**kwargs)
+        x2 = self.pool(x1,**kwargs)
         return (x1,x2)
 
 class Transpose_Block(tf.keras.layers.Layer):
@@ -61,12 +61,12 @@ class Transpose_Block(tf.keras.layers.Layer):
     # - Dropout -> only performed while training
     # - BatchNorm -> performs differently when predicting
     def call(self,inputs,training = None, **kwargs):
-        x = self.transpose(inputs)
+        x = self.transpose(inputs,training=training,**kwargs)
         if self.normalize:
-            x = self.norm(x,training=training)
-        x = self.actv(x)
+            x = self.norm(x,training=training,**kwargs)
+        x = self.actv(x,training=training,**kwargs)
         if training:
-            x = self.drop(x)
+            x = self.drop(x,training=training,**kwargs)
         return x
 
 class UpSampleConvo_Block(tf.keras.layers.Layer):
@@ -76,9 +76,9 @@ class UpSampleConvo_Block(tf.keras.layers.Layer):
         self.conv = ConvoRelu_Block(name=name+"-convoRelu-block",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize)
 
     # Expose training
-    def call(self, inputs, training=None, **kwargs):
-        up = self.up(inputs,training=training, **kwargs)
-        return self.conv(up,training=training, **kwargs)
+    def call(self, inputs,**kwargs):
+        up = self.up(inputs,**kwargs)
+        return self.conv(up,**kwargs)
 
 class Up_Block(tf.keras.layers.Layer):
     def __init__(self,name="up-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False, up_convo = None,**kwargs):
@@ -88,11 +88,11 @@ class Up_Block(tf.keras.layers.Layer):
         self.concat = Concatenate(axis=3,name=name+"-concat")
 
     #Expose training
-    def call(self, x, merger, training=None,**kwargs):
-        x = self.up_convo(x,training=training)
+    def call(self, x, merger,**kwargs):
+        x = self.up_convo(x,**kwargs)
         merger.append(x)
-        x = self.concat(merger)
-        return self.convorelu_block(x,training=training)
+        x = self.concat(merger,**kwargs)
+        return self.convorelu_block(x,**kwargs)
 
 class Attention(tf.keras.layers.Layer):
     def __init__(self,name="attention",filters=64,normalize=False,kernel_init='he_normal',kernel_regularizer=K.regularizers.l2(),**kwargs):
@@ -113,20 +113,20 @@ class Attention(tf.keras.layers.Layer):
     # Expose training:
     # - BatchNorm -> performs differently when predicting
     # NO DROPOUT (!)
-    def call(self,x,g,training=None, **kwargs):
-        theta_x = self.theta_x(x)
+    def call(self,x,g, **kwargs):
+        theta_x = self.theta_x(x,**kwargs)
         if self.normalize:
-            theta_x = self.norm1(theta_x,training=training)
-        phi_g = self.phi_g(g)
+            theta_x = self.norm1(theta_x,**kwargs)
+        phi_g = self.phi_g(g,**kwargs)
         if self.normalize:
-            phi_g = self.norm2(phi_g,training=training)
-        add = self.add([phi_g,theta_x])
-        f = self.activ1(add)
-        psi_f = self.psi_f(f)
+            phi_g = self.norm2(phi_g,**kwargs)
+        add = self.add([phi_g,theta_x],**kwargs)
+        f = self.activ1(add,**kwargs)
+        psi_f = self.psi_f(f,**kwargs)
         if self.normalize:
-            psi_f = self.norm3(psi_f,training=training)
-        rate = self.activ2(psi_f)
-        return self.att_x([x,rate])
+            psi_f = self.norm3(psi_f,**kwargs)
+        rate = self.activ2(psi_f,**kwargs)
+        return self.att_x([x,rate],**kwargs)
 
 class Attention_Block_Concat(tf.keras.layers.Layer):
     def __init__(self,name="attention-up-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,up_convo=None,**kwargs):
@@ -138,10 +138,10 @@ class Attention_Block_Concat(tf.keras.layers.Layer):
 
     # Expose training
     def call(self, x, g, training=None, **kwargs):
-        up_g = self.up(inputs=g,training=training)
-        att_x = self.att(x=x,g=up_g,training=training)
-        concat = self.concat([up_g,att_x])
-        return self.convo(inputs=concat,training=training)
+        up_g = self.up(inputs=g,**kwargs)
+        att_x = self.att(x=x,g=up_g,**kwargs)
+        concat = self.concat([up_g,att_x],**kwargs)
+        return self.convo(inputs=concat,**kwargs)
 
 class Attention_Block(tf.keras.layers.Layer):
     def __init__(self,name="attention-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,up_convo=None,**kwargs):
@@ -151,8 +151,8 @@ class Attention_Block(tf.keras.layers.Layer):
 
     # Expose training
     def call(self, x, g, training=None, **kwargs):
-        up_g = self.up(inputs=g,training=training)
-        return self.att(x=x,g=up_g,training=training)
+        up_g = self.up(inputs=g,**kwargs)
+        return self.att(x=x,g=up_g,**kwargs)
 
 class Attention_PlusPlus_Block(tf.keras.layers.Layer):
 
@@ -166,13 +166,13 @@ class Attention_PlusPlus_Block(tf.keras.layers.Layer):
         self.convo = Convo_Block(name=name+"-convo-block",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize)
 
     def call(self,x,g,down=None,to_concat=[],training=None, **kwargs):
-        att_x = self.att(x=x,g=g)
+        att_x = self.att(x=x,g=g,**kwargs)
         to_concat.append(att_x)
-        up_g = self.up(g)
+        up_g = self.up(g,**kwargs)
         to_concat.append(up_g)
         if down is not None:
-            down = self.maxpool(down)
+            down = self.maxpool(down,**kwargs)
             to_concat.append(down)
-        conv = self.concat(to_concat)
-        conv = self.convo(conv)
+        conv = self.concat(to_concat,**kwargs)
+        conv = self.convo(conv,**kwargs)
         return att_x,conv
