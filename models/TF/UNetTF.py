@@ -3,7 +3,7 @@ from keras.layers import *
 import tensorflow.keras as K
 from blocks import *
 
-def UNetTF(input_shape,name="UNetTF",dropout=0.5,kernel_init='he_normal',normalize=False, up_transpose=True):
+def UNetTF(input_shape,name="UNetTF",dropout=0.5,kernel_init='he_normal',normalize=True, up_transpose=True):
 
     def __build_model(inputs):
         nb_filters = [32,64,128,256,512]
@@ -24,7 +24,7 @@ def UNetTF(input_shape,name="UNetTF",dropout=0.5,kernel_init='he_normal',normali
         up3 = Up_Block(name=name+"-up-block-3",dropout=dropout,filters=nb_filters[1],kernel_init=kernel_init,normalize=normalize,up_convo=up_block)(up2,convo2)
         up4 = Up_Block(name=name+"-up-block-4",dropout=dropout,filters=nb_filters[0],kernel_init=kernel_init,normalize=normalize,up_convo=up_block)(up3,convo1)
 
-        return Conv2D(name=name+"-final-convo",filters=1,kernel_size=(1,1),padding='same',activation='sigmoid',kernel_initializer=kernel_init)(up4)
+        return Conv2D(name=name+"-final-convo",filters=1,kernel_size=(1,1),padding='same',activation='sigmoid',kernel_initializer=kernel_init, kernel_regularizer=K.regularizers.l2())(up4)
     
     inputs = K.Input(input_shape)
     outputs = __build_model(inputs)

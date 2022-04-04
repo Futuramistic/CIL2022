@@ -1,11 +1,12 @@
 import tensorflow as tf
-from keras.layers import *
+import tensorflow.keras as K
+from tensorflow.keras.layers import *
 
 class ConvoRelu_Block(tf.keras.layers.Layer):
-    def __init__(self,name="ConvoRelu-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,**kwargs):
+    def __init__(self,name="ConvoRelu-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,kernel_regularizer=K.regularizers.l2(),**kwargs):
         super(ConvoRelu_Block, self).__init__(name=name,**kwargs)
         self.normalize = normalize  
-        self.convo = Conv2D(filters=filters, kernel_size=3, padding='same', kernel_initializer=kernel_init,name=name+"-conv2D")
+        self.convo = Conv2D(filters=filters, kernel_size=3, padding='same', kernel_initializer=kernel_init,name=name+"-conv2D", kernel_regularizer=kernel_regularizer)
         self.norm = BatchNormalization(name=name+"-batchNorm")
         self.actv = Activation(activation='relu',name=name+"-activ")
         self.drop = Dropout(rate=dropout,name=name+"-drop")
@@ -48,10 +49,10 @@ class Down_Block(tf.keras.layers.Layer):
         return (x1,x2)
 
 class Transpose_Block(tf.keras.layers.Layer):
-    def __init__(self,name="up-convo",filters=64,dropout=0.5,kernel_init='he_normal',normalize=False,**kwargs):
+    def __init__(self,name="up-convo",filters=64,dropout=0.5,kernel_init='he_normal',normalize=False,kernel_regularizer=K.regularizers.l2(),**kwargs):
         super(Transpose_Block,self).__init__(name=name,**kwargs)
         self.normalize = normalize
-        self.transpose = Conv2DTranspose(filters=filters, kernel_size=(2, 2), strides=(2, 2), padding='same',kernel_initializer=kernel_init, name=name+"-convo2DTranspose")
+        self.transpose = Conv2DTranspose(filters=filters, kernel_size=(2, 2), strides=(2, 2), padding='same',kernel_initializer=kernel_init, name=name+"-convo2DTranspose",kernel_regularizer=kernel_regularizer)
         self.norm = BatchNormalization(name=name+"-batchNorm")
         self.actv = Activation(activation='relu', name=name+"-activ")
         self.drop = Dropout(rate=dropout,name=name+"-drop")
@@ -93,16 +94,16 @@ class Up_Block(tf.keras.layers.Layer):
         return self.convorelu_block(x,training=training)
 
 class Attention(tf.keras.layers.Layer):
-    def __init__(self,name="attention",filters=64,normalize=False,kernel_init='he_normal',**kwargs):
+    def __init__(self,name="attention",filters=64,normalize=False,kernel_init='he_normal',kernel_regularizer=K.regularizers.l2(),**kwargs):
         super(Attention,self).__init__(name=name,**kwargs)
         self.normalize = normalize
-        self.theta_x = Conv2D(filters=filters, kernel_size=1,kernel_initializer=kernel_init,strides=(1,1), padding='same',name=name+"-conv2D-1")
+        self.theta_x = Conv2D(filters=filters, kernel_size=1,kernel_initializer=kernel_init,strides=(1,1), padding='same',kernel_regularizer=kernel_regularizer,name=name+"-conv2D-1")
         self.norm1 = BatchNormalization(name=name+"-batchNorm-1")
-        self.phi_g = Conv2D(filters=filters, kernel_size=1,kernel_initializer=kernel_init,strides=(1,1), padding='same',name=name+"-conv2D-2")
+        self.phi_g = Conv2D(filters=filters, kernel_size=1,kernel_initializer=kernel_init,strides=(1,1), padding='same',kernel_regularizer=kernel_regularizer,name=name+"-conv2D-2")
         self.norm2 = BatchNormalization(name=name+"-batchNorm-2")
         self.add = Add(name=name+"-add")
         self.f = Activation(activation='relu',name=name+"-activ-1")
-        self.psi_f = Conv2D(filters=1,kernel_size=1,kernel_initializer=kernel_init,strides=(1,1),padding='same',name=name+"-conv2D-3")
+        self.psi_f = Conv2D(filters=1,kernel_size=1,kernel_initializer=kernel_init,strides=(1,1),padding='same',kernel_regularizer=kernel_regularizer,name=name+"-conv2D-3")
         self.norm3 = BatchNormalization(name=name+"-batchNorm-3")
         self.activ1 = Activation(activation='sigmoid',name=name+"-activ-2")
         self.activ2 = Activation(activation='sigmoid',name=name+"-activ-3")
