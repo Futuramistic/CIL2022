@@ -88,9 +88,10 @@ class Up_Block(tf.keras.layers.Layer):
         self.concat = Concatenate(axis=3,name=name+"-concat")
 
     #Expose training
-    def call(self, inputs, merger, training=None,**kwargs):
-        x = self.up_convo(inputs,training=training)
-        x = self.concat([x,merger])
+    def call(self, x, merger, training=None,**kwargs):
+        x = self.up_convo(x,training=training)
+        merger.append(x)
+        x = self.concat(merger)
         return self.convorelu_block(x,training=training)
 
 class Attention(tf.keras.layers.Layer):
@@ -152,3 +153,26 @@ class Attention_Block(tf.keras.layers.Layer):
     def call(self, x, g, training=None, **kwargs):
         up_g = self.up(inputs=g,training=training)
         return self.att(x=x,g=up_g,training=training)
+
+class Attention_PlusPlus_Block(tf.keras.layers.Layer):
+
+    def __init__(self,name="attention-plus-plus",dropout=0.5,filters=64, kernel_init='he_normal',normalize=False, up_convo=None, **kwargs):
+        super(Attention_PlusPlus_Block,self).__init__(name=name,**kwargs)
+
+        self.att = Attention_Block(name=name+"-att-block",filters=filters,kernel_init=kernel_init,normalize=normalize,dropout=dropout,up_convo=up_convo)
+        self.up = up_convo(name=name+"-up-convo-block",filters=filters, kernel_init=kernel_init,normalize=normalize)
+        self.concat = Concatenate(name=name+"-concat",axis=3)
+        self.maxpool = MaxPool2D(name=name+"-max")
+        self.convo = Convo_Block(name=name+"-convo-block",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize)
+
+    def call(self,x,g,down=None,to_concat=[],training=None, **kwargs):
+        att_x = self.att(x=x,g=g)
+        to_concat.append(att_x)
+        up_g = self.up(g)
+        to_concat.append(up_g)
+        if down is not None:
+            down = self.maxpool(down)
+            to_concat.append(down)
+        conv = self.concat(to_concat)
+        conv = self.convo(conv)
+        return att_x,conv

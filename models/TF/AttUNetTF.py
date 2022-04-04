@@ -3,10 +3,11 @@ from keras.layers import *
 import tensorflow.keras as K
 from .blocks import *
 
-def UNetTF(input_shape,name="UNetTF",dropout=0.5,kernel_init='he_normal',normalize=True, up_transpose=True):
+def AttUnetTF(input_shape,name="Att_Unet-TF-",dropout=0.5,kernel_init='he_normal',normalize=False,up_transpose = True,**kwargs):
 
     def __build_model(inputs):
         nb_filters = [32,64,128,256,512]
+
         if up_transpose:
             up_block = Transpose_Block
         else:
@@ -19,13 +20,12 @@ def UNetTF(input_shape,name="UNetTF",dropout=0.5,kernel_init='he_normal',normali
 
         convo5 = Convo_Block(name=name+"-convo-block",dropout=dropout,filters=nb_filters[4],kernel_init=kernel_init,normalize=normalize)(pool4)
 
-        up1 = Up_Block(name=name+"-up-block-1",dropout=dropout,filters=nb_filters[3],kernel_init=kernel_init,normalize=normalize,up_convo=up_block)(x=convo5,merger=[convo4])
-        up2 = Up_Block(name=name+"-up-block-2",dropout=dropout,filters=nb_filters[2],kernel_init=kernel_init,normalize=normalize,up_convo=up_block)(x=up1,   merger=[convo3])
-        up3 = Up_Block(name=name+"-up-block-3",dropout=dropout,filters=nb_filters[1],kernel_init=kernel_init,normalize=normalize,up_convo=up_block)(x=up2,   merger=[convo2])
-        up4 = Up_Block(name=name+"-up-block-4",dropout=dropout,filters=nb_filters[0],kernel_init=kernel_init,normalize=normalize,up_convo=up_block)(x=up3,   merger=[convo1])
+        up1 = Attention_Block_Concat(name=name+"-att-block-1",dropout=dropout,filters=nb_filters[3],kernel_init=kernel_init,normalize=normalize,up_convo=up_block)(g=convo5,x=convo4)
+        up2 = Attention_Block_Concat(name=name+"-att-block-2",dropout=dropout,filters=nb_filters[2],kernel_init=kernel_init,normalize=normalize,up_convo=up_block)(g=up1,x=convo3)
+        up3 = Attention_Block_Concat(name=name+"-att-block-3",dropout=dropout,filters=nb_filters[1],kernel_init=kernel_init,normalize=normalize,up_convo=up_block)(g=up2,x=convo2)
+        up4 = Attention_Block_Concat(name=name+"-att-block-4",dropout=dropout,filters=nb_filters[0],kernel_init=kernel_init,normalize=normalize,up_convo=up_block)(g=up3,x=convo1)
 
-        return Conv2D(name=name+"-final-convo",filters=1,kernel_size=(1,1),padding='same',activation='sigmoid',kernel_initializer=kernel_init, kernel_regularizer=K.regularizers.l2())(up4)
-    
+        return Conv2D(name=name+"-final-convo",filters=1,kernel_size=(1,1),padding='same',activation='sigmoid',kernel_initializer=kernel_init)(up4)
     inputs = K.Input(input_shape)
     outputs = __build_model(inputs)
     model = K.Model(inputs=inputs, outputs=outputs)
