@@ -34,13 +34,14 @@ class AttUNetTrainer(TFTrainer):
             num_epochs = math.ceil(100000 / steps_per_training_epoch)
 
         if optimizer_or_lr is None:
-            optimizer_or_lr = AttUNet.get_default_optimizer_with_lr(1e-3)
+            optimizer_or_lr = AttUNetTrainer.get_default_optimizer_with_lr(1e-3)
         elif isinstance(optimizer_or_lr, int) or isinstance(optimizer_or_lr, float):
-            optimizer_or_lr = AttUNet.get_default_optimizer_with_lr(optimizer_or_lr)
+            optimizer_or_lr = AttUNetTrainer.get_default_optimizer_with_lr(optimizer_or_lr)
 
         # According to the paper
         if loss_function is None:
-            loss_function = DiceLoss
+            loss_function = K.losses.CategoricalCrossentropy(from_logits=True,
+                                                             reduction=K.losses.Reduction.SUM_OVER_BATCH_SIZE)
 
         if evaluation_interval is None:
             evaluation_interval = 10
