@@ -64,9 +64,10 @@ class TFTrainer(Trainer, abc.ABC):
             batch_xs = tf.squeeze(batch_xs, axis=1)
             batch_ys = tf.squeeze(batch_ys, axis=1).numpy()
             output = self.model.predict(batch_xs)
-            preds = tf.argmax(output, axis=-1).numpy()  # taking the argmax removes the last dim
-            preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
+            preds = tf.round(output).numpy()  # taking the argmax removes the last dim
+            # preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
             batch_ys = np.moveaxis(batch_ys, -1, 1)  # TODO only do this if we know the network uses HWC format
+            preds = np.moveaxis(preds, -1, 1)
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
             self._fill_images_array(preds, batch_ys, images)
             break  # Only operate on one batch of 'self.trainer.num_samples_to_visualize' samples

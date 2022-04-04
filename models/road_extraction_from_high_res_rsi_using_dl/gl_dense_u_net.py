@@ -108,8 +108,12 @@ def GLDenseUNet(input_shape,
             x = dense_block(x, falling_block_idx)
             x_last = x
 
-        x = K.layers.Conv2D(filters=num_classes, kernel_size=(1, 1), strides=(1, 1), padding='SAME',
-                            activation=None, kernel_regularizer=None)(x)
+        # Standard: 
+        #   Actv: None; filters: num_classes
+        # New:
+        #   Actv: sigomid; filters: 1
+        x = K.layers.Conv2D(filters=1, kernel_size=(1, 1), strides=(1, 1), padding='SAME',
+                            activation='sigmoid', kernel_regularizer=None)(x)
         return x
 
     inputs = K.Input(input_shape)
