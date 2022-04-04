@@ -34,6 +34,15 @@ class TFDataLoader(DataLoader):
         image = tf.io.decode_png(image_content, channels)
         return image
 
+    # Get image test data as all ones
+    # Args:
+    #    image_path  (string): path to an image
+    #    channels   (int): 4 for RGBA, 3 for RGB, 1 for grayscale, 0 - default encoding
+    # Returns: A Tensor of type dtype uint8
+    ###  
+    def __parse_data_test(self, image_path, channels=0):
+        return tf.ones_like(self.__parse_data(image_path,channels))
+
     # Get images and masks
     # Args:
     #    image_dir  (string): the directory of images

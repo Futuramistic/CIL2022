@@ -1,7 +1,7 @@
 import tensorflow as tf
 from keras.layers import *
 import tensorflow.keras as K
-from blocks import *
+from .blocks import *
 
 def UNetTF(input_shape,name="UNetTF",dropout=0.5,kernel_init='he_normal',normalize=False, up_transpose=True):
 
