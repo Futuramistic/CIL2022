@@ -4,6 +4,7 @@ then passes the remaining command line arguments to a Hyperparameter optimizer."
 import argparse
 from hyperopt_.HyperOptimizer import HyperParamOptimizer
 from hyperopt_.param_spaces_UNet import *
+from hyperopt_.param_spaces_GLDenseNet import *
 
 
 # list of supported arguments

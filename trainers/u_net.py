@@ -1,5 +1,6 @@
 from .trainer_torch import TorchTrainer
 from utils import *
+from losses.f1 import *
 
 import math
 import torch

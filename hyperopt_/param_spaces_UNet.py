@@ -1,6 +1,7 @@
 from hyperopt import hp
 from hyperopt.pyll.base import scope
 from utils import ROOT_DIR
+import losses.f1 as f1
 unet_1 = {
     'model': {
         'model_type': 'unet',
@@ -17,7 +18,7 @@ unet_1 = {
     'training': {
         'minimize_loss': True, # always specify, as hyperopt can only minimize losses and therefore adapts the sign
         'trainer_params':{
-            'split': 0.2, 
+            'split': 0.05, 
             'num_epochs': 1, # test run
             'batch_size': scope.int(hp.quniform('batch_size', low = 5, high = 20, q=1)),
             'evaluation_interval': 1,

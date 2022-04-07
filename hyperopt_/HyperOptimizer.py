@@ -32,6 +32,10 @@ class HyperParamOptimizer:
         # prepare file for saving trials and eventually reload trials if file already exists        
         # code adapted from https://stackoverflow.com/questions/63599879/can-we-save-the-result-of-the-hyperopt-trials-with-sparktrials
         self.trials_path = param_space['model']['saving_directory']
+        if not os.path.isdir("archive"):
+            os.makedirs("archive")
+        if not os.path.isdir("archive/trials"):
+            os.makedirs("archive/trials")
         if os.path.isdir(self.trials_path):
             with open(self.trials_path, 'rb') as file:
                 self.trials = pickle.load(file)
@@ -70,19 +74,21 @@ class HyperParamOptimizer:
         """
         # for mlflow logger
         run_name = f"Hyperopt_{self.run_name}"+"{:%Y_%m_%d_%H_%M}".format(datetime.now())
-        print(type(self.trials))
         with open(self.trials_path, 'wb') as handle:
             pickle.dump(self.trials, handle)
         
         model = self.model_class(**hyperparams['model']['kwargs'])
         trainer = self.trainer_class(**hyperparams['training']['trainer_params'], dataloader = self.dataloader, model=model, experiment_name=self.exp_name, run_name=run_name)
         test_loss = trainer.train()
+        average_f1_score = trainer.get_F1_score_validation(model)
+        print(average_f1_score)
         
         # save (overwrite) updated trials after each trainig
         with open(self.trials_path, 'wb') as handle:
             pickle.dump(self.trials, handle)
         return {
             'loss': test_loss if self.minimize_loss else -test_loss,
+            'F1-Score': average_f1_score,
             'status': STATUS_OK,
             'trained_model': model,
             'params': hyperparams

@@ -97,6 +97,8 @@ class TorchTrainer(Trainer, abc.ABC):
             loss.backward()
             opt.step()
             callback_handler.on_train_batch_end()
+            del x
+            del y
         self.scheduler.step()
 
     def _eval_step(self, model, device, test_loader):
@@ -108,6 +110,18 @@ class TorchTrainer(Trainer, abc.ABC):
                 y = torch.squeeze(y, dim=1)
                 preds = model(x)
                 test_loss += self.loss_function(preds, y).item()
+                del x
+                del y
         test_loss /= len(test_loader.dataset)
         print(f'\nTest loss: {test_loss:.3f}')
         return test_loss
+    
+    def get_F1_score_validation(self, model):
+        import losses.f1 as f1
+        f1_scores = []
+        for (x,y) in self.test_loader:
+            x,y = x.to(self.device, dtype=torch.float32), y.to(self.device, dtype=torch.long)
+            # y = torch.squeeze(y, dim=1)
+            preds = model(x)
+            f1_scores.append(f1.f1_score_torch(preds, y).item())
+        return torch.mean(f1_scores)
