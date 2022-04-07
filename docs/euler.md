@@ -72,7 +72,7 @@
   - in general, the better the GPU, the longer the job will stay queued
   - do not forget to add ```NVIDIA``` before the GPU name, else the job will stay queued forever!
   - example: ```bsub -n 1 -W 12:00 -R "rusage[ngpus_excl_p=1, mem=4096]" -R "select[gpu_model0==NVIDIAGeForceGTX1080]" "python main.py --model=unet --n_channels=3 --n_classes=2 --dataset=original --experiment_name=\"Vanilla U-Net on Euler\""```
-    - find node with at least 4096MB of CPU RAM and a GTX 1080; run ```python main.py --model=unet --n_channels=3 --n_classes=2```; limit runtime to 12 hours
+    - find node with at least 4096MB of CPU RAM and a GTX 1080; run ```python main.py --model=unet ...```; limit runtime to 12 hours
 - to show list of pending/running jobs with current status, run ```bjobs```
   - ```PEND``` means your job is still queued, ```RUN``` means it's running
   - after completion/failure, the job will be removed from the job list
@@ -85,6 +85,7 @@
   - to inspect the file, run ```more lsf.o<job-id>```
 
 ## 🔄 Easy file synchronization with FileZilla
+
 - working on files using SSH and the terminal can be tedious
   - alternative would be to ```git push``` and ```git pull``` on the login node everytime, but also tedious and spams commit history
 - instead, we can work on files locally, and use SFTP to copy them to/from the login nodes
