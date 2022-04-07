@@ -5,7 +5,10 @@ import tensorflow_addons as tfa
 
 def f1_score_torch(targets, prediction):
     # best value is at 1, worst at 0
-    f1 = f1_score(targets.detach().numpy(), prediction.detach().numpy())
+    targets = targets.detach().cpu().numpy()
+    prediction = prediction.detach().cpu().numpy()
+    print(targets.shape, prediction.shape)
+    f1 = f1_score(targets, prediction)
     return f1
     
 def f1_loss_tf(targets, prediction):
