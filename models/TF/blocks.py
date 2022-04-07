@@ -24,10 +24,10 @@ class ConvoRelu_Block(tf.keras.layers.Layer):
         return x
 
 class Convo_Block(tf.keras.layers.Layer):
-    def __init__(self,name="convo-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,**kwargs):
+    def __init__(self,name="convo-block",dropout=0.5,filters=64,kernel_init='he_normal',kernel_regularizer=K.regularizers.l2(),normalize=False,**kwargs):
         super(Convo_Block, self).__init__(name=name,**kwargs)     
-        self.convorelu1 = ConvoRelu_Block(name=name+"-convoRelu-1",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize)
-        self.convorelu2 = ConvoRelu_Block(name=name+"-convoRelu-2",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize)
+        self.convorelu1 = ConvoRelu_Block(name=name+"-convoRelu-1",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize,kernel_regularizer=kernel_regularizer)
+        self.convorelu2 = ConvoRelu_Block(name=name+"-convoRelu-2",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize,kernel_regularizer=kernel_regularizer)
 
     # Expose training:
     # - Dropout -> only performed while training
@@ -37,9 +37,9 @@ class Convo_Block(tf.keras.layers.Layer):
         return self.convorelu2(x,**kwargs)
 
 class Down_Block(tf.keras.layers.Layer):
-    def __init__(self,name="down-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,**kwargs):
+    def __init__(self,name="down-block",dropout=0.5,filters=64,kernel_init='he_normal',kernel_regularizer=K.regularizers.l2(),normalize=False,**kwargs):
         super(Down_Block,self).__init__(name=name,**kwargs)
-        self.convo_block = Convo_Block(name+"-convo-block",dropout,filters,kernel_init,normalize)
+        self.convo_block = Convo_Block(name+"-convo-block",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize,kernel_regularizer=kernel_regularizer)
         self.pool = MaxPool2D(pool_size=(2,2),strides=2,padding='same',name=name+"-max-pool")
     
     # Expose training
@@ -70,10 +70,10 @@ class Transpose_Block(tf.keras.layers.Layer):
         return x
 
 class UpSampleConvo_Block(tf.keras.layers.Layer):
-    def __init__(self,name="attention-up-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,**kwargs):
+    def __init__(self,name="attention-up-block",dropout=0.5,filters=64,kernel_init='he_normal',kernel_regularizer=K.regularizers.l2(),normalize=False,**kwargs):
         super(UpSampleConvo_Block,self).__init__(name=name,**kwargs)
         self.up = UpSampling2D(name=name+"-upSample2D",size=(2,2))
-        self.conv = ConvoRelu_Block(name=name+"-convoRelu-block",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize)
+        self.conv = ConvoRelu_Block(name=name+"-convoRelu-block",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize,kernel_regularizer=kernel_regularizer)
 
     # Expose training
     def call(self, inputs,**kwargs):
@@ -81,10 +81,10 @@ class UpSampleConvo_Block(tf.keras.layers.Layer):
         return self.conv(up,**kwargs)
 
 class Up_Block(tf.keras.layers.Layer):
-    def __init__(self,name="up-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False, up_convo = None,**kwargs):
+    def __init__(self,name="up-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False, up_convo = None,kernel_regularizer=K.regularizers.l2(),**kwargs):
         super(Up_Block,self).__init__(name=name,**kwargs)  
-        self.up_convo = up_convo(name=name+"-up-convo",filters=filters,dropout=dropout,kernel_init=kernel_init,normalize=normalize)
-        self.convorelu_block = ConvoRelu_Block(name+"-convoRelu-block",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize)
+        self.up_convo = up_convo(name=name+"-up-convo",filters=filters,dropout=dropout,kernel_init=kernel_init,normalize=normalize,kernel_regularizer=kernel_regularizer)
+        self.convorelu_block = ConvoRelu_Block(name+"-convoRelu-block",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize,kernel_regularizer=kernel_regularizer)
         self.concat = Concatenate(axis=3,name=name+"-concat")
 
     #Expose training
@@ -103,11 +103,10 @@ class Attention(tf.keras.layers.Layer):
         self.phi_g = Conv2D(filters=filters, kernel_size=1,kernel_initializer=kernel_init,strides=(1,1), padding='same',kernel_regularizer=kernel_regularizer,name=name+"-conv2D-2")
         self.norm2 = BatchNormalization(name=name+"-batchNorm-2")
         self.add = Add(name=name+"-add")
-        self.f = Activation(activation='relu',name=name+"-activ-1")
+        self.f = Activation(activation='relu',name=name+"-relu")
         self.psi_f = Conv2D(filters=1,kernel_size=1,kernel_initializer=kernel_init,strides=(1,1),padding='same',kernel_regularizer=kernel_regularizer,name=name+"-conv2D-3")
         self.norm3 = BatchNormalization(name=name+"-batchNorm-3")
-        self.activ1 = Activation(activation='sigmoid',name=name+"-activ-2")
-        self.activ2 = Activation(activation='sigmoid',name=name+"-activ-3")
+        self.activ = Activation(activation='sigmoid',name=name+"-sigmoid")
         self.att_x = Multiply(name=name+"-multiply")
 
     # Expose training:
@@ -121,20 +120,20 @@ class Attention(tf.keras.layers.Layer):
         if self.normalize:
             phi_g = self.norm2(phi_g,**kwargs)
         add = self.add([phi_g,theta_x],**kwargs)
-        f = self.activ1(add,**kwargs)
+        f = self.f(add,**kwargs)
         psi_f = self.psi_f(f,**kwargs)
         if self.normalize:
             psi_f = self.norm3(psi_f,**kwargs)
-        rate = self.activ2(psi_f,**kwargs)
+        rate = self.activ(psi_f,**kwargs)
         return self.att_x([x,rate],**kwargs)
 
 class Attention_Block_Concat(tf.keras.layers.Layer):
-    def __init__(self,name="attention-up-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,up_convo=None,**kwargs):
+    def __init__(self,name="attention-up-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,up_convo=None,kernel_regularizer=K.regularizers.l2(),**kwargs):
         super(Attention_Block_Concat,self).__init__(name=name,**kwargs)
-        self.up = up_convo(name=name+"-up-convo",filters=filters,dropout=dropout,kernel_init=kernel_init,normalize=normalize)
-        self.att = Attention(name=name+"-attention",filters=filters,normalize=normalize,kernel_init=kernel_init)
+        self.up = up_convo(name=name+"-up-convo",filters=filters,dropout=dropout,kernel_init=kernel_init,normalize=normalize,kernel_regularizer=kernel_regularizer)
+        self.att = Attention(name=name+"-attention",filters=filters,normalize=normalize,kernel_init=kernel_init,kernel_regularizer=kernel_regularizer)
         self.concat = Concatenate(axis=3,name=name+"-concat")
-        self.convo = ConvoRelu_Block(name=name+"-convoRelu-block",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize)
+        self.convo = ConvoRelu_Block(name=name+"-convoRelu-block",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize,kernel_regularizer=kernel_regularizer)
 
     # Expose training
     def call(self, x, g, training=None, **kwargs):
@@ -144,10 +143,10 @@ class Attention_Block_Concat(tf.keras.layers.Layer):
         return self.convo(inputs=concat,**kwargs)
 
 class Attention_Block(tf.keras.layers.Layer):
-    def __init__(self,name="attention-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,up_convo=None,**kwargs):
+    def __init__(self,name="attention-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,up_convo=None,kernel_regularizer=K.regularizers.l2(),**kwargs):
         super(Attention_Block,self).__init__(name=name,**kwargs)
-        self.up = up_convo(name=name+"-up-convo",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize)
-        self.att = Attention(name=name+"-attention",filters=filters,normalize=normalize)
+        self.up = up_convo(name=name+"-up-convo",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize,kernel_regularizer=kernel_regularizer)
+        self.att = Attention(name=name+"-attention",filters=filters,normalize=normalize,kernel_regularizer=kernel_regularizer)
 
     # Expose training
     def call(self, x, g, training=None, **kwargs):
@@ -156,14 +155,14 @@ class Attention_Block(tf.keras.layers.Layer):
 
 class Attention_PlusPlus_Block(tf.keras.layers.Layer):
 
-    def __init__(self,name="attention-plus-plus",dropout=0.5,filters=64, kernel_init='he_normal',normalize=False, up_convo=None, **kwargs):
+    def __init__(self,name="attention-plus-plus",dropout=0.5,filters=64, kernel_init='he_normal',normalize=False, up_convo=None,kernel_regularizer=K.regularizers.l2(), **kwargs):
         super(Attention_PlusPlus_Block,self).__init__(name=name,**kwargs)
 
-        self.att = Attention_Block(name=name+"-att-block",filters=filters,kernel_init=kernel_init,normalize=normalize,dropout=dropout,up_convo=up_convo)
-        self.up = up_convo(name=name+"-up-convo-block",filters=filters, kernel_init=kernel_init,normalize=normalize)
+        self.att = Attention_Block(name=name+"-att-block",filters=filters,kernel_init=kernel_init,normalize=normalize,dropout=dropout,up_convo=up_convo,kernel_regularizer=kernel_regularizer)
+        self.up = up_convo(name=name+"-up-convo-block",filters=filters, kernel_init=kernel_init,normalize=normalize,kernel_regularizer=kernel_regularizer)
         self.concat = Concatenate(name=name+"-concat",axis=3)
         self.maxpool = MaxPool2D(name=name+"-max")
-        self.convo = Convo_Block(name=name+"-convo-block",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize)
+        self.convo = Convo_Block(name=name+"-convo-block",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize,kernel_regularizer=kernel_regularizer)
 
     def call(self,x,g,down=None,to_concat=[],training=None, **kwargs):
         att_x = self.att(x=x,g=g,**kwargs)
