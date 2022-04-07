@@ -11,4 +11,5 @@ dataset/
 .idea/
 mlruns/
 checkpoints/
-archive/models/UNet_2022-03-16_21_25
+archive/models/*
+archive/trials/*

@@ -120,8 +120,8 @@ class TorchTrainer(Trainer, abc.ABC):
         import losses.f1 as f1
         f1_scores = []
         for (x,y) in self.test_loader:
-            x,y = x.to(self.device, dtype=torch.float32), y.to(self.device, dtype=torch.long)
+            x = x.to(self.device, dtype=torch.float32)
             # y = torch.squeeze(y, dim=1)
             preds = model(x)
-            f1_scores.append(f1.f1_score_torch(preds, y).item())
+            f1_scores.append(f1.f1_score_torch(preds.detach().cpu().numpy(), y.cpu().numpy()).item())
         return torch.mean(f1_scores)

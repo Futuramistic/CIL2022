@@ -5,8 +5,9 @@ import tensorflow_addons as tfa
 
 def f1_score_torch(targets, prediction):
     # best value is at 1, worst at 0
-    targets = targets.cpu().numpy()
-    prediction = prediction.cpu().numpy()
+    targets = targets.squeeze(dim=1)
+    targets = targets[1,:,:].squeeze()
+    prediction = prediction.squeeze(dim=1)
     print(targets.shape, prediction.shape)
     f1 = f1_score(targets, prediction)
     return f1
