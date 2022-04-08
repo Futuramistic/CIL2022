@@ -5,7 +5,7 @@ import losses.f1 as f1
 unet_1 = {
     'model': {
         'model_type': 'unet',
-        'saving_directory': f"{ROOT_DIR}/archive/trials/UNet_2022-03-16_21_25",
+        'saving_directory': f"{ROOT_DIR}/archive/trials/UNet_2022_04_08-22_49",
         # use kwargs for class-specific parameters, as hyperopt is written generically
         'kwargs': {
             'n_channels': 3,
@@ -18,9 +18,9 @@ unet_1 = {
     'training': {
         'minimize_loss': True, # always specify, as hyperopt can only minimize losses and therefore adapts the sign
         'trainer_params':{
-            'split': 0.8, 
-            'num_epochs': 1, # test run
-            'batch_size': scope.int(hp.quniform('batch_size', low = 1, high = 10, q=1)),
+            'split': hp.quniform('split', low=0.4, high=0.9, q=0.1), 
+            'num_epochs': scope.int(hp.quniform('num_epochs', low = 1, high = 10, q=1)),
+            'batch_size': scope.int(hp.quniform('batch_size', low = 1, high = 20, q=1)),
             'evaluation_interval': 1,
             'num_samples_to_visualize': 4, 
             'checkpoint_interval': 2
