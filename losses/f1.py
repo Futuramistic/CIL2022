@@ -3,9 +3,10 @@ import tensorflow as tf
 import keras.backend as K
 import tensorflow_addons as tfa
 
-def f1_score_torch(targets, prediction):
+def f1_score_torch(prediction, targets):
     # best value is at 1, worst at 0
     print(targets, prediction)
+    print(targets.shape, prediction.shape)
     targets = targets.squeeze()
     targets = targets[1,:,:].squeeze()
     prediction = prediction.squeeze()
