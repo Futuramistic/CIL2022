@@ -20,7 +20,7 @@ unet_1 = {
         'trainer_params':{
             'split': 0.05, 
             'num_epochs': 1, # test run
-            'batch_size': scope.int(hp.quniform('batch_size', low = 5, high = 20, q=1)),
+            'batch_size': scope.int(hp.quniform('batch_size', low = 5, high = 10, q=1)),
             'evaluation_interval': 1,
             'num_samples_to_visualize': 4, 
             'checkpoint_interval': 2

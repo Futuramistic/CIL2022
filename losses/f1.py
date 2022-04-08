@@ -6,6 +6,7 @@ import torch
 
 def f1_score_torch(prediction, targets):
     # best value is at 1, worst at 0
+    torch.no_grad()
     targets = targets.squeeze()
     prediction = prediction.squeeze()
     prediction = torch.round(prediction)
