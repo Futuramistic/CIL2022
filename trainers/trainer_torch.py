@@ -11,7 +11,7 @@ import numpy as np
 
 class TorchTrainer(Trainer, abc.ABC):
     def __init__(self, dataloader, model, preprocessing,
-                 experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
+                 experiment_name=None, run_name=None, split=None, num_epochs=None, num_output_channels=2, batch_size=None,
                  optimizer_or_lr=None, scheduler=None, loss_function=None, evaluation_interval=None,
                  num_samples_to_visualize=None, checkpoint_interval=None):
         """
@@ -25,6 +25,8 @@ class TorchTrainer(Trainer, abc.ABC):
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.scheduler = scheduler
+        # some models have two output channels, even though the classification is binary
+        self.num_output_channels = num_output_channels
 
     class Callback:
         def __init__(self, trainer, mlflow_run, model):
@@ -70,9 +72,9 @@ class TorchTrainer(Trainer, abc.ABC):
 
     def _fit_model(self, mlflow_run):
         self.train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
-                                                                    preprocessing=self.preprocessing)
+                                                                    preprocessing=self.preprocessing, num_output_channels = self.num_output_channels)
         self.test_loader = self.dataloader.get_testing_dataloader(batch_size=1,
-                                                                  preprocessing=self.preprocessing)
+                                                                  preprocessing=self.preprocessing, num_output_channels = self.num_output_channels)
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         print(f'Using device: {self.device}')
         model = self.model.to(self.device)

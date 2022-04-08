@@ -28,7 +28,7 @@ class TorchDataLoader(DataLoader):
         unlabeled_testing_data_len = len(self.test_img_paths)
         return training_data_len, testing_data_len, unlabeled_testing_data_len
 
-    def get_training_dataloader(self, split, batch_size, preprocessing=None, **args):
+    def get_training_dataloader(self, split, batch_size, preprocessing=None, num_output_channels=2, **args):
         """
         Args:
             split (float): training/test splitting ratio, e.g. 0.8 for 80"%" training and 20"%" test data
@@ -40,6 +40,8 @@ class TorchDataLoader(DataLoader):
             Torch Dataloader
         """
         #load training data and possibly split
+        if num_output_channels not in [1,2]:
+            raise ValueError("The number of currently supported output channels are either 1 or 2.")
         shuffled_training_img_paths, shuffled_training_gt_paths = utils.consistent_shuffling(self.training_img_paths,
                                                                                              self.training_gt_paths)
         dataset = SegmentationDataset(shuffled_training_img_paths, shuffled_training_gt_paths, preprocessing)
@@ -49,7 +51,7 @@ class TorchDataLoader(DataLoader):
         self.training_data, self.testing_data = random_split(dataset, [training_data_len, testing_data_len])
         return torchDL(self.training_data, batch_size, shuffle=True, **args)
     
-    def get_testing_dataloader(self, batch_size, preprocessing=None, **args):
+    def get_testing_dataloader(self, batch_size, preprocessing=None, num_output_channels = 1, **args):
         """
         Args:
             batch_size (int): training batch size

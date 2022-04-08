@@ -92,3 +92,14 @@ class TFTrainer(Trainer, abc.ABC):
         last_test_loss = self.model.fit(self.train_loader, epochs=self.num_epochs,
                                         steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks)
         return last_test_loss
+    
+    def get_F1_score_validation(self, model):
+        import losses.f1 as f1
+        f1_scores = []
+        #TODO
+        """for (x,y) in self.test_loader:
+            x,y = x.to(self.device, dtype=torch.float32), y.to(self.device, dtype=torch.long)
+            y = torch.squeeze(y, dim=1)
+            preds = model(x)
+            f1_scores.append(f1.f1_score_torch(preds, y).item())
+        return torch.mean(f1_scores)"""
