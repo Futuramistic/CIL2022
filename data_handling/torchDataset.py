@@ -6,11 +6,10 @@ from torchvision.io import read_image
 
 
 class SegmentationDataset(Dataset):
-    def __init__(self, img_paths, gt_paths=None, preprocessing=None, num_output_channels=1):
+    def __init__(self, img_paths, gt_paths=None, preprocessing=None):
         self.img_paths = img_paths
         self.gt_paths = gt_paths
         self.preprocessing = preprocessing
-        self.num_output_channels = num_output_channels
 
     def __len__(self):
         # return the number of total samples contained in the dataset
@@ -35,6 +34,6 @@ class SegmentationDataset(Dataset):
         if self.preprocessing is not None:
             # apply the transformations to both image and its mask
             image = self.preprocessing(x=image, is_gt=False)
-            gt = self.preprocessing(x=gt, is_gt=True, num_output_channels = self.num_output_channels)
+            gt = self.preprocessing(x=gt, is_gt=True)
         # return a tuple of the image and its mask
         return image, gt
