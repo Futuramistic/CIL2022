@@ -9,7 +9,7 @@ unet_1 = {
         # use kwargs for class-specific parameters, as hyperopt is written generically
         'kwargs': {
             'n_channels': 3,
-            'n_classes': 2
+            'n_classes': 1
         }
     },
     'dataset': {

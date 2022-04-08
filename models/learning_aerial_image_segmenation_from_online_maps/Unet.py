@@ -1,5 +1,5 @@
 # Define UNet
-# Taken from https://github.com/milesial/Pytorch-UNet
+# Adjusted from https://github.com/milesial/Pytorch-UNet
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -74,11 +74,13 @@ class OutConv(nn.Module):
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
 
     def forward(self, x):
-        return self.conv(x)
+        x = self.conv(x)
+        x = torch.sigmoid(x)
+        return x
 
 
 class UNet(nn.Module):
-    def __init__(self, n_channels=3, n_classes=2, bilinear=True):
+    def __init__(self, n_channels=3, n_classes=1, bilinear=True):
         super(UNet, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes

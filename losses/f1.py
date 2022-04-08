@@ -2,15 +2,13 @@ from sklearn.metrics import f1_score
 import tensorflow as tf
 import keras.backend as K
 import tensorflow_addons as tfa
+import torch
 
 def f1_score_torch(prediction, targets):
     # best value is at 1, worst at 0
-    print(targets, prediction)
-    print(targets.shape, prediction.shape)
     targets = targets.squeeze()
-    targets = targets[1,:,:].squeeze()
     prediction = prediction.squeeze()
-    print(targets.shape, prediction.shape)
+    prediction = torch.round(prediction)
     f1 = f1_score(targets, prediction)
     return f1
     
