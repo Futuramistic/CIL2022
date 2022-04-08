@@ -92,7 +92,6 @@ class TorchTrainer(Trainer, abc.ABC):
             x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.long)
             y = torch.squeeze(y, dim=1)  # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
             preds = model(x)
-            print(preds, y)
             loss = self.loss_function(preds, y)
             opt.zero_grad()
             loss.backward()
@@ -124,7 +123,7 @@ class TorchTrainer(Trainer, abc.ABC):
         for (x,y) in self.test_loader:
             x = x.to(self.device, dtype=torch.float32)
             preds = model(x)
-            f1_scores.append(f1.f1_score_torch(preds.detach().cpu().numpy(), y.cpu().numpy()).item())
+            f1_scores.append(f1.f1_score_torch(preds, y).item())
             del x
             del y
-        return torch.mean(f1_scores)
+        return np.mean(f1_scores)

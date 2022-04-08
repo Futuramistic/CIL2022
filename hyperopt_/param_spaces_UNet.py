@@ -18,9 +18,9 @@ unet_1 = {
     'training': {
         'minimize_loss': True, # always specify, as hyperopt can only minimize losses and therefore adapts the sign
         'trainer_params':{
-            'split': 0.05, 
+            'split': 0.8, 
             'num_epochs': 1, # test run
-            'batch_size': scope.int(hp.quniform('batch_size', low = 1, high = 4, q=1)),
+            'batch_size': scope.int(hp.quniform('batch_size', low = 1, high = 10, q=1)),
             'evaluation_interval': 1,
             'num_samples_to_visualize': 4, 
             'checkpoint_interval': 2

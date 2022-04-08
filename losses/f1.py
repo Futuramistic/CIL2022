@@ -1,3 +1,4 @@
+import numpy as np
 from sklearn.metrics import f1_score
 import tensorflow as tf
 import keras.backend as K
@@ -6,11 +7,10 @@ import torch
 
 def f1_score_torch(prediction, targets):
     # best value is at 1, worst at 0
-    torch.no_grad()
-    targets = targets.squeeze()
-    prediction = prediction.squeeze()
-    prediction = torch.round(prediction)
-    f1 = f1_score(targets, prediction)
+    targets = targets.cpu().numpy().squeeze()
+    prediction = prediction.detach().cpu().numpy().squeeze()
+    prediction = np.round(prediction)
+    f1 = f1_score(targets, prediction, average="micro") # calculate the metrics globally
     return f1
     
 def f1_loss_tf(targets, prediction):

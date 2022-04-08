@@ -5,8 +5,9 @@ import argparse
 from hyperopt_.HyperOptimizer import HyperParamOptimizer
 from hyperopt_.param_spaces_UNet import *
 from hyperopt_.param_spaces_GLDenseNet import *
+import warnings
 
-
+warnings.filterwarnings("ignore", category=UserWarning) 
 # list of supported arguments
 filter_args = ['h', 'search_space', 's', 'num_runs', 'n']
 

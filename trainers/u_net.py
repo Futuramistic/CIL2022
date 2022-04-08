@@ -36,7 +36,7 @@ class UNetTrainer(TorchTrainer):
             scheduler = torch.optim.lr_scheduler.StepLR(optimizer_or_lr, step_size=1, gamma=1)
 
         if loss_function is None:
-            loss_function = torch.nn.CrossEntropyLoss()
+            loss_function = torch.nn.BCELoss()
 
         if evaluation_interval is None:
             evaluation_interval = 10
@@ -48,6 +48,37 @@ class UNetTrainer(TorchTrainer):
         super().__init__(dataloader, model, preprocessing, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, evaluation_interval,
                          num_samples_to_visualize, checkpoint_interval)
+        
+    def _train_step(self, model, device, train_loader, callback_handler):
+        # unet y may not be squeezed like in torch trainer, dtype is float for BCE
+        model.train()
+        opt = self.optimizer_or_lr
+        for batch, (x, y) in enumerate(train_loader):
+            x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
+            preds = model(x)
+            loss = self.loss_function(preds, y)
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+            callback_handler.on_train_batch_end()
+            del x
+            del y
+        self.scheduler.step()
+    
+    def _eval_step(self, model, device, test_loader):
+        # unet y may not be squeezed like in torch trainer, dtype is float for BCE
+        model.eval()
+        test_loss = 0
+        with torch.no_grad():
+            for (x, y) in test_loader:
+                x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
+                preds = model(x)
+                test_loss += self.loss_function(preds, y).item()
+                del x
+                del y
+        test_loss /= len(test_loader.dataset)
+        print(f'\nTest loss: {test_loss:.3f}')
+        return test_loss
 
     @staticmethod
     def get_default_optimizer_with_lr(lr, model):
