@@ -54,7 +54,7 @@ class TorchTrainer(Trainer, abc.ABC):
                 continue
             batch_xs, batch_ys = batch_xs.to(self.device), batch_ys.numpy()
             output = self.model(batch_xs)
-            preds = torch.argmax(output, dim=1).cpu().numpy()
+            preds = torch.round(output).cpu().detach().numpy()
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
             self._fill_images_array(preds, batch_ys, images)
 
