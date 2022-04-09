@@ -1,5 +1,5 @@
 from functools import partial
-from hyperopt import STATUS_OK, fmin, tpe, Trials
+from hyperopt import STATUS_OK, fmin, tpe, Trials, STATUS_FAIL
 import pickle
 import os
 import numpy as np
@@ -9,6 +9,7 @@ from trainers.trainer_tf import TFTrainer
 from trainers.trainer_torch import TorchTrainer
 from datetime import datetime
 from factory.factory import Factory
+import warnings
 
 class HyperParamOptimizer:
     """Class for Hyperparameter Optimization
@@ -16,6 +17,7 @@ class HyperParamOptimizer:
             param_space (Dictionary) - hyparparameter search space, beware that no two params are called the same, see param_spaces_UNet.py for an example
     """
     def __init__(self, param_space):
+        warnings.filterwarnings("ignore", category=UserWarning) 
         self.param_space = param_space
         factory = Factory.get_factory(param_space['model']['model_type'].lower())
         self.model_class = factory.get_model_class()
@@ -76,12 +78,18 @@ class HyperParamOptimizer:
         run_name = f"Hyperopt_{self.run_name}"+"{:%Y_%m_%d_%H_%M}".format(datetime.now())
         with open(self.trials_path, 'wb') as handle:
             pickle.dump(self.trials, handle)
-        
-        model = self.model_class(**hyperparams['model']['kwargs'])
-        trainer = self.trainer_class(**hyperparams['training']['trainer_params'], dataloader = self.dataloader, model=model, experiment_name=self.exp_name, run_name=run_name)
-        test_loss = trainer.train()
-        average_f1_score = trainer.get_F1_score_validation(model)
-        print(average_f1_score)
+        try:
+            model = self.model_class(**hyperparams['model']['kwargs'])
+            trainer = self.trainer_class(**hyperparams['training']['trainer_params'], dataloader = self.dataloader, model=model, experiment_name=self.exp_name, run_name=run_name)
+            test_loss = trainer.train()
+            average_f1_score = trainer.get_F1_score_validation(model)
+            print(average_f1_score)
+        except RuntimeError as r:
+            print(f"Current hyperparams, that lead to error:\n{hyperparams}")
+            return {
+                'status': STATUS_FAIL,
+                'params': hyperparams
+            }
         
         # save (overwrite) updated trials after each trainig
         with open(self.trials_path, 'wb') as handle:
