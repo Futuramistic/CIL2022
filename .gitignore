@@ -13,3 +13,4 @@ mlruns/
 checkpoints/
 archive/models/*
 archive/trials/*
+*.pt
