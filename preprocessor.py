@@ -44,7 +44,7 @@ def main():
     parser.set_defaults(horizontal_flip=True)
 
     # Whether to create smaller patches
-    parser.add_argument('--patchify', type=int, default=0)
+    parser.add_argument('-p', '--patchify', type=int, default=0)
 
     # TODO what are good ranges for these parameters?
     parser.add_argument('--brightness', type=float, nargs=2, action=required_length(2, 2), default=[0.8, 1.2])
@@ -78,8 +78,23 @@ def main():
     patchify = patch_size > 0
     noise_ratio = params.noise
     deletion_ratio = params.deletion
-    apply_noise = noise_ratio > 0
-    apply_deletion = noise_ratio > 0
+
+    preprocessing_params = {
+        'dataset': dataset,
+        'output_dir': output_dir,
+        'augmentation factor': augmentation_factor,
+        'rotation': rotation,
+        'translation': translation,
+        'scale': scale,
+        'brightness': brightness,
+        'contrast': contrast,
+        'saturation': saturation,
+        'vertical_flip': vertical_flip,
+        'horizontal_flip': horizontal_flip,
+        'patch_size': patch_size,
+        'noise_ratio': noise_ratio,
+        'deletion_ratio': deletion_ratio
+    }
 
     # Check whether the directories are correctly specified
     if not os.path.exists(f'{ROOT_DIR}/dataset/{dataset}'):
@@ -158,7 +173,12 @@ def main():
         input_test_paths, _ = dataloader.DataLoader.get_img_gt_paths(input_test_dir, None)
         original_test_dataset = torchDataset.SegmentationDataset(input_test_paths)
         __patchify_test_set(original_test_dataset, output_test_dir, patching_transform)
-        pass
+
+    # Save the used parameters to file
+    with open(f'dataset/{output_dir}/preprocessing_parameters.txt', 'w') as file:
+        file.write("# Preprocessing parameters\n")
+        for key in preprocessing_params:
+            file.write(f'- {key}: {preprocessing_params[key]}\n')
 
     print(f'Finished creating the new dataset at {output_path}')
 
