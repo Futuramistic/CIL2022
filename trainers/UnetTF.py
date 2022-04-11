@@ -10,7 +10,7 @@ from losses.diceLoss import DiceLoss
 
 class UNetTrainer(TFTrainer):
     """
-    Trainer for the AttUnetPlusPlusTF model.
+    Trainer for the UnetTF model.
     """
 
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
