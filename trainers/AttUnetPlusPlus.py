@@ -6,12 +6,12 @@ import tensorflow as tf
 import tensorflow.keras as K
 from .trainer_tf import TFTrainer
 from utils import *
-from losses.diceLoss import DiceLoss
+from losses.diceBCELoss import DiceBCELoss2, DiceBCELoss1
+from losses.focalLoss import FocalLoss
 
-
-class AttUNetTrainer(TFTrainer):
+class AttUNetPlusPlusTrainer(TFTrainer):
     """
-    Trainer for the GL-Dense-U-Net model.
+    Trainer for the AttUnetPlusPlusTF model.
     """
 
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
@@ -23,9 +23,10 @@ class AttUNetTrainer(TFTrainer):
         if split is None:
             split = DEFAULT_TRAIN_FRACTION
 
-        # Paper recommends batch size of 2-4
+        # Large batch size used in paper: 16
+        # Possible overkill
         if batch_size is None:
-            batch_size = 2
+            batch_size = 4
 
         train_set_size, test_set_size, unlabeled_test_set_size = dataloader.get_dataset_sizes(split=split)
         steps_per_training_epoch = train_set_size // batch_size
@@ -34,14 +35,16 @@ class AttUNetTrainer(TFTrainer):
             num_epochs = math.ceil(100000 / steps_per_training_epoch)
 
         if optimizer_or_lr is None:
-            optimizer_or_lr = AttUNetTrainer.get_default_optimizer_with_lr(1e-3)
+            # CAREFUL! Smaller learning rate recommended in comparision to other models !!!
+            optimizer_or_lr = AttUNetPlusPlusTrainer.get_default_optimizer_with_lr(lr=1e-4)
         elif isinstance(optimizer_or_lr, int) or isinstance(optimizer_or_lr, float):
-            optimizer_or_lr = AttUNetTrainer.get_default_optimizer_with_lr(optimizer_or_lr)
+            optimizer_or_lr = AttUNetPlusPlusTrainer.get_default_optimizer_with_lr(lr=optimizer_or_lr)
 
         # According to the paper
+        # Try DiceBCELoss
+        # Also: FocalLoss used in one online implementation
         if loss_function is None:
-            loss_function = K.losses.CategoricalCrossentropy(from_logits=True,
-                                                             reduction=K.losses.Reduction.SUM_OVER_BATCH_SIZE)
+            loss_function = DiceBCELoss1
 
         if evaluation_interval is None:
             evaluation_interval = 10
