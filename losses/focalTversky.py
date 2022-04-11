@@ -6,8 +6,8 @@ import keras.backend as K
 def FocalTverskyLoss(targets, inputs, alpha=.5, beta=.5, gamma=1, smooth=1e-6):
     
         #flatten label and prediction tensors
-        inputs = K.flatten(inputs)
-        targets = K.flatten(targets)
+        inputs  =   K.flatten(tf.cast(inputs,tf.float32))
+        targets =   K.flatten(tf.cast(targets,tf.float32))
         
         #True Positives, False Positives & False Negatives
         TP = K.sum((inputs * targets))

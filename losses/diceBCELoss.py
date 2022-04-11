@@ -7,7 +7,7 @@ def DiceBCELoss(targets, inputs, smooth=1e-6):
     targets =   K.flatten(tf.cast(targets,tf.float32))
     
     BCE =  K.binary_crossentropy(targets, inputs)
-    intersection = K.sum(K.dot(targets, inputs))    
+    intersection = K.sum(targets*inputs)    
     dice_loss = 1 - (2*intersection + smooth) / (K.sum(targets) + K.sum(inputs) + smooth)
     Dice_BCE = BCE + dice_loss
     
