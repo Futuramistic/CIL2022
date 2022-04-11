@@ -44,12 +44,16 @@ def main():
     parser.set_defaults(horizontal_flip=True)
 
     # Whether to create smaller patches
-    parser.add_argument('--patchify', type=int, default=0)
+    parser.add_argument('-p', '--patchify', type=int, default=0)
 
     # TODO what are good ranges for these parameters?
     parser.add_argument('--brightness', type=float, nargs=2, action=required_length(2, 2), default=[0.8, 1.2])
     parser.add_argument('--contrast', type=float, nargs=2, action=required_length(2, 2), default=[0.8, 1.2])
     parser.add_argument('--saturation', type=float, nargs=2, action=required_length(2, 2), default=[0.8, 1.2])
+
+    # Noise/deletion params
+    parser.add_argument('--noise', type=float, default=0)
+    parser.add_argument('--deletion', type=float, default=0)
 
     # Parse
     try:
@@ -72,6 +76,25 @@ def main():
     horizontal_flip = params.horizontal_flip
     patch_size = params.patchify
     patchify = patch_size > 0
+    noise_ratio = params.noise
+    deletion_ratio = params.deletion
+
+    preprocessing_params = {
+        'dataset': dataset,
+        'output_dir': output_dir,
+        'augmentation factor': augmentation_factor,
+        'rotation': rotation,
+        'translation': translation,
+        'scale': scale,
+        'brightness': brightness,
+        'contrast': contrast,
+        'saturation': saturation,
+        'vertical_flip': vertical_flip,
+        'horizontal_flip': horizontal_flip,
+        'patch_size': patch_size,
+        'noise_ratio': noise_ratio,
+        'deletion_ratio': deletion_ratio
+    }
 
     # Check whether the directories are correctly specified
     if not os.path.exists(f'{ROOT_DIR}/dataset/{dataset}'):
@@ -128,7 +151,9 @@ def main():
         'geometric_transforms': geometric_transforms,
         'lighting_transforms': [
             transforms.ColorJitter(brightness=brightness, contrast=contrast, saturation=saturation),
-        ]
+        ],
+        'noise_ratio': noise_ratio,
+        'deletion_ratio': deletion_ratio
     }
 
     # read and process the dataset
@@ -148,7 +173,12 @@ def main():
         input_test_paths, _ = dataloader.DataLoader.get_img_gt_paths(input_test_dir, None)
         original_test_dataset = torchDataset.SegmentationDataset(input_test_paths)
         __patchify_test_set(original_test_dataset, output_test_dir, patching_transform)
-        pass
+
+    # Save the used parameters to file
+    with open(f'dataset/{output_dir}/preprocessing_parameters.txt', 'w') as file:
+        file.write("# Preprocessing parameters\n")
+        for key in preprocessing_params:
+            file.write(f'- {key}: {preprocessing_params[key]}\n')
 
     print(f'Finished creating the new dataset at {output_path}')
 
@@ -171,6 +201,26 @@ def __patchify_test_set(dataset, output_test_dir, patchify_function):
     print(f'Created output test set with {output_size} images')
 
 
+def __pixelate_noisy_channel(image, noise_ratio):
+    """
+    This filter deletes channel values (independently) following a Bernoulli(deletion_ratio) law
+    """
+    mask = torch.ones((1, *image[0].shape)) * (1 - noise_ratio)
+    mask = torch.cat((mask, mask, mask), dim=0)
+    mask = torch.bernoulli(mask)
+    return image * mask
+
+
+def __pixelate_deletion_channel(image, deletion_ratio):
+    """
+    This filter deletes pixels (all channels) following a Bernoulli(deletion_ratio) law
+    """
+    mask = torch.ones((1, *image[0].shape)) * (1 - deletion_ratio)
+    mask = torch.bernoulli(mask)
+    mask = torch.cat((mask, mask, mask), dim=0)
+    return image * mask
+
+
 def __process_dataset(dataset, output_img_path, output_gt_path, augmentation_parameters):
     torch.manual_seed(42)
     nb_images = dataset.__len__()
@@ -189,6 +239,9 @@ def __process_dataset(dataset, output_img_path, output_gt_path, augmentation_par
     )
     scripted_geometric_transforms = torch.jit.script(geometric_transforms)
     scripted_lighting_transforms = torch.jit.script(lighting_transforms)
+
+    deletion_ratio = augmentation_parameters['deletion_ratio']
+    noise_ratio = augmentation_parameters['noise_ratio']
 
     # Transform the images
     print('Transforming images...')
@@ -215,6 +268,10 @@ def __process_dataset(dataset, output_img_path, output_gt_path, augmentation_par
                 transformed = scripted_geometric_transforms(patch)  # apply to both image and ground_truth
                 tr_gt, tr_image, alpha = torch.split(transformed, [1, transformed.shape[0] - 2, 1], dim=0)
                 tr_image = scripted_lighting_transforms(tr_image)  # only apply to rgb channels of image
+                if deletion_ratio > 0:
+                    tr_image = __pixelate_deletion_channel(tr_image, deletion_ratio)
+                if noise_ratio > 0:
+                    tr_image = __pixelate_noisy_channel(tr_image, noise_ratio)
                 tr_image = torch.cat((tr_image, alpha), dim=0)
                 # save the image
                 save_image(tr_gt, f'{output_gt_path}/image_{i}_{k+1}_{j + 1}.png')
