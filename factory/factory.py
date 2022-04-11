@@ -1,4 +1,6 @@
 import abc
+from models.TF.AttUNetTF import AttUnetTF
+from trainers.att_unet import AttUNetTrainer
 from utils import MODEL_CLASS_DICT
 
 from trainers.u_net import UNetTrainer
@@ -39,6 +41,8 @@ class Factory(abc.ABC):
             return DeepLabV3Factory()
         elif model_name_lower in ["gldenseunet", "gl-dense-u-net"]:
             return GLDenseUnetFactory()
+        elif model_name_lower in ["attunet", "att-u-net", "att_unet"]:
+            return AttUNetFactory()
         else:
             if next(filter(lambda m: m.lower() == model_name_lower, MODEL_CLASS_DICT), None) is not None:
                 raise NotImplementedError(f"The factory for the model {model_name} doesn't exist yet. Check for Implementation in factory.factory.py")
@@ -68,3 +72,11 @@ class DeepLabV3Factory(Factory):
         return Deeplabv3
     def get_dataloader_class(self):
         return TorchDataLoader
+
+class AttUNetFactory(Factory):
+    def get_trainer_class(self):
+        return AttUNetTrainer #TODO: adapt if specific trainer implemented (if needed)
+    def get_model_class(self):
+        return AttUnetTF
+    def get_dataloader_class(self):
+        return TFDataLoader

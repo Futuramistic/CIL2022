@@ -83,7 +83,6 @@ class HyperParamOptimizer:
             trainer = self.trainer_class(**hyperparams['training']['trainer_params'], dataloader = self.dataloader, model=model, experiment_name=self.exp_name, run_name=run_name)
             test_loss = trainer.train()
             average_f1_score = trainer.get_F1_score_validation(model)
-            print(average_f1_score)
         except RuntimeError as r:
             print(f"Current hyperparams, that lead to error:\n{hyperparams}")
             return {
@@ -95,8 +94,7 @@ class HyperParamOptimizer:
         with open(self.trials_path, 'wb') as handle:
             pickle.dump(self.trials, handle)
         return {
-            'loss': test_loss if self.minimize_loss else -test_loss,
-            'F1-Score': average_f1_score,
+            'loss': 1-average_f1_score, 
             'status': STATUS_OK,
             'trained_model': model,
             'params': hyperparams

@@ -8,6 +8,7 @@ import random
 import math
 from models.learning_aerial_image_segmenation_from_online_maps import Deeplabv3, Unet, Fastscnn
 from models.road_extraction_from_high_res_rsi_using_dl.gl_dense_u_net import *
+from models.TF import AttUNetTF
 
 
 ###########################################################################################
@@ -18,7 +19,8 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 ACCEPTED_IMAGE_EXTENSIONS = [".png", ".jpeg", ".jpg", ".gif"]
 MODEL_CLASS_DICT = {'deeplabv3': Deeplabv3.Deeplabv3,
                     'fastscnn': Fastscnn.FastSCNN,
-                    'unet': Unet.UNet}
+                    'unet': Unet.UNet,
+                    'attunet':AttUNetTF.AttUnetTF}
 DEFAULT_TRAIN_FRACTION = 0.8
 DATASET_ZIP_URLS = {
     # "original": dataset used in the ETHZ CIL Road Segmentation 2022 Kaggle competition

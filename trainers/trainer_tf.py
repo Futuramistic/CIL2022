@@ -59,7 +59,6 @@ class TFTrainer(Trainer, abc.ABC):
     def create_visualizations(self, directory):
         images = []
         num_samples = self.num_samples_to_visualize
-
         for batch_xs, batch_ys in self.test_loader.shuffle(10 * num_samples).batch(num_samples):
             batch_xs = tf.squeeze(batch_xs, axis=1)
             batch_ys = tf.squeeze(batch_ys, axis=1).numpy()
@@ -70,6 +69,7 @@ class TFTrainer(Trainer, abc.ABC):
             preds = np.moveaxis(preds, -1, 1)
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
             self._fill_images_array(preds, batch_ys, images)
+            
             break  # Only operate on one batch of 'self.trainer.num_samples_to_visualize' samples
 
         self._save_image_array(images, directory)
@@ -89,6 +89,16 @@ class TFTrainer(Trainer, abc.ABC):
             checkpoint_callback = ModelCheckpoint(filepath=checkpoint_path, verbose=1,
                                                   save_freq=self.checkpoint_interval * self.steps_per_training_epoch)
             callbacks.append(checkpoint_callback)
-        last_test_loss = self.model.fit(self.train_loader, epochs=self.num_epochs,
+        self.model.fit(self.train_loader, epochs=self.num_epochs,
                                         steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks)
-        return last_test_loss
+    
+    def get_F1_score_validation(self, model):
+        import losses.f1 as f1
+        f1_scores = []
+        for x, y in self.test_loader:
+            preds = model.predict(x)
+            # taking the argmax removes the last dim
+            # preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
+            # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
+            f1_scores.append(f1.f1_score_tf(preds, y).item())
+        return np.mean(f1_scores)
