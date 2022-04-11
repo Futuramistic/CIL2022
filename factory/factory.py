@@ -1,6 +1,6 @@
 import abc
 from models.TF.AttUNetTF import AttUnetTF
-from trainers.att_unet import AttUNetTrainer
+from trainers.AttUnetTF import AttUNetTrainer
 from utils import MODEL_CLASS_DICT
 
 from trainers.u_net import UNetTrainer
