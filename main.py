@@ -43,6 +43,7 @@ remove_leading_dashes = lambda s: ''.join(itertools.dropwhile(lambda c: c == '-'
 cast_arg = lambda s: int(s) if remove_leading_dashes(s).isdigit()\
                      else float(s) if re.search('[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?$', s) is not None\
                      else bool(s) if s.lower() in ['true', 'false']\
+                     else eval(s) if s.startswith('(') and s.endswith(')')\
                      else s
 
 known_args_dict = dict(map(lambda arg: (arg, getattr(known_args, arg)), vars(known_args)))

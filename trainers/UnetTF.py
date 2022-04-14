@@ -8,7 +8,7 @@ from .trainer_tf import TFTrainer
 from utils import *
 from losses.diceLoss import DiceLoss
 
-class UNetTrainer(TFTrainer):
+class UNetTFTrainer(TFTrainer):
     """
     Trainer for the UnetTF model.
     """
@@ -36,9 +36,9 @@ class UNetTrainer(TFTrainer):
         if optimizer_or_lr is None:
             # CAREFUL! Smaller learning rate recommended in comparision to other models !!!
             # Even 1e-5 was recommended, but might take ages
-            optimizer_or_lr = UNetTrainer.get_default_optimizer_with_lr(lr=1e-4)
+            optimizer_or_lr = UNetTFTrainer.get_default_optimizer_with_lr(lr=1e-4)
         elif isinstance(optimizer_or_lr, int) or isinstance(optimizer_or_lr, float):
-            optimizer_or_lr = UNetTrainer.get_default_optimizer_with_lr(lr=optimizer_or_lr)
+            optimizer_or_lr = UNetTFTrainer.get_default_optimizer_with_lr(lr=optimizer_or_lr)
 
         # According to the online github repo
         if loss_function is None:

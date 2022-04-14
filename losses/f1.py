@@ -2,7 +2,6 @@ import numpy as np
 from sklearn.metrics import f1_score
 import tensorflow as tf
 import keras.backend as K
-import tensorflow_addons as tfa
 
 def f1_score_torch(prediction, targets):
     # best value is at 1, worst at 0
