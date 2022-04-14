@@ -90,7 +90,7 @@ class TFTrainer(Trainer, abc.ABC):
                                                   save_freq=self.checkpoint_interval * self.steps_per_training_epoch)
             callbacks.append(checkpoint_callback)
         self.model.fit(self.train_loader, epochs=self.num_epochs,
-                                        steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks)
+                       steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks)
     
     def get_F1_score_validation(self, model):
         import losses.f1 as f1

@@ -1,17 +1,18 @@
 import abc
 import mlflow
+import numpy as np
+import os
 import pexpect
 import paramiko
 import pysftp
 import requests
 import socket
 import time
-import os
 
 from data_handling.dataloader import DataLoader
-from utils import *
 import mlflow_logger
-import numpy as np
+import optim_hyparam_serializer
+from utils import *
 
 
 class Trainer(abc.ABC):
@@ -132,9 +133,9 @@ class Trainer(abc.ABC):
         return {
             'split': self.split,
             'epochs': self.num_epochs,
-            'batch size': self.batch_size,
-            'optimizer': self.optimizer_or_lr,
-            'loss function': self.loss_function,
+            'batch_size': self.batch_size,
+            'loss_function': self.loss_function,
+            **(optim_hyparam_serializer.serialize_optimizer_hyperparams(self.optimizer_or_lr))
         }
 
     @staticmethod
