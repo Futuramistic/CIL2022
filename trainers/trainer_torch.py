@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torch.cuda
 
+import losses.precision_recall_f1
 import mlflow_logger
 from .trainer import Trainer
 from utils import *
@@ -40,8 +41,8 @@ class TorchTrainer(Trainer, abc.ABC):
         def on_train_batch_end(self):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
                 if mlflow_logger.logging_to_mlflow_enabled():
-                    f1_score = self.trainer.get_F1_score_validation()
-                    mlflow_logger.log_metrics({'f1': f1_score})
+                    precision, recall, f1_score = self.trainer.get_precision_recall_F1_score_validation()
+                    mlflow_logger.log_metrics({'precision': precision, 'recall': recall, 'f1_score': f1_score})
                     if self.do_visualize:
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
             self.iteration_idx += 1
@@ -81,28 +82,33 @@ class TorchTrainer(Trainer, abc.ABC):
         model = self.model.to(self.device)
         callback_handler = TorchTrainer.Callback(self, mlflow_run, model)
         for epoch in range(self.num_epochs):
-            self._train_step(model, self.device, self.train_loader, callback_handler=callback_handler)
-            last_loss = self._eval_step(model, self.device, self.test_loader)
-            mlflow_logger.log_metrics({'loss': last_loss})
+            last_train_loss = self._train_step(model, self.device, self.train_loader, callback_handler=callback_handler)
+            last_test_loss = self._eval_step(model, self.device, self.test_loader)
+            mlflow_logger.log_metrics({'train_loss': last_train_loss, 'test_loss': last_test_loss})
             if self.do_checkpoint and not epoch % self.checkpoint_interval:
                 self._save_checkpoint(model, epoch)
-        return last_loss
+        return last_test_loss
 
     def _train_step(self, model, device, train_loader, callback_handler):
         model.train()
         opt = self.optimizer_or_lr
-        for batch, (x, y) in enumerate(train_loader):
+        train_loss = 0
+        for (x, y) in train_loader:
             x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.long)
             y = torch.squeeze(y, dim=1)  # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
             preds = model(x)
             loss = self.loss_function(preds, y)
+            with torch.no_grad():
+                train_loss += loss.item()
             opt.zero_grad()
             loss.backward()
             opt.step()
             callback_handler.on_train_batch_end()
             del x
             del y
+        train_loss /= len(train_loader.dataset)
         self.scheduler.step()
+        return train_loss
 
     def _eval_step(self, model, device, test_loader):
         model.eval()
@@ -120,16 +126,21 @@ class TorchTrainer(Trainer, abc.ABC):
         return test_loss
 
     def get_F1_score_validation(self):
-        import losses.precision_recall_f1 as f1
+        _, _, f1_score = self.get_precision_recall_F1_score_validation()
+        return f1_score
+
+    def get_precision_recall_F1_score_validation(self):
         self.model.eval()
-        f1_scores = []
+        precisions, recalls, f1_scores = [], [], []
         for (x, y) in self.test_loader:
             x = x.to(self.device, dtype=torch.float32)
             y = y.to(self.device, dtype=torch.float32)
             output = self.model(x)
             preds = (output >= self.segmentation_threshold).float()
-            f1_scores.append(f1.f1_score_torch(preds, y).item())
+            precision, recall, f1_score = losses.precision_recall_f1.precision_recall_f1_score_torch(preds, y)
+            precisions.append(precision.cpu().numpy())
+            recalls.append(recall.cpu().numpy())
+            f1_scores.append(f1_score.cpu().numpy())
             del x
             del y
-        output = np.mean(f1_scores)
-        return output
+        return np.mean(precisions), np.mean(recalls), np.mean(f1_scores)

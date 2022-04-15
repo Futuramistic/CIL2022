@@ -18,7 +18,7 @@ def prediction_stats_torch(thresholded_prediction, targets, classes, dtype=torch
     targets = collapse_channel_dim_torch(targets, take_argmax=True).long()
     thresholded_prediction = collapse_channel_dim_torch(thresholded_prediction, take_argmax=True).long()
 
-    tp, fp, tn, fn = [torch.zeros(1, dtype=dtype) for _ in range(4)]
+    tp, fp, tn, fn = [torch.zeros(1, dtype=dtype, device=targets.device) for _ in range(4)]
 
     if not isinstance(classes, Iterable):
         classes = [classes]
@@ -53,14 +53,20 @@ def recall_torch(thresholded_prediction, targets, classes, pred_stats=None):
     return pred_stats['tp'] / (pred_stats['tp'] + pred_stats['fn'])
 
 
-def f1_score_torch(thresholded_prediction, targets, classes=DEFAULT_F1_CLASSES):
+def precision_recall_f1_score_torch(thresholded_prediction, targets, classes=DEFAULT_F1_CLASSES):
     # best value is at 1, worst at 0
     pred_stats = prediction_stats_torch(thresholded_prediction, targets, classes)
     precision = precision_torch(thresholded_prediction, targets, classes, pred_stats)
-    if precision == torch.zeros_like(precision):  # prevent NaNs
-        return torch.zeros_like(precision)
     recall = recall_torch(thresholded_prediction, targets, classes, pred_stats)
-    return (2 * precision * recall) / (precision + recall)
+    if precision == torch.zeros_like(precision):  # prevent NaNs
+        return precision, recall, torch.zeros_like(precision)
+    f1_score = (2 * precision * recall) / (precision + recall)
+    return precision, recall, f1_score
+
+
+def f1_score_torch(thresholded_prediction, targets, classes=DEFAULT_F1_CLASSES):
+    _, _, f1_score = precision_recall_f1_score_torch(thresholded_prediction, targets, classes)
+    return f1_score
 
 
 def prediction_stats_tf(thresholded_prediction, targets, classes, dtype=tf.dtypes.float32):
@@ -104,11 +110,17 @@ def recall_tf(thresholded_prediction, targets, classes, pred_stats=None):
     return pred_stats['tp'] / (pred_stats['tp'] + pred_stats['fn'])
 
 
-def f1_score_tf(thresholded_prediction, targets, classes=DEFAULT_F1_CLASSES):
+def precision_recall_f1_score_tf(thresholded_prediction, targets, classes=DEFAULT_F1_CLASSES):
     # best value is at 1, worst at 0
     pred_stats = prediction_stats_tf(thresholded_prediction, targets, classes)
     precision = precision_tf(thresholded_prediction, targets, classes, pred_stats)
-    if precision == tf.zeros_like(precision):  # prevent NaNs
-        return tf.zeros_like(precision)
     recall = recall_tf(thresholded_prediction, targets, classes, pred_stats)
-    return (tf.convert_to_tensor(2.0, dtype=precision.dtype) * precision * recall) / (precision + recall)
+    if precision == tf.zeros_like(precision):  # prevent NaNs
+        return precision, recall, tf.zeros_like(precision)
+    f1_score = (tf.convert_to_tensor(2.0, dtype=precision.dtype) * precision * recall) / (precision + recall)
+    return precision, recall, f1_score
+
+
+def f1_score_tf(thresholded_prediction, targets, classes=DEFAULT_F1_CLASSES):
+    _, _, f1_score = precision_recall_f1_score_tf(thresholded_prediction, targets, classes)
+    return f1_score
