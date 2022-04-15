@@ -64,7 +64,7 @@ class TFTrainer(Trainer, abc.ABC):
             batch_xs = tf.squeeze(batch_xs, axis=1)
             batch_ys = tf.squeeze(batch_ys, axis=1).numpy()
             output = self.model.predict(batch_xs)
-            preds = (output >= self.segmentation_threshold).astype(np.int)
+            preds = (output >= self.segmentation_threshold).astype(np.float)
             # preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
             batch_ys = np.moveaxis(batch_ys, -1, 1)  # TODO only do this if we know the network uses HWC format
             preds = np.moveaxis(preds, -1, 1)
@@ -93,13 +93,11 @@ class TFTrainer(Trainer, abc.ABC):
         self.model.fit(self.train_loader, epochs=self.num_epochs,
                        steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks)
     
-    def get_F1_score_validation(self, model):
+    def get_F1_score_validation(self):
         import losses.f1 as f1
         f1_scores = []
         for x, y in self.test_loader:
-            preds = model.predict(x)
-            # taking the argmax removes the last dim
-            # preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
-            # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
+            output = self.model.predict(x)
+            preds = (output >= self.segmentation_threshold).astype(np.float)
             f1_scores.append(f1.f1_score_tf(preds, y).item())
         return np.mean(f1_scores)

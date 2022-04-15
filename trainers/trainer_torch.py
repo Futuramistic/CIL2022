@@ -1,13 +1,11 @@
 import abc
-
-import time
 import torch
 import torch.cuda
 
-from .trainer import Trainer
-from utils import *
 import mlflow_logger
 import numpy as np
+from .trainer import Trainer
+from utils import *
 
 
 class TorchTrainer(Trainer, abc.ABC):
@@ -120,14 +118,17 @@ class TorchTrainer(Trainer, abc.ABC):
         print(f'\nTest loss: {test_loss:.3f}')
         return test_loss
 
-    def get_F1_score_validation(self, model):
+    def get_F1_score_validation(self):
         import losses.f1 as f1
-        model.eval()
+        self.model.eval()
         f1_scores = []
-        for (x,y) in self.test_loader:
+        for (x, y) in self.test_loader:
             x = x.to(self.device, dtype=torch.float32)
-            preds = model(x)
+            y = y.to(self.device, dtype=torch.float32)
+            output = self.model(x)
+            preds = (output >= self.segmentation_threshold).float()
             f1_scores.append(f1.f1_score_torch(preds, y).item())
             del x
             del y
-        return np.mean(f1_scores)
+        output = np.mean(f1_scores)
+        return output
