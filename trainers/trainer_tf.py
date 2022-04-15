@@ -53,8 +53,11 @@ class TFTrainer(Trainer, abc.ABC):
 
         def on_train_batch_end(self, batch, logs=None):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                if self.do_visualize:
-                    mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
+                if mlflow_logger.logging_to_mlflow_enabled():
+                    f1_score = self.trainer.get_F1_score_validation()
+                    mlflow_logger.log_metrics({'f1': f1_score})
+                    if self.do_visualize:
+                        mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
             self.iteration_idx += 1
 
     def create_visualizations(self, directory):
@@ -94,10 +97,13 @@ class TFTrainer(Trainer, abc.ABC):
                        steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks)
     
     def get_F1_score_validation(self):
-        import losses.f1 as f1
+        import losses.precision_recall_f1 as f1
         f1_scores = []
-        for x, y in self.test_loader:
-            output = self.model.predict(x)
-            preds = (output >= self.segmentation_threshold).astype(np.float)
-            f1_scores.append(f1.f1_score_tf(preds, y).item())
-        return np.mean(f1_scores)
+        _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
+        for x, y in self.test_loader.take(test_dataset_size):
+            output = self.model(x)
+            preds = tf.cast(output >= self.segmentation_threshold, tf.dtypes.int8)
+            score = f1.f1_score_tf(preds, y)
+            f1_scores.append(score.numpy().item())
+        output = np.mean(f1_scores)
+        return output

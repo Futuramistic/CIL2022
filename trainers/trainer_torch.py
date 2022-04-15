@@ -1,9 +1,9 @@
 import abc
+import numpy as np
 import torch
 import torch.cuda
 
 import mlflow_logger
-import numpy as np
 from .trainer import Trainer
 from utils import *
 
@@ -39,10 +39,11 @@ class TorchTrainer(Trainer, abc.ABC):
 
         def on_train_batch_end(self):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                f1_score = self.trainer.get_F1_score_validation()
-                mlflow_logger.log_metrics({'f1': f1_score})
-                if self.do_visualize:
-                    mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
+                if mlflow_logger.logging_to_mlflow_enabled():
+                    f1_score = self.trainer.get_F1_score_validation()
+                    mlflow_logger.log_metrics({'f1': f1_score})
+                    if self.do_visualize:
+                        mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
             self.iteration_idx += 1
 
     def create_visualizations(self, directory):
@@ -119,7 +120,7 @@ class TorchTrainer(Trainer, abc.ABC):
         return test_loss
 
     def get_F1_score_validation(self):
-        import losses.f1 as f1
+        import losses.precision_recall_f1 as f1
         self.model.eval()
         f1_scores = []
         for (x, y) in self.test_loader:
