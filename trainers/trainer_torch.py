@@ -1,5 +1,6 @@
 import abc
 
+import time
 import torch
 import torch.cuda
 
@@ -13,7 +14,7 @@ class TorchTrainer(Trainer, abc.ABC):
     def __init__(self, dataloader, model, preprocessing,
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, scheduler=None, loss_function=None, evaluation_interval=None,
-                 num_samples_to_visualize=None, checkpoint_interval=None):
+                 num_samples_to_visualize=None, checkpoint_interval=None, segmentation_threshold=None):
         """
         Abstract class for Torch-based model trainers.
         Args:
@@ -21,7 +22,8 @@ class TorchTrainer(Trainer, abc.ABC):
             model: the model to train
         """
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
-                         loss_function, evaluation_interval, num_samples_to_visualize, checkpoint_interval)
+                         loss_function, evaluation_interval, num_samples_to_visualize, checkpoint_interval,
+                         segmentation_threshold)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.scheduler = scheduler
@@ -39,6 +41,8 @@ class TorchTrainer(Trainer, abc.ABC):
 
         def on_train_batch_end(self):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
+                f1_score = self.trainer.get_F1_score_validation()
+                mlflow_logger.log_metrics({'f1': f1_score})
                 if self.do_visualize:
                     mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
             self.iteration_idx += 1
@@ -54,7 +58,7 @@ class TorchTrainer(Trainer, abc.ABC):
                 continue
             batch_xs, batch_ys = batch_xs.to(self.device), batch_ys.numpy()
             output = self.model(batch_xs)
-            preds = torch.round(output).cpu().detach().numpy()
+            preds = (output >= self.segmentation_threshold).float().cpu().detach().numpy()
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
             self._fill_images_array(preds, batch_ys, images)
 
@@ -115,7 +119,7 @@ class TorchTrainer(Trainer, abc.ABC):
         test_loss /= len(test_loader.dataset)
         print(f'\nTest loss: {test_loss:.3f}')
         return test_loss
-    
+
     def get_F1_score_validation(self, model):
         import losses.f1 as f1
         model.eval()

@@ -18,7 +18,7 @@ from utils import *
 
 trainer_args = ['experiment_name', 'E', 'run_name', 'R', 'split', 's', 'num_epochs', 'e', 'batch_size', 'b',
                 'optimizer_or_lr', 'l', 'evaluation_interval', 'i',
-                'num_samples_to_visualize', 'v', 'checkpoint_interval', 'c']
+                'num_samples_to_visualize', 'v', 'checkpoint_interval', 'c', 'segmentation_threshold', 't']
 dataloader_args = ['dataset', 'd']
 
 # list of other arguments to avoid passing to constructor of model class
@@ -35,6 +35,7 @@ parser.add_argument('-l', '--optimizer_or_lr', type=float, required=False)
 parser.add_argument('-i', '--evaluation_interval', type=float, required=False)
 parser.add_argument('-v', '--num_samples_to_visualize', type=int, required=False)
 parser.add_argument('-c', '--checkpoint_interval', type=int, required=False)
+parser.add_argument('-t', '--segmentation_threshold', type=float, default=DEFAULT_SEGMENTATION_THRESHOLD, required=False)
 parser.add_argument('-d', '--dataset', type=str, required=True)
 known_args, unknown_args = parser.parse_known_args()
 

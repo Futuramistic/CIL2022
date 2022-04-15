@@ -18,7 +18,7 @@ from utils import *
 class Trainer(abc.ABC):
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
                  batch_size=None, optimizer_or_lr=None, loss_function=None, evaluation_interval=None,
-                 num_samples_to_visualize=None, checkpoint_interval=None):
+                 num_samples_to_visualize=None, checkpoint_interval=None, segmentation_threshold=None):
         """
         Abstract class for model trainers.
         Args:
@@ -55,6 +55,8 @@ class Trainer(abc.ABC):
         self.num_samples_to_visualize = num_samples_to_visualize if num_samples_to_visualize is not None else 6
         self.checkpoint_interval = checkpoint_interval
         self.do_checkpoint = self.checkpoint_interval is not None and self.checkpoint_interval > 0
+        self.segmentation_threshold =\
+            segmentation_threshold if segmentation_threshold is not None else DEFAULT_SEGMENTATION_THRESHOLD
         self.is_windows = os.name == 'nt'
 
     def _init_mlflow(self):
@@ -135,6 +137,7 @@ class Trainer(abc.ABC):
             'epochs': self.num_epochs,
             'batch_size': self.batch_size,
             'loss_function': self.loss_function,
+            'seg_threshold': self.segmentation_threshold,
             **(optim_hyparam_serializer.serialize_optimizer_hyperparams(self.optimizer_or_lr))
         }
 

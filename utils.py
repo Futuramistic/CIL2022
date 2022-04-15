@@ -22,6 +22,7 @@ MODEL_CLASS_DICT = {'deeplabv3': Deeplabv3.Deeplabv3,
                     'unet': Unet.UNet,
                     'attunet':AttUNetTF.AttUnetTF}
 DEFAULT_TRAIN_FRACTION = 0.8
+DEFAULT_SEGMENTATION_THRESHOLD = 0.5
 DATASET_ZIP_URLS = {
     # "original": dataset used in the ETHZ CIL Road Segmentation 2022 Kaggle competition
     "original": "https://polybox.ethz.ch/index.php/s/x2RcSv4MOG3rtPB/download",
@@ -39,7 +40,7 @@ MLFLOW_HOST = "algvrithm.com"
 MLFLOW_TRACKING_URI = f"http://{MLFLOW_HOST}:8000"
 MLFLOW_JUMP_HOST = "eu-login-01"
 MLFLOW_PASS_URL = "https://algvrithm.com/files/mlflow_cil_pass.txt"
-MLFLOW_PROFILING = True
+MLFLOW_PROFILING = False
 
 
 ###########################################################################################

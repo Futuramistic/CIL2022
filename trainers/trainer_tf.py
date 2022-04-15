@@ -12,7 +12,7 @@ class TFTrainer(Trainer, abc.ABC):
     def __init__(self, dataloader, model, preprocessing, steps_per_training_epoch,
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, loss_function=None, evaluation_interval=None,
-                 num_samples_to_visualize=None, checkpoint_interval=None):
+                 num_samples_to_visualize=None, checkpoint_interval=None, segmentation_threshold=None):
         """
         Abstract class for TensorFlow-based model trainers.
         Args:
@@ -20,7 +20,8 @@ class TFTrainer(Trainer, abc.ABC):
             model: the model to train
         """
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
-                         loss_function, evaluation_interval, num_samples_to_visualize, checkpoint_interval)
+                         loss_function, evaluation_interval, num_samples_to_visualize, checkpoint_interval,
+                         segmentation_threshold)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
@@ -63,7 +64,7 @@ class TFTrainer(Trainer, abc.ABC):
             batch_xs = tf.squeeze(batch_xs, axis=1)
             batch_ys = tf.squeeze(batch_ys, axis=1).numpy()
             output = self.model.predict(batch_xs)
-            preds = tf.round(output).numpy()  # taking the argmax removes the last dim
+            preds = (output >= self.segmentation_threshold).astype(np.int)
             # preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
             batch_ys = np.moveaxis(batch_ys, -1, 1)  # TODO only do this if we know the network uses HWC format
             preds = np.moveaxis(preds, -1, 1)
