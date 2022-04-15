@@ -82,7 +82,7 @@ class HyperParamOptimizer:
             model = self.model_class(**hyperparams['model']['kwargs'])
             trainer = self.trainer_class(**hyperparams['training']['trainer_params'], dataloader = self.dataloader, model=model, experiment_name=self.exp_name, run_name=run_name)
             test_loss = trainer.train()
-            average_f1_score = trainer.get_F1_score_validation(model)
+            average_f1_score = trainer.get_F1_score_validation()
         except RuntimeError as r:
             print(f"Current hyperparams, that lead to error:\n{hyperparams}")
             return {

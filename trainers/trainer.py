@@ -114,18 +114,34 @@ class Trainer(abc.ABC):
 
                     pysftp.Connection._start_transport = new_start_transport
 
-            mlflow_pass = requests.get(MLFLOW_PASS_URL).text
-            try:
-                add_known_hosts(MLFLOW_HOST, MLFLOW_USER, mlflow_pass)
-            except:
-                add_known_hosts(MLFLOW_HOST, MLFLOW_USER, mlflow_pass, MLFLOW_JUMP_HOST)
+            mlflow_init_successful = True
+            MLFLOW_INIT_ERROR_MSG = 'MLflow initialization failed. Will not use MLflow for this run.'
 
-            mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-            experiment = mlflow.get_experiment_by_name(self.mlflow_experiment_name)
-            if experiment is None:
-                self.mlflow_experiment_id = mlflow.create_experiment(self.mlflow_experiment_name)
-            else:
-                self.mlflow_experiment_id = experiment.experiment_id
+            try:
+                mlflow_pass = requests.get(MLFLOW_PASS_URL).text
+                try:
+                    add_known_hosts(MLFLOW_HOST, MLFLOW_USER, mlflow_pass)
+                except:
+                    add_known_hosts(MLFLOW_HOST, MLFLOW_USER, mlflow_pass, MLFLOW_JUMP_HOST)
+            except:
+                mlflow_init_successful = False
+                print(MLFLOW_INIT_ERROR_MSG)
+
+            if mlflow_init_successful:
+                try:
+                    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+                    experiment = mlflow.get_experiment_by_name(self.mlflow_experiment_name)
+                    if experiment is None:
+                        self.mlflow_experiment_id = mlflow.create_experiment(self.mlflow_experiment_name)
+                    else:
+                        self.mlflow_experiment_id = experiment.experiment_id
+                except:
+                    mlflow_init_successful = False
+                    print(MLFLOW_INIT_ERROR_MSG)
+
+            return mlflow_init_successful
+        else:
+            return False
 
     def _get_hyperparams(self):
         """
@@ -167,8 +183,7 @@ class Trainer(abc.ABC):
         """
         if self.do_checkpoint and not os.path.exists(CHECKPOINTS_DIR):
             os.makedirs(CHECKPOINTS_DIR)
-        if self.mlflow_experiment_name is not None:
-            self._init_mlflow()
+        if self.mlflow_experiment_name is not None and self._init_mlflow():
             with mlflow.start_run(experiment_id=self.mlflow_experiment_id, run_name=self.mlflow_run_name) as run:
                 mlflow_logger.log_hyperparams(self._get_hyperparams())
                 mlflow_logger.snapshot_codebase()  # snapshot before training as the files may change in-between

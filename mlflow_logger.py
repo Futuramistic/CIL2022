@@ -7,10 +7,17 @@ import time
 from typing import Dict, Any
 
 
+def logging_to_mlflow_enabled():
+    return mlflow.active_run() is not None
+
+
 def log_visualizations(trainer, iteration_index):
     """
     Log the segmentations to MLFlow as images
     """
+    if not logging_to_mlflow_enabled():
+        return False
+
     eval_start = time.time()
     # store segmentations in temp_dir, then upload temp_dir to Mlflow server
     temp_dir = tempfile.mkdtemp()
@@ -34,6 +41,8 @@ def log_visualizations(trainer, iteration_index):
               f'MLflow logging took {"%.4f" % (eval_mlflow_end - eval_mlflow_start)}s '
               f'(processed {trainer.num_samples_to_visualize} sample(s))')
 
+    return True
+
 
 def snapshot_codebase():
     """
@@ -51,9 +60,13 @@ def log_codebase():
     """
     Log the codebase to MLFlow
     """
-    print('\nLogging codebase to MLFlow...')
-    mlflow.log_artifact(CODEBASE_SNAPSHOT_ZIP_NAME, f'codebase/')
-    print('Logging codebase successful')
+    if logging_to_mlflow_enabled():
+        print('\nLogging codebase to MLFlow...')
+        mlflow.log_artifact(CODEBASE_SNAPSHOT_ZIP_NAME, f'codebase/')
+        print('Logging codebase successful')
+    else:
+        print('Cannot log codebase to MLFlow, as logging is disabled')
+
     os.remove(CODEBASE_SNAPSHOT_ZIP_NAME)
 
 
@@ -61,9 +74,13 @@ def log_checkpoints():
     """
     Log a checkpoint to MLFlow
     """
-    print('\nLogging checkpoints to MLFlow...')
-    mlflow.log_artifact(CHECKPOINTS_DIR, '')
-    print('Logging checkpoints successful')
+    if logging_to_mlflow_enabled():
+        print('\nLogging checkpoints to MLFlow...')
+        mlflow.log_artifact(CHECKPOINTS_DIR, '')
+        print('Logging checkpoints successful')
+    else:
+        print('Cannot log checkpoint to MLFlow, as logging is disabled')
+
     shutil.rmtree(CHECKPOINTS_DIR)  # Remove the directory and its contents
     os.makedirs(CHECKPOINTS_DIR)  # Recreate an empty directory
 
@@ -74,7 +91,10 @@ def log_metrics(metrics: Dict[str, Any]):
     Args:
         metrics (Dict[str, Any]): dictionary of metrics to log
     """
-    mlflow.log_metrics(metrics)
+
+    # do not emit a warning here, as this is likely to spam the console
+    if logging_to_mlflow_enabled():
+        mlflow.log_metrics(metrics)
 
 
 def log_hyperparams(hyperparams: Dict[str, Any]):
@@ -84,4 +104,8 @@ def log_hyperparams(hyperparams: Dict[str, Any]):
     Args:
         hyperparams (Dict[str, Any]): dictionary of hyperparameters to log
     """
-    mlflow.log_params(hyperparams)
+
+    if logging_to_mlflow_enabled():
+        mlflow.log_params(hyperparams)
+    else:
+        print('Cannot log checkpoint to MLFlow, as logging is disabled')

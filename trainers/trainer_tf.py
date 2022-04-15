@@ -3,6 +3,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.callbacks import ModelCheckpoint
 
+import losses.precision_recall_f1
 import mlflow_logger
 from .trainer import Trainer
 from utils import *
@@ -53,8 +54,11 @@ class TFTrainer(Trainer, abc.ABC):
 
         def on_train_batch_end(self, batch, logs=None):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                if self.do_visualize:
-                    mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
+                if mlflow_logger.logging_to_mlflow_enabled():
+                    precision, recall, f1_score = self.trainer.get_precision_recall_F1_score_validation()
+                    mlflow_logger.log_metrics({'precision': precision, 'recall': recall, 'f1_score': f1_score})
+                    if self.do_visualize:
+                        mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
             self.iteration_idx += 1
 
     def create_visualizations(self, directory):
@@ -64,7 +68,7 @@ class TFTrainer(Trainer, abc.ABC):
             batch_xs = tf.squeeze(batch_xs, axis=1)
             batch_ys = tf.squeeze(batch_ys, axis=1).numpy()
             output = self.model.predict(batch_xs)
-            preds = (output >= self.segmentation_threshold).astype(np.int)
+            preds = (output >= self.segmentation_threshold).astype(np.float)
             # preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
             batch_ys = np.moveaxis(batch_ys, -1, 1)  # TODO only do this if we know the network uses HWC format
             preds = np.moveaxis(preds, -1, 1)
@@ -84,22 +88,28 @@ class TFTrainer(Trainer, abc.ABC):
                                                                     preprocessing=self.preprocessing)
         self.test_loader = self.dataloader.get_testing_dataloader(split=self.split, batch_size=1,
                                                                   preprocessing=self.preprocessing)
+        _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
         callbacks = [TFTrainer.Callback(self, mlflow_run)]
         if self.do_checkpoint:
             checkpoint_path = "{dir}".format(dir=CHECKPOINTS_DIR) + "cp-{epoch:04d}.ckpt"
             checkpoint_callback = ModelCheckpoint(filepath=checkpoint_path, verbose=1,
                                                   save_freq=self.checkpoint_interval * self.steps_per_training_epoch)
             callbacks.append(checkpoint_callback)
-        self.model.fit(self.train_loader, epochs=self.num_epochs,
+        self.model.fit(self.train_loader, validation_data=self.test_loader.take(test_dataset_size), epochs=self.num_epochs,
                        steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks)
     
-    def get_F1_score_validation(self, model):
-        import losses.f1 as f1
-        f1_scores = []
-        for x, y in self.test_loader:
-            preds = model.predict(x)
-            # taking the argmax removes the last dim
-            # preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
-            # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
-            f1_scores.append(f1.f1_score_tf(preds, y).item())
-        return np.mean(f1_scores)
+    def get_F1_score_validation(self):
+        _, _, f1_score = self.get_precision_recall_F1_score_validation()
+        return f1_score
+
+    def get_precision_recall_F1_score_validation(self):
+        precisions, recalls, f1_scores = [], [], []
+        _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
+        for x, y in self.test_loader.take(test_dataset_size):
+            output = self.model(x)
+            preds = tf.cast(output >= self.segmentation_threshold, tf.dtypes.int8)
+            precision, recall, f1_score = losses.precision_recall_f1.precision_recall_f1_score_tf(preds, y)
+            precisions.append(precision.numpy().item())
+            recalls.append(recall.numpy().item())
+            f1_scores.append(f1_score.numpy().item())
+        return np.mean(precisions), np.mean(recalls), np.mean(f1_scores)

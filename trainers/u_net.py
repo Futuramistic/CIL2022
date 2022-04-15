@@ -1,6 +1,6 @@
 from .trainer_torch import TorchTrainer
 from utils import *
-from losses.f1 import *
+from losses.precision_recall_f1 import *
 
 import math
 import torch
@@ -53,17 +53,22 @@ class UNetTrainer(TorchTrainer):
         # unet y may not be squeezed like in torch trainer, dtype is float for BCE
         model.train()
         opt = self.optimizer_or_lr
-        for batch, (x, y) in enumerate(train_loader):
+        train_loss = 0
+        for (x, y) in train_loader:
             x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
             preds = model(x)
             loss = self.loss_function(preds, y)
+            with torch.no_grad():
+                train_loss += loss.item()
             opt.zero_grad()
             loss.backward()
             opt.step()
             callback_handler.on_train_batch_end()
             del x
             del y
+        train_loss /= len(train_loader.dataset)
         self.scheduler.step()
+        return train_loss
     
     def _eval_step(self, model, device, test_loader):
         # unet y may not be squeezed like in torch trainer, dtype is float for BCE
