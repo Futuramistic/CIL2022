@@ -27,6 +27,10 @@ class TFTrainer(Trainer, abc.ABC):
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
 
+    # Subclassing tensorflow.keras.callbacks.Callback (here: KC.Callback) allows us to override various functions to be
+    # called when specific events occur while fitting a model using TF's model.fit(...). An instance of the subclass
+    # needs to be passed in the "callbacks" parameter (which, if specified, can either be a single instance, or a list
+    # of instances of KC.Callback subclasses)
     class Callback(KC.Callback):
         def __init__(self, trainer, mlflow_run):
             super().__init__()
@@ -61,6 +65,10 @@ class TFTrainer(Trainer, abc.ABC):
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
             self.iteration_idx += 1
 
+    # Visualizations are created using mlflow_logger's "log_visualizations" (containing ML framework-independent code),
+    # and the "create_visualizations" functions of the Trainer subclasses (containing ML framework-specific code)
+    # Specifically, the Trainer calls mlflow_logger's "log_visualizations" (e.g. in "on_train_batch_end" of the
+    # tensorflow.keras.callbacks.Callback subclass), which in turn uses the Trainer's "create_visualizations".
     def create_visualizations(self, directory):
         images = []
         num_samples = self.num_samples_to_visualize

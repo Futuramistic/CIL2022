@@ -27,6 +27,11 @@ class TorchTrainer(Trainer, abc.ABC):
         self.preprocessing = preprocessing
         self.scheduler = scheduler
 
+    # This class is a mimicry of TensorFlow's "Callback" class behavior, used not out of necessity (as we write the
+    # training loop explicitly in Torch, instead of using the "all-inclusive" model.fit(...) in TF, and can thus just
+    # build event handlers into the training loop), but to have a more consistent codebase across TorchTrainer and
+    # TFTrainer.
+    # See the comment next to the KC.Callback subclass in "trainer_tf.py" for more information.
     class Callback:
         def __init__(self, trainer, mlflow_run, model):
             super().__init__()
@@ -47,6 +52,10 @@ class TorchTrainer(Trainer, abc.ABC):
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
             self.iteration_idx += 1
 
+    # Visualizations are created using mlflow_logger's "log_visualizations" (containing ML framework-independent code),
+    # and the "create_visualizations" functions of the Trainer subclasses (containing ML framework-specific code)
+    # Specifically, the Trainer calls mlflow_logger's "log_visualizations" (e.g. in "on_train_batch_end" of the
+    # tensorflow.keras.callbacks.Callback subclass), which in turn uses the Trainer's "create_visualizations".
     def create_visualizations(self, directory):
         # Sample image indices to visualize
         length = len(self.test_loader)

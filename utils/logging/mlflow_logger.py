@@ -13,7 +13,9 @@ def logging_to_mlflow_enabled():
 
 def log_visualizations(trainer, iteration_index):
     """
-    Log the segmentations to MLFlow as images
+    Log the segmentations to MLFlow as images.
+    Called by a Trainer, and calls that Trainer's "create_visualizations" (which contains ML framework-specific code).
+    See the documentation of "create_visualizations" for more information.
     """
     if not logging_to_mlflow_enabled():
         return False
