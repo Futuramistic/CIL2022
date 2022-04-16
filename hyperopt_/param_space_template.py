@@ -19,7 +19,7 @@ space_for_tf = {
         'minimize_loss': True, # always specify, as hyperopt can only minimize losses and therefore adapts the sign
         'trainer_params':{
             # 'preprocessing': ...,  <-- currently not needed I guess
-            'steps_per_training_epoch': ...,
+            'experiment_name': ..., # optional
             'split': ..., 
             'num_epochs':...,
             'batch_size': ...,
@@ -27,7 +27,8 @@ space_for_tf = {
             'loss_function':...,
             'evaluation_interval':...,
             'num_samples_to_visualize': ..., 
-            'checkpoint_interval': ...
+            'checkpoint_interval': ...,
+            'segmentation_threshold': ...
         }
     }
 }
@@ -48,6 +49,7 @@ space_for_torch = {
         'minimize_loss': True, # always specify, as hyperopt can only minimize losses and therefore adapts the sign
         'trainer_params':{
             # 'preprocessing': ...,  <-- currently not needed I guess
+            'experiment_name': ..., # optional
             'split': ..., 
             'num_epochs':...,
             'batch_size': ...,
@@ -56,7 +58,8 @@ space_for_torch = {
             'loss_function':...,
             'evaluation_interval':...,
             'num_samples_to_visualize': ..., 
-            'checkpoint_interval': ...
+            'checkpoint_interval': ...,
+            'segmentation_threshold': ...
         }
     }
 }

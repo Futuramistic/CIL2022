@@ -16,7 +16,7 @@ parser.add_argument('-n', '--num_runs', type = int, help="The number of Hyperopt
 params = parser.parse_args()
 
 try:
-    optimizer = HyperParamOptimizer(eval(params.search_space))
+    optimizer = HyperParamOptimizer(eval(params.search_space), params.search_space)
     optimizer.run(n_runs=params.num_runs)
 except NameError as n:
     print(f"Check if you wrote the search space name correctly. Error message:\n{n}")

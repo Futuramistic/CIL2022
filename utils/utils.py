@@ -21,9 +21,13 @@ DATASET_ZIP_URLS = {
     "original": "https://polybox.ethz.ch/index.php/s/x2RcSv4MOG3rtPB/download",
 
     # "original_128": "original" dataset, patchified into 128x128 patches and augmented using Preprocessor
+    # WARNING: take into account that this dataset has 2160/720 train/"unlabeled test" images (original has only 144/144, resp.)
+    # e.g. use fewer epochs and a high train fraction (high "split" value), so the evaluation doesn't take too long!
     "original_128": "https://polybox.ethz.ch/index.php/s/c68pfFLBXCCjzDT/download",
 
     # "original_256": "original" dataset, patchified into 256x256 patches and augmented using Preprocessor
+    # WARNING: take into account that this dataset has 2160/720 train/"unlabeled test" images (original has only 144/144, resp.)
+    # e.g. use fewer epochs and a high train fraction (high "split" value), so the evaluation doesn't take too long!
     "original_256": "https://polybox.ethz.ch/index.php/s/ncSp9vsJ1HAIHcR/download"
 }
 CODEBASE_SNAPSHOT_ZIP_NAME = "codebase_snapshot.zip"
