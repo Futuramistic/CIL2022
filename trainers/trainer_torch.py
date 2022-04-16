@@ -90,12 +90,17 @@ class TorchTrainer(Trainer, abc.ABC):
         print(f'Using device: {self.device}')
         model = self.model.to(self.device)
         callback_handler = TorchTrainer.Callback(self, mlflow_run, model)
+        last_checkpoint_epoch = -1
         for epoch in range(self.num_epochs):
             last_train_loss = self._train_step(model, self.device, self.train_loader, callback_handler=callback_handler)
             last_test_loss = self._eval_step(model, self.device, self.test_loader)
             mlflow_logger.log_metrics({'train_loss': last_train_loss, 'test_loss': last_test_loss})
             if self.do_checkpoint and not epoch % self.checkpoint_interval:
                 self._save_checkpoint(model, epoch)
+                last_checkpoint_epoch = epoch
+        if self.do_checkpoint and last_checkpoint_epoch < epoch:
+            # save final checkpoint
+            self._save_checkpoint(model, epoch)
         return last_test_loss
 
     def _train_step(self, model, device, train_loader, callback_handler):

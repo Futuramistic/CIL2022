@@ -97,14 +97,21 @@ class TFTrainer(Trainer, abc.ABC):
         self.test_loader = self.dataloader.get_testing_dataloader(split=self.split, batch_size=1,
                                                                   preprocessing=self.preprocessing)
         _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
+
         callbacks = [TFTrainer.Callback(self, mlflow_run)]
         if self.do_checkpoint:
             checkpoint_path = "{dir}".format(dir=CHECKPOINTS_DIR) + "cp-{epoch:04d}.ckpt"
             checkpoint_callback = KC.ModelCheckpoint(filepath=checkpoint_path, verbose=1,
                                                      save_freq=self.checkpoint_interval * self.steps_per_training_epoch)
             callbacks.append(checkpoint_callback)
+        
         self.model.fit(self.train_loader, validation_data=self.test_loader.take(test_dataset_size), epochs=self.num_epochs,
                        steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks)
+        
+        if self.do_checkpoint:
+            # save final checkpoint
+            keras.models.save_model(self.model, filepath="{dir}".format(dir=CHECKPOINTS_DIR) + "cp-final.ckpt")
+
     
     def get_F1_score_validation(self):
         _, _, f1_score = self.get_precision_recall_F1_score_validation()

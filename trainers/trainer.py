@@ -39,6 +39,7 @@ class Trainer(abc.ABC):
             num_samples_to_visualize: number of samples to visualize predictions for during evaluation
                                       (None to use default)
             checkpoint_interval: interval, in iterations, in which to create model checkpoints
+                                 specify an extremely high number (e.g. np.inf) to only create a single checkpoint after training has finished
                                  (WARNING: None or 0 to discard model)
         """
         self.dataloader = dataloader
@@ -58,6 +59,9 @@ class Trainer(abc.ABC):
         self.segmentation_threshold =\
             segmentation_threshold if segmentation_threshold is not None else DEFAULT_SEGMENTATION_THRESHOLD
         self.is_windows = os.name == 'nt'
+        if not self.do_checkpoint:
+            print('*** WARNING: no checkpoints of this model will be created! Specify valid checkpoint_interval '
+                  '(in iterations) to Trainer in order to create checkpoints. ***')
 
     def _init_mlflow(self):
         self.mlflow_experiment_id = None
