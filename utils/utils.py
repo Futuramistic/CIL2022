@@ -1,18 +1,17 @@
-'''
-This file absolutely has to be in the root directory of the project, because of the ROOT_DIR Value
+"""
+This file absolutely has to be in a subdirectory of the root directory of the project, because of the ROOT_DIR value
 DO NOT MOVE!
-'''
+"""
 
 import math
 import os
 import random
 
-
 ###########################################################################################
 ##################################    global constants    #################################
 ###########################################################################################
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # go one dir up from the dir this file is in
 ACCEPTED_IMAGE_EXTENSIONS = [".png", ".jpeg", ".jpg", ".gif"]
 DEFAULT_SEGMENTATION_THRESHOLD = 0.5
 DEFAULT_TRAIN_FRACTION = 0.8
