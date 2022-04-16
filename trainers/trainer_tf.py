@@ -1,10 +1,10 @@
 import abc
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.callbacks import ModelCheckpoint
+import tensorflow.keras.callbacks as KC
 
-import losses.precision_recall_f1
-import mlflow_logger
+from losses.precision_recall_f1 import *
+from utils.logging import mlflow_logger
 from .trainer import Trainer
 from utils import *
 
@@ -27,7 +27,7 @@ class TFTrainer(Trainer, abc.ABC):
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
 
-    class Callback(K.callbacks.Callback):
+    class Callback(KC.Callback):
         def __init__(self, trainer, mlflow_run):
             super().__init__()
             self.trainer = trainer
@@ -92,8 +92,8 @@ class TFTrainer(Trainer, abc.ABC):
         callbacks = [TFTrainer.Callback(self, mlflow_run)]
         if self.do_checkpoint:
             checkpoint_path = "{dir}".format(dir=CHECKPOINTS_DIR) + "cp-{epoch:04d}.ckpt"
-            checkpoint_callback = ModelCheckpoint(filepath=checkpoint_path, verbose=1,
-                                                  save_freq=self.checkpoint_interval * self.steps_per_training_epoch)
+            checkpoint_callback = KC.ModelCheckpoint(filepath=checkpoint_path, verbose=1,
+                                                     save_freq=self.checkpoint_interval * self.steps_per_training_epoch)
             callbacks.append(checkpoint_callback)
         self.model.fit(self.train_loader, validation_data=self.test_loader.take(test_dataset_size), epochs=self.num_epochs,
                        steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks)
@@ -108,7 +108,7 @@ class TFTrainer(Trainer, abc.ABC):
         for x, y in self.test_loader.take(test_dataset_size):
             output = self.model(x)
             preds = tf.cast(output >= self.segmentation_threshold, tf.dtypes.int8)
-            precision, recall, f1_score = losses.precision_recall_f1.precision_recall_f1_score_tf(preds, y)
+            precision, recall, f1_score = precision_recall_f1_score_tf(preds, y)
             precisions.append(precision.numpy().item())
             recalls.append(recall.numpy().item())
             f1_scores.append(f1_score.numpy().item())

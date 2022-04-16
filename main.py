@@ -5,11 +5,7 @@ import argparse
 import itertools
 import re
 
-from data_handling.dataloader_torch import TorchDataLoader
-from data_handling.dataloader_tf import TFDataLoader
-from factory.factory import Factory
-from trainers.u_net import UNetTrainer
-from trainers.gl_dense_u_net import GLDenseUNetTrainer
+from factory import Factory
 from utils import *
 
 

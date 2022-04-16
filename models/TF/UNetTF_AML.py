@@ -2,6 +2,9 @@ import tensorflow as tf
 import tensorflow.keras as K
 from tensorflow.keras.layers import *
 
+from utils import *
+
+
 def conv2d(inputs, filters=64, padding='same', kernel_init='he_normal', dropout=0.5, normalize=False):
     convo = Conv2D(filters=filters, kernel_size=3, padding=padding, kernel_initializer=kernel_init)(inputs)
     if normalize:
@@ -38,8 +41,15 @@ def up_batch(inputs, merger, filters=64, padding='same', kernel_init='he_normal'
 
 
 # Standard U-Net implementation
-def UNetTF(input_size, dropout=0.0, padding='same', kernel_init='he_normal',
-         IOU_threshold=0.6, lr=1e-4, name=None, normalize=False,additional_params=None):
+def UNetTF_AML(input_size=DEFAULT_TF_INPUT_SHAPE,
+           dropout=0.0,
+           padding='same',
+           kernel_init='he_normal',
+           IOU_threshold=0.6,
+           lr=1e-4,
+           name=None,
+           normalize=False,
+           additional_params=None):
     nb_filters = [32, 64, 128, 256, 512]
     inputs = Input(input_size)
 

@@ -1,4 +1,5 @@
 import abc
+import tensorflow.keras as K
 import mlflow
 import numpy as np
 import os
@@ -9,9 +10,8 @@ import requests
 import socket
 import time
 
-from data_handling.dataloader import DataLoader
-import mlflow_logger
-import optim_hyparam_serializer
+from data_handling import DataLoader
+from utils.logging import mlflow_logger, optim_hyparam_serializer
 from utils import *
 
 
@@ -154,6 +154,8 @@ class Trainer(abc.ABC):
             'batch_size': self.batch_size,
             'loss_function': self.loss_function,
             'seg_threshold': self.segmentation_threshold,
+            'model': type(self.model).__name__,
+            'dataset': self.dataloader.dataset,
             **(optim_hyparam_serializer.serialize_optimizer_hyperparams(self.optimizer_or_lr))
         }
 

@@ -4,7 +4,7 @@ from hyperopt import hp
 
 attunet_1 = {
     'model': {
-        'model_type': "attunet", # string, like in utils.MODEL_CLASS_DICT
+        'model_type': "attunet",  # string, to search for the corresponding factory using factory.py
         'saving_directory': f"{ROOT_DIR}/archive/models/attunet_hyperopt_2022_04_09",
         'kwargs': {
             'input_shape': (400,400,3)

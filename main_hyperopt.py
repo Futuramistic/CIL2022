@@ -3,9 +3,7 @@ then passes the remaining command line arguments to a Hyperparameter optimizer."
 
 import argparse
 from hyperopt_.HyperOptimizer import HyperParamOptimizer
-from hyperopt_.param_spaces_UNet import *
-from hyperopt_.param_spaces_GLDenseNet import *
-from hyperopt_.param_spaces_AttUnetTF import *
+from hyperopt_ import *
 import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning) 

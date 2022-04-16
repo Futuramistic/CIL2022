@@ -4,10 +4,11 @@ import os
 import mlflow
 import tensorflow as tf
 import tensorflow.keras as K
+
+from losses import DiceBCELoss2, DiceBCELoss1, FocalLoss
 from .trainer_tf import TFTrainer
 from utils import *
-from losses.diceBCELoss import DiceBCELoss2, DiceBCELoss1
-from losses.focalLoss import FocalLoss
+
 
 class AttUNetPlusPlusTrainer(TFTrainer):
     """

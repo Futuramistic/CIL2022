@@ -3,13 +3,13 @@ from hyperopt import STATUS_OK, fmin, tpe, Trials, STATUS_FAIL
 import pickle
 import os
 import numpy as np
-from data_handling.dataloader_torch import TorchDataLoader
-from data_handling.dataloader_tf import TFDataLoader
+from data_handling import *
 from trainers.trainer_tf import TFTrainer
 from trainers.trainer_torch import TorchTrainer
 from datetime import datetime
-from factory.factory import Factory
+from factory import Factory
 import warnings
+
 
 class HyperParamOptimizer:
     """Class for Hyperparameter Optimization

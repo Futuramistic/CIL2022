@@ -3,12 +3,9 @@ This file absolutely has to be in the root directory of the project, because of 
 DO NOT MOVE!
 '''
 
+import math
 import os
 import random
-import math
-from models.learning_aerial_image_segmenation_from_online_maps import Deeplabv3, Unet, Fastscnn
-from models.road_extraction_from_high_res_rsi_using_dl.gl_dense_u_net import *
-from models.TF import AttUNetTF
 
 
 ###########################################################################################
@@ -17,12 +14,9 @@ from models.TF import AttUNetTF
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 ACCEPTED_IMAGE_EXTENSIONS = [".png", ".jpeg", ".jpg", ".gif"]
-MODEL_CLASS_DICT = {'deeplabv3': Deeplabv3.Deeplabv3,
-                    'fastscnn': Fastscnn.FastSCNN,
-                    'unet': Unet.UNet,
-                    'attunet':AttUNetTF.AttUnetTF}
-DEFAULT_TRAIN_FRACTION = 0.8
 DEFAULT_SEGMENTATION_THRESHOLD = 0.5
+DEFAULT_TRAIN_FRACTION = 0.8
+DEFAULT_TF_INPUT_SHAPE = (None, None, 3)
 DATASET_ZIP_URLS = {
     # "original": dataset used in the ETHZ CIL Road Segmentation 2022 Kaggle competition
     "original": "https://polybox.ethz.ch/index.php/s/x2RcSv4MOG3rtPB/download",

@@ -1,10 +1,19 @@
-import tensorflow as tf
 from keras.layers import *
+import tensorflow as tf
 import tensorflow.keras as K
+
 from .blocks import *
+from utils import *
 
-def UNetTF(input_shape,name="UNetTF",dropout=0.5,kernel_init='he_normal',normalize=True, up_transpose=True, kernel_regularizer=K.regularizers.l2(), **kwargs):
 
+def UNetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
+           name="UNetTF",
+           dropout=0.5,
+           kernel_init='he_normal',
+           normalize=True,
+           up_transpose=True,
+           kernel_regularizer=K.regularizers.l2(),
+           **kwargs):
     def __build_model(inputs):
         nb_filters = [32,64,128,256,512]
         if up_transpose:

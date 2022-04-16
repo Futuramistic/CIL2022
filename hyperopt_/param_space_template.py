@@ -1,12 +1,12 @@
 from hyperopt import hp
 from sklearn.metrics import f1_score
-from models.learning_aerial_image_segmenation_from_online_maps.Unet import UNet
+from models import UNet
 from utils import ROOT_DIR
 
 # For Tensorflow models (Trainer parameters differ between torch and tf)
 space_for_tf = {
     'model': {
-        'model_type': ..., # string, like in utils.MODEL_CLASS_DICT
+        'model_type': ...,  # string, to search for the corresponding factory using factory.py
         'saving_directory': f"{ROOT_DIR}/archive/models/...",
         # use kwargs for class-specific parameters, as hyperopt is written generically
         'kwargs': {...
@@ -35,7 +35,7 @@ space_for_tf = {
 # For Torch Models
 space_for_torch = {
     'model': {
-        'model_type': ..., # string, like in utils.MODEL_CLASS_DICT
+        'model_type': ...,  # string, to search for the corresponding factory using factory.py
         'saving_directory': f"{ROOT_DIR}/archive/models/...",
         # use kwargs for class-specific parameters, as hyperopt is written generically
         'kwargs': {...

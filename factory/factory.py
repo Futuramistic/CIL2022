@@ -1,28 +1,9 @@
 import abc
 
-from trainers.trainer_torch import TorchTrainer
-from trainers.trainer_tf import TFTrainer
-
-from trainers.u_net import UNetTrainer
-from trainers.UnetTF import UNetTFTrainer
-from trainers.UnetPlusPlusTF import UNetPlusPlusTrainer
-from trainers.AttUnetTF import AttUNetTrainer
-from trainers.AttUnetPlusPlusTF import AttUNetPlusPlusTrainer
-from trainers.gl_dense_u_net import GLDenseUNetTrainer
-
-from models.TF.AttUNetTF import AttUnetTF
-from models.TF.AttUNetPlusPlusTF import AttUNetPlusPlusTF
-
-from models.learning_aerial_image_segmenation_from_online_maps.Unet import UNet
-from models.TF.UNetTF import UNetTF
-from models.TF.UNetPlusPlusTF import UNetPlusPlusTF
-from models.road_extraction_from_high_res_rsi_using_dl.gl_dense_u_net import GLDenseUNet
-from models.learning_aerial_image_segmenation_from_online_maps.Deeplabv3 import Deeplabv3
-
-from data_handling.dataloader_tf import TFDataLoader
-from data_handling.dataloader_torch import TorchDataLoader
-
-from utils import MODEL_CLASS_DICT
+from data_handling import *
+from models import *
+from trainers import *
+from utils import *
 
 
 class Factory(abc.ABC):
@@ -61,11 +42,8 @@ class Factory(abc.ABC):
         elif model_name_lower_no_sep == "deeplabv3":
             return DeepLabV3Factory()
         else:
-            if next(filter(lambda m: m.lower() == model_name_lower_no_sep, MODEL_CLASS_DICT), None) is not None:
-                raise NotImplementedError(f"The factory for the model {model_name} doesn't exist yet. "
-                                          f"Check for Implementation in factory.factory.py")
-            else:
-                print("Check if you wrote the model name correctly and added the model to utils.MODEL_CLASS_DICT.")
+            print(f"The factory for the model {model_name} doesn't exist. Check if you wrote the model name "
+                  f"correctly and implemented a corresponding factory in factory.py.")
 
 
 class UNetFactory(Factory):

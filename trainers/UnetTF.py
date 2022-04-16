@@ -4,9 +4,11 @@ import os
 import mlflow
 import tensorflow as tf
 import tensorflow.keras as K
+
+from losses import DiceLoss
 from .trainer_tf import TFTrainer
 from utils import *
-from losses.diceLoss import DiceLoss
+
 
 class UNetTFTrainer(TFTrainer):
     """

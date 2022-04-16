@@ -3,8 +3,8 @@ import numpy as np
 import torch
 import torch.cuda
 
-import losses.precision_recall_f1
-import mlflow_logger
+from losses.precision_recall_f1 import *
+from utils.logging import mlflow_logger
 from .trainer import Trainer
 from utils import *
 
@@ -137,7 +137,7 @@ class TorchTrainer(Trainer, abc.ABC):
             y = y.to(self.device, dtype=torch.float32)
             output = self.model(x)
             preds = (output >= self.segmentation_threshold).float()
-            precision, recall, f1_score = losses.precision_recall_f1.precision_recall_f1_score_torch(preds, y)
+            precision, recall, f1_score = precision_recall_f1_score_torch(preds, y)
             precisions.append(precision.cpu().numpy())
             recalls.append(recall.cpu().numpy())
             f1_scores.append(f1_score.cpu().numpy())

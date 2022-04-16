@@ -1,9 +1,20 @@
-import tensorflow as tf
 from keras.layers import *
+import tensorflow as tf
 import tensorflow.keras as K
-from .blocks import *
 
-def AttUNetPlusPlusTF(input_shape,name="AttUnetPlusPlusTF-",dropout=0.5,kernel_init='he_normal',normalize=False,deep_supervision=False, up_transpose = True, kernel_regularizer=K.regularizers.l2(),**kwargs):
+from .blocks import *
+from utils import *
+
+
+def AttUNetPlusPlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
+                      name="AttUnetPlusPlusTF-",
+                      dropout=0.5,
+                      kernel_init='he_normal',
+                      normalize=False,
+                      deep_supervision=False,
+                      up_transpose=True,
+                      kernel_regularizer=K.regularizers.l2(),
+                      **kwargs):
     def __build_model(inputs):
         nb_filters = [32,64,128,256,512]
 
