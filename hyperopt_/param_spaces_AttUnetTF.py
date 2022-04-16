@@ -17,7 +17,6 @@ attunet_1 = {
         'minimize_loss': True, # always specify, as hyperopt can only minimize losses and therefore adapts the sign
         'trainer_params':{
             #'preprocessing': None,
-            #'steps_per_training_epoch': scope.int(hp.quniform('steps_per_training_epoch', low=1, high=10, q=1)),
             'split': 0.1,
             #'split': hp.quniform('split', low=0.4, high=0.9, q=0.1),
             'num_epochs':1,

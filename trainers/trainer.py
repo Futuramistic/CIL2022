@@ -39,7 +39,7 @@ class Trainer(abc.ABC):
             num_samples_to_visualize: number of samples to visualize predictions for during evaluation
                                       (None to use default)
             checkpoint_interval: interval, in iterations, in which to create model checkpoints
-                                 specify an extremely high number (e.g. np.inf) to only create a single checkpoint after training has finished
+                                 specify an extremely high number (e.g. 1e15) to only create a single checkpoint after training has finished
                                  (WARNING: None or 0 to discard model)
         """
         self.dataloader = dataloader
