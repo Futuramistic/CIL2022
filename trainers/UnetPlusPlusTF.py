@@ -49,8 +49,8 @@ class UNetPlusPlusTrainer(TFTrainer):
         if evaluation_interval is None:
             evaluation_interval = 10
 
-        # convert training samples to float32 \in [0, 1] & remove A channel;
-        # convert test samples to int \in {0, 1} & remove A channel
+        # convert model input to float32 \in [0, 1] & remove A channel;
+        # convert ground truth to int \in {0, 1} & remove A channel
         preprocessing =\
             lambda x, is_gt: (tf.cast(x[:, :, :3], dtype=tf.float32) / 255.0) if not is_gt \
             else (x[:, :, :1] // 255)
