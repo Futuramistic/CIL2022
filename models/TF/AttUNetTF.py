@@ -62,5 +62,11 @@ def AttUnetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         return Conv2D(name=name+"-final-convo",**out_args)(up4)
     inputs = K.Input(input_shape)
     outputs = __build_model(inputs)
-    model = K.Model(inputs=inputs, outputs=outputs)
+    model = K.Model(inputs=inputs, outputs=outputs, name='AttUNet')
+    # store parameters for the Trainer to be able to log them to MLflow
+    model.dropout = dropout
+    model.kernel_init = kernel_init
+    model.normalize = normalize
+    model.up_transpose = up_transpose
+    model.kernel_regularizer = kernel_regularizer
     return model

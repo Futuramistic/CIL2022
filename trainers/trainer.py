@@ -154,7 +154,7 @@ class Trainer(abc.ABC):
             'batch_size': self.batch_size,
             'loss_function': self.loss_function,
             'seg_threshold': self.segmentation_threshold,
-            'model': type(self.model).__name__,
+            'model': self.model.name if hasattr(self.model, 'name') else type(self.model).__name__,
             'dataset': self.dataloader.dataset,
             **(optim_hyparam_serializer.serialize_optimizer_hyperparams(self.optimizer_or_lr))
         }

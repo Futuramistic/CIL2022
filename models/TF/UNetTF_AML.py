@@ -47,7 +47,7 @@ def UNetTF_AML(input_size=DEFAULT_TF_INPUT_SHAPE,
            kernel_init='he_normal',
            IOU_threshold=0.6,
            lr=1e-4,
-           name=None,
+           name='UNetTFAML',
            normalize=False,
            additional_params=None):
     nb_filters = [32, 64, 128, 256, 512]
@@ -72,5 +72,9 @@ def UNetTF_AML(input_size=DEFAULT_TF_INPUT_SHAPE,
                     kernel_initializer=kernel_init)(convo9)
 
     model = tf.keras.Model(inputs=inputs, outputs=output, name=name)
-
+    # store parameters for the Trainer to be able to log them to MLflow
+    model.dropout = dropout
+    model.padding = padding
+    model.kernel_init = kernel_init
+    model.normalize = normalize
     return model

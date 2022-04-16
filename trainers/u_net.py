@@ -85,6 +85,12 @@ class UNetTrainer(TorchTrainer):
         print(f'\nTest loss: {test_loss:.3f}')
         return test_loss
 
+    def _get_hyperparams(self):
+        return {**(super()._get_hyperparams()),
+                **({param: getattr(self.model, param)
+                   for param in ['n_channels', 'n_classes', 'bilinear']
+                   if hasattr(self.model, param)})}
+    
     @staticmethod
     def get_default_optimizer_with_lr(lr, model):
         return optim.RMSprop(model.parameters(), lr=1e-5, weight_decay=1e-8, momentum=0.9)

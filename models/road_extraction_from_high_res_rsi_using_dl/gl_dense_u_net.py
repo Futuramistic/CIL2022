@@ -120,5 +120,5 @@ def GLDenseUNet(input_shape=DEFAULT_TF_INPUT_SHAPE,
 
     inputs = K.Input(input_shape)
     outputs = __build_model(inputs)
-    model = K.Model(inputs=inputs, outputs=outputs)
+    model = K.Model(inputs=inputs, outputs=outputs, name='GLDenseUNet')
     return model

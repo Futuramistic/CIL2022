@@ -56,6 +56,12 @@ class AttUNetTrainer(TFTrainer):
                          num_epochs, batch_size, optimizer_or_lr, loss_function, evaluation_interval,
                          num_samples_to_visualize, checkpoint_interval, segmentation_threshold)
 
+    def _get_hyperparams(self):
+        return {**(super()._get_hyperparams()),
+                **({param: getattr(self.model, param)
+                   for param in ['dropout', 'kernel_init', 'normalize', 'up_transpose', 'kernel_regularizer']
+                   if hasattr(self.model, param)})}
+
     @staticmethod
     def get_default_optimizer_with_lr(lr):
         # no mention on learning rate decay; can be reintroduced
