@@ -101,7 +101,7 @@ def log_metrics(metrics: Dict[str, Any]):
 
 def log_hyperparams(hyperparams: Dict[str, Any]):
     """
-    Log hyperparameters to tensorflow
+    Log hyperparameters to MLFlow
 
     Args:
         hyperparams (Dict[str, Any]): dictionary of hyperparameters to log
@@ -111,3 +111,15 @@ def log_hyperparams(hyperparams: Dict[str, Any]):
         mlflow.log_params(hyperparams)
     else:
         print('Cannot log checkpoint to MLFlow, as logging is disabled')
+
+def log_logfiles():
+    """
+    Log this session's "stderr.log" and "stdout.log" to MLflow
+    """
+    # do not emit a warning here, as this is likely to spam the console
+    if logging_to_mlflow_enabled():
+        stderr_path = os.path.join(ROOT_DIR, LOGGING_DIR, f'stderr_{SESSION_ID}.log')
+        stdout_path = os.path.join(ROOT_DIR, LOGGING_DIR, f'stdout_{SESSION_ID}.log')
+        for path in [stderr_path, stdout_path]:
+            if os.path.isfile(path):
+                mlflow.log_artifact(path, 'logs/')

@@ -1,4 +1,5 @@
 import abc
+import datetime
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.callbacks as KC
@@ -42,25 +43,34 @@ class TFTrainer(Trainer, abc.ABC):
                                 self.trainer.num_samples_to_visualize > 0
 
         def on_train_begin(self, logs=None):
-            pass
+            print('\nTraining started at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
+            print('Hyperparameters:')
+            print(self.trainer._get_hyperparams())
+            print('')
 
         def on_train_end(self, logs=None):
-            pass
+            print('\nTraining finished at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
+            mlflow_logger.log_logfiles()
 
         def on_epoch_begin(self, epoch, logs=None):
             pass
 
         def on_epoch_end(self, epoch, logs=None):
+            print('\n\nEpoch %i finished at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()) % epoch)
+            print('Metrics: %s\n' % str(logs))
             mlflow_logger.log_metrics(logs)
+            mlflow_logger.log_logfiles()
 
         def on_train_batch_begin(self, batch, logs=None):
             pass
 
         def on_train_batch_end(self, batch, logs=None):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
+                precision, recall, f1_score = self.trainer.get_precision_recall_F1_score_validation()
+                metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score}
+                print('\nMetrics at iteration %i: %s' % (self.iteration_idx, str(metrics)))
                 if mlflow_logger.logging_to_mlflow_enabled():
-                    precision, recall, f1_score = self.trainer.get_precision_recall_F1_score_validation()
-                    mlflow_logger.log_metrics({'precision': precision, 'recall': recall, 'f1_score': f1_score})
+                    mlflow_logger.log_metrics(metrics)
                     if self.do_visualize:
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
             self.iteration_idx += 1
@@ -106,7 +116,7 @@ class TFTrainer(Trainer, abc.ABC):
             callbacks.append(checkpoint_callback)
         
         self.model.fit(self.train_loader, validation_data=self.test_loader.take(test_dataset_size), epochs=self.num_epochs,
-                       steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks)
+                       steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks, verbose=1 if IS_DEBUG else 2)
         
         if self.do_checkpoint:
             # save final checkpoint

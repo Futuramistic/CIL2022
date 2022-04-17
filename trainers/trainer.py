@@ -60,8 +60,8 @@ class Trainer(abc.ABC):
             segmentation_threshold if segmentation_threshold is not None else DEFAULT_SEGMENTATION_THRESHOLD
         self.is_windows = os.name == 'nt'
         if not self.do_checkpoint:
-            print('*** WARNING: no checkpoints of this model will be created! Specify valid checkpoint_interval '
-                  '(in iterations) to Trainer in order to create checkpoints. ***')
+            print('\n*** WARNING: no checkpoints of this model will be created! Specify valid checkpoint_interval '
+                  '(in iterations) to Trainer in order to create checkpoints. ***\n')
 
     def _init_mlflow(self):
         self.mlflow_experiment_id = None
@@ -191,12 +191,18 @@ class Trainer(abc.ABC):
             os.makedirs(CHECKPOINTS_DIR)
         if self.mlflow_experiment_name is not None and self._init_mlflow():
             with mlflow.start_run(experiment_id=self.mlflow_experiment_id, run_name=self.mlflow_run_name) as run:
-                mlflow_logger.log_hyperparams(self._get_hyperparams())
-                mlflow_logger.snapshot_codebase()  # snapshot before training as the files may change in-between
-                last_test_loss = self._fit_model(mlflow_run=run)
-                mlflow_logger.log_codebase()
-                if self.do_checkpoint:
-                    mlflow_logger.log_checkpoints()
+                try:
+                    mlflow_logger.log_hyperparams(self._get_hyperparams())
+                    mlflow_logger.snapshot_codebase()  # snapshot before training as the files may change in-between
+                    last_test_loss = self._fit_model(mlflow_run=run)
+                    mlflow_logger.log_codebase()
+                    if self.do_checkpoint:
+                        mlflow_logger.log_checkpoints()
+                    mlflow_logger.log_logfiles()
+                except Exception as e:
+                    print(f'\n\n*** Exception encountered: ***\n{e}\n')
+                    mlflow_logger.log_logfiles()
+                    raise e
         else:
             last_test_loss = self._fit_model(mlflow_run=None)
         return last_test_loss

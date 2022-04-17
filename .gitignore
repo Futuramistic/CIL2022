@@ -13,4 +13,5 @@ mlruns/
 checkpoints/
 archive/models/*
 archive/trials/*
+logs/
 *.pt

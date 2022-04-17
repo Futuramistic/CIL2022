@@ -1,4 +1,5 @@
 import abc
+import datetime
 import numpy as np
 import torch
 import torch.cuda
@@ -45,9 +46,11 @@ class TorchTrainer(Trainer, abc.ABC):
 
         def on_train_batch_end(self):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
+                precision, recall, f1_score = self.trainer.get_precision_recall_F1_score_validation()
+                metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score}
+                print('Metrics at iteration %i: %s' % (self.iteration_idx, str(metrics)))
                 if mlflow_logger.logging_to_mlflow_enabled():
-                    precision, recall, f1_score = self.trainer.get_precision_recall_F1_score_validation()
-                    mlflow_logger.log_metrics({'precision': precision, 'recall': recall, 'f1_score': f1_score})
+                    mlflow_logger.log_metrics(metrics)
                     if self.do_visualize:
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
             self.iteration_idx += 1
@@ -82,25 +85,42 @@ class TorchTrainer(Trainer, abc.ABC):
         }, checkpoint_name)
 
     def _fit_model(self, mlflow_run):
+        print('\nTraining started at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
+        print('Hyperparameters:')
+        print(self._get_hyperparams())
+        print('')
+
         self.train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                                     preprocessing=self.preprocessing)
         self.test_loader = self.dataloader.get_testing_dataloader(batch_size=1,
                                                                   preprocessing=self.preprocessing)
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-        print(f'Using device: {self.device}')
+        print(f'Using device: {self.device}\n')
         model = self.model.to(self.device)
+
         callback_handler = TorchTrainer.Callback(self, mlflow_run, model)
         last_checkpoint_epoch = -1
         for epoch in range(self.num_epochs):
             last_train_loss = self._train_step(model, self.device, self.train_loader, callback_handler=callback_handler)
             last_test_loss = self._eval_step(model, self.device, self.test_loader)
-            mlflow_logger.log_metrics({'train_loss': last_train_loss, 'test_loss': last_test_loss})
+            metrics = {'train_loss': last_train_loss, 'test_loss': last_test_loss}
+
+            print('\nEpoch %i finished at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()) % epoch)
+            print('Metrics: %s\n' % str(metrics))
+
+            mlflow_logger.log_metrics(metrics)
+            
             if self.do_checkpoint and not epoch % self.checkpoint_interval:
                 self._save_checkpoint(model, epoch)
                 last_checkpoint_epoch = epoch
+                
+            mlflow_logger.log_logfiles()
         if self.do_checkpoint and last_checkpoint_epoch < epoch:
             # save final checkpoint
             self._save_checkpoint(model, epoch)
+        
+        print('\nTraining finished at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
+        mlflow_logger.log_logfiles()
         return last_test_loss
 
     def _train_step(self, model, device, train_loader, callback_handler):
@@ -136,7 +156,6 @@ class TorchTrainer(Trainer, abc.ABC):
                 del x
                 del y
         test_loss /= len(test_loader.dataset)
-        print(f'\nTest loss: {test_loss:.3f}')
         return test_loss
 
     def get_F1_score_validation(self):

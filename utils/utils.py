@@ -6,12 +6,17 @@ DO NOT MOVE!
 import math
 import os
 import random
+import sys
+import time
+
 
 ###########################################################################################
 ##################################    global constants    #################################
 ###########################################################################################
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # go one dir up from the dir this file is in
+SESSION_ID = int(time.time() * 1000)  # import time of utils.py in microseconds will be the session ID
+IS_DEBUG = getattr(sys, 'gettrace', None) is not None and getattr(sys, 'gettrace', lambda: None)() is not None
 ACCEPTED_IMAGE_EXTENSIONS = [".png", ".jpeg", ".jpg", ".gif"]
 DEFAULT_SEGMENTATION_THRESHOLD = 0.5
 DEFAULT_TRAIN_FRACTION = 0.8
@@ -32,6 +37,7 @@ DATASET_ZIP_URLS = {
 }
 CODEBASE_SNAPSHOT_ZIP_NAME = "codebase_snapshot.zip"
 CHECKPOINTS_DIR = "checkpoints/"
+LOGGING_DIR = "logs/"
 MLFLOW_USER = "mlflow_user"
 MLFLOW_HOST = "algvrithm.com"
 MLFLOW_TRACKING_URI = f"http://{MLFLOW_HOST}:8000"
