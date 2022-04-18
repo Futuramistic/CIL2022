@@ -1,8 +1,11 @@
 import abc
 import datetime
 import numpy as np
+import pysftp
+import requests
 import torch
 import torch.cuda
+from urllib.parse import urlparse
 
 from losses.precision_recall_f1 import *
 from utils.logging import mlflow_logger
@@ -14,7 +17,8 @@ class TorchTrainer(Trainer, abc.ABC):
     def __init__(self, dataloader, model, preprocessing,
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, scheduler=None, loss_function=None, evaluation_interval=None,
-                 num_samples_to_visualize=None, checkpoint_interval=None, segmentation_threshold=None):
+                 num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
+                 segmentation_threshold=None):
         """
         Abstract class for Torch-based model trainers.
         Args:
@@ -23,7 +27,7 @@ class TorchTrainer(Trainer, abc.ABC):
         """
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, evaluation_interval, num_samples_to_visualize, checkpoint_interval,
-                         segmentation_threshold)
+                         load_checkpoint_path, segmentation_threshold)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.scheduler = scheduler
@@ -41,6 +45,8 @@ class TorchTrainer(Trainer, abc.ABC):
             self.mlflow_run = mlflow_run
             self.do_evaluate = self.trainer.evaluation_interval is not None and self.trainer.evaluation_interval > 0
             self.iteration_idx = 0
+            self.epoch_idx = 0
+            self.epoch_iteration_idx = 0
             self.do_visualize = self.trainer.num_samples_to_visualize is not None and \
                                 self.trainer.num_samples_to_visualize > 0
 
@@ -48,12 +54,24 @@ class TorchTrainer(Trainer, abc.ABC):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
                 precision, recall, f1_score = self.trainer.get_precision_recall_F1_score_validation()
                 metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score}
-                print('Metrics at iteration %i: %s' % (self.iteration_idx, str(metrics)))
+                print('Metrics at aggregate iteration %i (ep. %i, ep.-it. %i): %s'
+                      % (self.iteration_idx, self.epoch_idx, self.epoch_iteration_idx, str(metrics)))
                 if mlflow_logger.logging_to_mlflow_enabled():
-                    mlflow_logger.log_metrics(metrics)
+                    mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=self.iteration_idx)
                     if self.do_visualize:
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
+                
+                if self.trainer.do_checkpoint\
+                   and self.iteration_idx % self.trainer.checkpoint_interval == 0\
+                   and self.iteration_idx > 0:  # avoid creating checkpoints at iteration 0
+                    self.trainer._save_checkpoint(self.trainer.model, self.epoch_idx, self.epoch_iteration_idx, self.iteration_idx)
+
             self.iteration_idx += 1
+            self.epoch_iteration_idx += 1
+    
+        def on_epoch_end(self):
+            self.epoch_idx += 1
+            self.epoch_iteration_idx = 0
 
     # Visualizations are created using mlflow_logger's "log_visualizations" (containing ML framework-independent code),
     # and the "create_visualizations" functions of the Trainer subclasses (containing ML framework-specific code)
@@ -76,16 +94,52 @@ class TorchTrainer(Trainer, abc.ABC):
 
         self._save_image_array(images, directory)
 
-    def _save_checkpoint(self, model, epoch):
-        checkpoint_name = f'{CHECKPOINTS_DIR}/cp_{epoch}.pt'
+    def _save_checkpoint(self, model, epoch, epoch_iteration, total_iteration):
+        if None not in [epoch, epoch_iteration, total_iteration]:
+            checkpoint_path = f'{CHECKPOINTS_DIR}/cp_ep-{"%05i" % epoch}_epit-{"%05i" % epoch_iteration}' +\
+                              f'_step-{total_iteration}.pt'
+        else:
+            checkpoint_path = f'{CHECKPOINTS_DIR}/cp_final.pt'
         torch.save({
             'epoch': epoch,
             'model': model.state_dict(),
             'optimizer': self.optimizer_or_lr.state_dict()
-        }, checkpoint_name)
+        }, checkpoint_path)
+        
+        # checkpoints should be logged to MLflow right after their creation, so that if training is
+        # stopped/crashes *without* reaching the final "mlflow_logger.log_checkpoints()" call in trainer.py,
+        # prior checkpoints have already been persisted
+        mlflow_logger.log_checkpoints()
+
+    def _load_checkpoint(self, checkpoint_path):
+        # this function may only be called after self.device was initialized, and after self.model has been moved
+        # to self.device
+
+        print(f'\n*** WARNING: resuming training from checkpoint "{checkpoint_path}" ***\n')
+        load_from_sftp = checkpoint_path.lower().startswith('sftp://')
+        if load_from_sftp:
+            final_checkpoint_path = f'original_checkpoint_{SESSION_ID}.pt'
+            print(f'Downloading checkpoint from "{checkpoint_path}" to "{final_checkpoint_path}"...')
+            cnopts = pysftp.CnOpts()
+            cnopts.hostkeys = None
+            mlflow_pass = requests.get(MLFLOW_PASS_URL).text
+            url_components = urlparse(checkpoint_path)
+            with pysftp.Connection(host=MLFLOW_HOST, username=MLFLOW_USER, password=mlflow_pass, cnopts=cnopts) as sftp:
+                sftp.get(url_components.path, final_checkpoint_path)
+            print(f'Download successful')
+        else:
+            final_checkpoint_path = checkpoint_path
+
+        print(f'Loading checkpoint "{checkpoint_path}"...')  # log the supplied checkpoint_path here
+        checkpoint = torch.load(final_checkpoint_path, map_location=self.device)
+        self.model.load_state_dict(checkpoint['model'])
+        self.optimizer_or_lr.load_state_dict(checkpoint['optimizer'])
+        print('Checkpoint loaded\n')
+        os.remove(final_checkpoint_path)
 
     def _fit_model(self, mlflow_run):
         print('\nTraining started at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
+        print(f'Session ID: {SESSION_ID}')
         print('Hyperparameters:')
         print(self._get_hyperparams())
         print('')
@@ -96,34 +150,34 @@ class TorchTrainer(Trainer, abc.ABC):
                                                                   preprocessing=self.preprocessing)
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         print(f'Using device: {self.device}\n')
-        model = self.model.to(self.device)
 
-        callback_handler = TorchTrainer.Callback(self, mlflow_run, model)
-        last_checkpoint_epoch = -1
+        self.model = self.model.to(self.device)
+
+        if self.load_checkpoint_path is not None:
+            self._load_checkpoint(self.load_checkpoint_path)
+
+        callback_handler = TorchTrainer.Callback(self, mlflow_run, self.model)
         for epoch in range(self.num_epochs):
-            last_train_loss = self._train_step(model, self.device, self.train_loader, callback_handler=callback_handler)
-            last_test_loss = self._eval_step(model, self.device, self.test_loader)
+            last_train_loss = self._train_step(self.model, self.device, self.train_loader, callback_handler=callback_handler)
+            last_test_loss = self._eval_step(self.model, self.device, self.test_loader)
             metrics = {'train_loss': last_train_loss, 'test_loss': last_test_loss}
 
             print('\nEpoch %i finished at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()) % epoch)
             print('Metrics: %s\n' % str(metrics))
 
-            mlflow_logger.log_metrics(metrics)
-            
-            if self.do_checkpoint and not epoch % self.checkpoint_interval:
-                self._save_checkpoint(model, epoch)
-                last_checkpoint_epoch = epoch
-                
+            mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=callback_handler.iteration_idx)
             mlflow_logger.log_logfiles()
-        if self.do_checkpoint and last_checkpoint_epoch < epoch:
+        if self.do_checkpoint:
             # save final checkpoint
-            self._save_checkpoint(model, epoch)
+            self._save_checkpoint(self.model, None, None, None)
         
         print('\nTraining finished at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
         mlflow_logger.log_logfiles()
         return last_test_loss
 
     def _train_step(self, model, device, train_loader, callback_handler):
+        # WARNING: some models subclassing TorchTrainer overwrite this function, so make sure any changes here are
+        # reflected appropriately in these models' files
         model.train()
         opt = self.optimizer_or_lr
         train_loss = 0
@@ -141,6 +195,7 @@ class TorchTrainer(Trainer, abc.ABC):
             del x
             del y
         train_loss /= len(train_loader.dataset)
+        callback_handler.on_epoch_end()
         self.scheduler.step()
         return train_loss
 

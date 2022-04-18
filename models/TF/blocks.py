@@ -90,7 +90,10 @@ class Up_Block(tf.keras.layers.Layer):
     #Expose training
     def call(self, x, merger,**kwargs):
         x = self.up_convo(x,**kwargs)
-        merger.append(x)
+        # original line was "merger.append(x)"
+        # changed due to a bug with the modification of input variables to the "call" function of
+        # tf.keras.layer.Layer subclasses causing crashes when saving model checkpoints
+        merger = [*merger, x]
         x = self.concat(merger,**kwargs)
         return self.convorelu_block(x,**kwargs)
 
@@ -166,7 +169,11 @@ class Attention_PlusPlus_Block(tf.keras.layers.Layer):
 
     def call(self,x,g,down=None,to_concat=[],training=None, **kwargs):
         att_x = self.att(x=x,g=g,**kwargs)
-        to_concat.append(att_x)
+        # original line was "to_concat.append(att_x)"
+        # changed due to a bug with the modification of input variables to the "call" function of
+        # tf.keras.layer.Layer subclasses causing crashes when saving model checkpoints
+        # after another list has been created using the * operator, we can safely use "append" again
+        to_concat = [*to_concat, att_x]
         up_g = self.up(g,**kwargs)
         to_concat.append(up_g)
         if down is not None:

@@ -17,7 +17,8 @@ def main():
 
     trainer_args = ['experiment_name', 'E', 'run_name', 'R', 'split', 's', 'num_epochs', 'e', 'batch_size', 'b',
                     'optimizer_or_lr', 'l', 'evaluation_interval', 'i',
-                    'num_samples_to_visualize', 'v', 'checkpoint_interval', 'c', 'segmentation_threshold', 't']
+                    'num_samples_to_visualize', 'v', 'checkpoint_interval', 'c', 'load_checkpoint_path', 'C',
+                    'segmentation_threshold', 't']
     dataloader_args = ['dataset', 'd']
 
     # list of other arguments to avoid passing to constructor of model class
@@ -34,6 +35,7 @@ def main():
     parser.add_argument('-i', '--evaluation_interval', type=float, required=False)
     parser.add_argument('-v', '--num_samples_to_visualize', type=int, required=False)
     parser.add_argument('-c', '--checkpoint_interval', type=int, required=False)
+    parser.add_argument('-C', '--load_checkpoint_path', type=str, required=False)
     parser.add_argument('-t', '--segmentation_threshold', type=float, default=DEFAULT_SEGMENTATION_THRESHOLD, required=False)
     parser.add_argument('-d', '--dataset', type=str, required=True)
     known_args, unknown_args = parser.parse_known_args()
@@ -77,8 +79,9 @@ if __name__ == '__main__':
     if IS_DEBUG:
         main()
     else:
-        print('Not running in debug mode.\n'
-              'stderr and stdout will be written to "%s" and "%s", respectively.\n' % (stderr_path, stdout_path))
+        print(f'Session ID: {SESSION_ID}\n'
+              'Not running in debug mode\n'
+              'stderr and stdout will be written to "%s" and "%s", respectively\n' % (stderr_path, stdout_path))
         # buffering=1: use line-by-line buffering
         with open(stderr_path, 'w', buffering=1) as stderr_f, open(stdout_path, 'w', buffering=1) as stdout_f:
             with redirect_stderr(stderr_f), redirect_stdout(stdout_f):

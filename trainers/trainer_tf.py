@@ -1,8 +1,15 @@
 import abc
 import datetime
+from typing import final
 import numpy as np
+import os
+import pysftp
+import requests
+import shutil
+import tempfile
 import tensorflow as tf
 import tensorflow.keras.callbacks as KC
+from urllib.parse import urlparse
 
 from losses.precision_recall_f1 import *
 from utils.logging import mlflow_logger
@@ -14,7 +21,8 @@ class TFTrainer(Trainer, abc.ABC):
     def __init__(self, dataloader, model, preprocessing, steps_per_training_epoch,
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, loss_function=None, evaluation_interval=None,
-                 num_samples_to_visualize=None, checkpoint_interval=None, segmentation_threshold=None):
+                 num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
+                 segmentation_threshold=None):
         """
         Abstract class for TensorFlow-based model trainers.
         Args:
@@ -23,7 +31,7 @@ class TFTrainer(Trainer, abc.ABC):
         """
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, evaluation_interval, num_samples_to_visualize, checkpoint_interval,
-                         segmentation_threshold)
+                         load_checkpoint_path, segmentation_threshold)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
@@ -39,11 +47,14 @@ class TFTrainer(Trainer, abc.ABC):
             self.mlflow_run = mlflow_run
             self.do_evaluate = self.trainer.evaluation_interval is not None and self.trainer.evaluation_interval > 0
             self.iteration_idx = 0
+            self.epoch_iteration_idx = 0
+            self.epoch_idx = 0
             self.do_visualize = self.trainer.num_samples_to_visualize is not None and \
                                 self.trainer.num_samples_to_visualize > 0
 
         def on_train_begin(self, logs=None):
             print('\nTraining started at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
+            print(f'Session ID: {SESSION_ID}')
             print('Hyperparameters:')
             print(self.trainer._get_hyperparams())
             print('')
@@ -58,8 +69,25 @@ class TFTrainer(Trainer, abc.ABC):
         def on_epoch_end(self, epoch, logs=None):
             print('\n\nEpoch %i finished at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()) % epoch)
             print('Metrics: %s\n' % str(logs))
-            mlflow_logger.log_metrics(logs)
+            mlflow_logger.log_metrics(logs, aggregate_iteration_idx=self.iteration_idx)
             mlflow_logger.log_logfiles()
+            
+            # checkpoints should be logged to MLflow right after their creation, so that if training is
+            # stopped/crashes *without* reaching the final "mlflow_logger.log_checkpoints()" call in trainer.py,
+            # prior checkpoints have already been persisted
+            # since we don't have a way of getting notified when KC.ModelCheckpoint has finished creating the checkpoint,
+            # we simply check at the end of each epoch whether there are any checkpoints to upload and upload them
+            # if necessary
+            mlflow_logger.log_checkpoints()
+            
+            self.epoch_idx += 1
+            self.epoch_iteration_idx = 0
+
+            # it seems we can only safely delete the original checkpoint dir after having trained for at least one
+            # iteration
+            if os.path.isdir(f'original_checkpoint_{SESSION_ID}.ckpt'):
+                shutil.rmtree(f'original_checkpoint_{SESSION_ID}.ckpt')
+
 
         def on_train_batch_begin(self, batch, logs=None):
             pass
@@ -68,12 +96,23 @@ class TFTrainer(Trainer, abc.ABC):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
                 precision, recall, f1_score = self.trainer.get_precision_recall_F1_score_validation()
                 metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score}
-                print('\nMetrics at iteration %i: %s' % (self.iteration_idx, str(metrics)))
+                print('\nMetrics at aggregate iteration %i (ep. %i, ep.-it. %i): %s'
+                      % (self.iteration_idx, self.epoch_idx, batch, str(metrics)))
                 if mlflow_logger.logging_to_mlflow_enabled():
-                    mlflow_logger.log_metrics(metrics)
+                    mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=self.iteration_idx)
                     if self.do_visualize:
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
+            
+            if self.trainer.do_checkpoint\
+                and self.iteration_idx % self.trainer.checkpoint_interval == 0\
+                and self.iteration_idx > 0:  # avoid creating checkpoints at iteration 0
+                checkpoint_path = f'{CHECKPOINTS_DIR}/cp_ep-{"%05i" % self.epoch_idx}'+\
+                                  f'_it-{"%05i" % self.epoch_iteration_idx}' +\
+                                  f'_step-{self.iteration_idx}.ckpt'
+                keras.models.save_model(model=self.trainer.model, filepath=checkpoint_path)
+            
             self.iteration_idx += 1
+            self.epoch_iteration_idx += 1
 
     # Visualizations are created using mlflow_logger's "log_visualizations" (containing ML framework-independent code),
     # and the "create_visualizations" functions of the Trainer subclasses (containing ML framework-specific code)
@@ -100,8 +139,39 @@ class TFTrainer(Trainer, abc.ABC):
     def _compile_model(self):
         self.model.compile(loss=self.loss_function, optimizer=self.optimizer_or_lr)
 
+    def _load_checkpoint(self, checkpoint_path):
+        print(f'\n*** WARNING: resuming training from checkpoint "{checkpoint_path}" ***\n')
+        load_from_sftp = checkpoint_path.lower().startswith('sftp://')
+        if load_from_sftp:
+            # in TF, even though the checkpoint names all end in ".ckpt", they are actually directories
+            # hence we have to use sftp_download_dir_portable to download them
+            final_checkpoint_path = f'original_checkpoint_{SESSION_ID}.ckpt'
+            os.makedirs(final_checkpoint_path, exist_ok=True)
+            print(f'Downloading checkpoint from "{checkpoint_path}" to "{final_checkpoint_path}"...')
+            cnopts = pysftp.CnOpts()
+            cnopts.hostkeys = None
+            mlflow_pass = requests.get(MLFLOW_PASS_URL).text
+            url_components = urlparse(checkpoint_path)
+            with pysftp.Connection(host=MLFLOW_HOST, username=MLFLOW_USER, password=mlflow_pass, cnopts=cnopts) as sftp:
+                sftp_download_dir_portable(sftp, remote_dir=url_components.path, local_dir=final_checkpoint_path)
+            print(f'Download successful')
+        else:
+            final_checkpoint_path = checkpoint_path
+
+        print(f'Loading checkpoint "{checkpoint_path}"...')  # log the supplied checkpoint_path here
+        self.model.load_weights(final_checkpoint_path)
+        print('Checkpoint loaded\n')
+
+        # Note that the final_checkpoint_path directory cannot be deleted right away! This leads to errors.
+        # As a workaround, we delete the directory after the end of the first epoch.
+
+
     def _fit_model(self, mlflow_run):
         self._compile_model()
+        
+        if self.load_checkpoint_path is not None:
+            self._load_checkpoint(self.load_checkpoint_path)
+        
         self.train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                                     preprocessing=self.preprocessing)
         self.test_loader = self.dataloader.get_testing_dataloader(split=self.split, batch_size=1,
@@ -109,20 +179,16 @@ class TFTrainer(Trainer, abc.ABC):
         _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
 
         callbacks = [TFTrainer.Callback(self, mlflow_run)]
-        if self.do_checkpoint:
-            checkpoint_path = "{dir}".format(dir=CHECKPOINTS_DIR) + "cp-{epoch:04d}.ckpt"
-            checkpoint_callback = KC.ModelCheckpoint(filepath=checkpoint_path, verbose=1,
-                                                     save_freq=self.checkpoint_interval * self.steps_per_training_epoch)
-            callbacks.append(checkpoint_callback)
+        # model checkpointing functionality moved into TFTrainer.Callback to allow for custom checkpoint names
         
         self.model.fit(self.train_loader, validation_data=self.test_loader.take(test_dataset_size), epochs=self.num_epochs,
                        steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks, verbose=1 if IS_DEBUG else 2)
         
         if self.do_checkpoint:
             # save final checkpoint
-            keras.models.save_model(self.model, filepath="{dir}".format(dir=CHECKPOINTS_DIR) + "cp-final.ckpt")
+            keras.models.save_model(model=self.model,
+                                    filepath=os.path.join(CHECKPOINTS_DIR, "cp_final.ckpt"))
 
-    
     def get_F1_score_validation(self):
         _, _, f1_score = self.get_precision_recall_F1_score_validation()
         return f1_score

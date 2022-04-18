@@ -6,6 +6,7 @@ DO NOT MOVE!
 import math
 import os
 import random
+from stat import S_ISDIR, S_ISREG
 import sys
 import time
 
@@ -15,7 +16,7 @@ import time
 ###########################################################################################
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # go one dir up from the dir this file is in
-SESSION_ID = int(time.time() * 1000)  # import time of utils.py in microseconds will be the session ID
+SESSION_ID = int(time.time() * 1000)  # import time of utils.py in milliseconds will be the session ID
 IS_DEBUG = getattr(sys, 'gettrace', None) is not None and getattr(sys, 'gettrace', lambda: None)() is not None
 ACCEPTED_IMAGE_EXTENSIONS = [".png", ".jpeg", ".jpg", ".gif"]
 DEFAULT_SEGMENTATION_THRESHOLD = 0.5
@@ -35,8 +36,9 @@ DATASET_ZIP_URLS = {
     # e.g. use fewer epochs and a high train fraction (high "split" value), so the evaluation doesn't take too long!
     "original_256": "https://polybox.ethz.ch/index.php/s/ncSp9vsJ1HAIHcR/download"
 }
-CODEBASE_SNAPSHOT_ZIP_NAME = "codebase_snapshot.zip"
-CHECKPOINTS_DIR = "checkpoints/"
+# in case multiple jobs are running in the same directory, SESSION_ID will prevent name conflicts
+CODEBASE_SNAPSHOT_ZIP_NAME = f"codebase_{SESSION_ID}.zip"
+CHECKPOINTS_DIR = os.path.join("checkpoints", str(SESSION_ID))
 LOGGING_DIR = "logs/"
 MLFLOW_USER = "mlflow_user"
 MLFLOW_HOST = "algvrithm.com"
@@ -68,3 +70,20 @@ def next_perfect_square(n):
 def is_perfect_square(n):
     x = math.sqrt(n)
     return (x - math.floor(x)) == 0
+
+
+# Cross-platform SFTP directory downloading code adapted from https://stackoverflow.com/a/50130813
+def sftp_download_dir_portable(sftp, remote_dir, local_dir, preserve_mtime=False):
+    # sftp: pysftp connection object
+    for entry in sftp.listdir_attr(remote_dir):
+        remote_path = remote_dir + "/" + entry.filename
+        local_path = os.path.join(local_dir, entry.filename)
+        mode = entry.st_mode
+        if S_ISDIR(mode):
+            try:
+                os.mkdir(local_path)
+            except OSError:     
+                pass
+            sftp_download_dir_portable(sftp, remote_path, local_path, preserve_mtime)
+        elif S_ISREG(mode):
+            sftp.get(remote_path, local_path, preserve_mtime=preserve_mtime)

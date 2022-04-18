@@ -7,6 +7,7 @@ import pexpect
 import paramiko
 import pysftp
 import requests
+import shutil
 import socket
 import time
 
@@ -18,7 +19,8 @@ from utils import *
 class Trainer(abc.ABC):
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
                  batch_size=None, optimizer_or_lr=None, loss_function=None, evaluation_interval=None,
-                 num_samples_to_visualize=None, checkpoint_interval=None, segmentation_threshold=None):
+                 num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
+                 segmentation_threshold=None):
         """
         Abstract class for model trainers.
         Args:
@@ -41,6 +43,10 @@ class Trainer(abc.ABC):
             checkpoint_interval: interval, in iterations, in which to create model checkpoints
                                  specify an extremely high number (e.g. 1e15) to only create a single checkpoint after training has finished
                                  (WARNING: None or 0 to discard model)
+            load_checkpoint_path: path to checkpoint file, or SFTP checkpoint URL for MLflow, to load a checkpoint and
+                                  resume training from (None to start training from scratch instead)
+            segmentation_threshold: threshold >= which to consider the model's prediction for a given pixel to
+                                    correspond to class 1 rather than class 0 (None to use default)
         """
         self.dataloader = dataloader
         self.model = model
@@ -59,6 +65,7 @@ class Trainer(abc.ABC):
         self.segmentation_threshold =\
             segmentation_threshold if segmentation_threshold is not None else DEFAULT_SEGMENTATION_THRESHOLD
         self.is_windows = os.name == 'nt'
+        self.load_checkpoint_path = load_checkpoint_path
         if not self.do_checkpoint:
             print('\n*** WARNING: no checkpoints of this model will be created! Specify valid checkpoint_interval '
                   '(in iterations) to Trainer in order to create checkpoints. ***\n')
@@ -160,6 +167,8 @@ class Trainer(abc.ABC):
             'seg_threshold': self.segmentation_threshold,
             'model': self.model.name if hasattr(self.model, 'name') else type(self.model).__name__,
             'dataset': self.dataloader.dataset,
+            'from_checkpoint': self.load_checkpoint_path if self.load_checkpoint_path is not None else '',
+            'session_id': SESSION_ID,
             **(optim_hyparam_serializer.serialize_optimizer_hyperparams(self.optimizer_or_lr))
         }
 
@@ -189,6 +198,7 @@ class Trainer(abc.ABC):
         """
         if self.do_checkpoint and not os.path.exists(CHECKPOINTS_DIR):
             os.makedirs(CHECKPOINTS_DIR)
+        
         if self.mlflow_experiment_name is not None and self._init_mlflow():
             with mlflow.start_run(experiment_id=self.mlflow_experiment_id, run_name=self.mlflow_run_name) as run:
                 try:
@@ -205,6 +215,10 @@ class Trainer(abc.ABC):
                     raise e
         else:
             last_test_loss = self._fit_model(mlflow_run=None)
+
+        if os.path.exists(CHECKPOINTS_DIR):
+            shutil.rmtree(CHECKPOINTS_DIR)
+            
         return last_test_loss
 
     @staticmethod

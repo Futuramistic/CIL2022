@@ -43,8 +43,9 @@ if __name__ == '__main__':
     if IS_DEBUG:
         main_hyperopt()
     else:
-        print('Not running in debug mode.\n'
-              'stderr and stdout will be written to "%s" and "%s", respectively.\n' % (stderr_path, stdout_path))
+        print(f'Session ID: {SESSION_ID}\n'
+              'Not running in debug mode\n'
+              'stderr and stdout will be written to "%s" and "%s", respectively\n' % (stderr_path, stdout_path))
         # buffering=1: use line-by-line buffering
         with open(stderr_path, 'w', buffering=1) as stderr_f, open(stdout_path, 'w', buffering=1) as stdout_f:
             with redirect_stderr(stderr_f), redirect_stdout(stdout_f):

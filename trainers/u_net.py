@@ -14,7 +14,8 @@ class UNetTrainer(TorchTrainer):
 
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
                  batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None, evaluation_interval=None,
-                 num_samples_to_visualize=None, checkpoint_interval=None, segmentation_threshold=None):
+                 num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
+                 segmentation_threshold=None):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
@@ -47,7 +48,7 @@ class UNetTrainer(TorchTrainer):
 
         super().__init__(dataloader, model, preprocessing, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, evaluation_interval,
-                         num_samples_to_visualize, checkpoint_interval, segmentation_threshold)
+                         num_samples_to_visualize, checkpoint_interval, load_checkpoint_path, segmentation_threshold)
         
     def _train_step(self, model, device, train_loader, callback_handler):
         # unet y may not be squeezed like in torch trainer, dtype is float for BCE
@@ -67,6 +68,7 @@ class UNetTrainer(TorchTrainer):
             del x
             del y
         train_loss /= len(train_loader.dataset)
+        callback_handler.on_epoch_end()
         self.scheduler.step()
         return train_loss
     

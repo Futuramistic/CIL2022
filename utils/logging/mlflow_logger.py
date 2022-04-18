@@ -77,9 +77,11 @@ def log_checkpoints():
     Log a checkpoint to MLFlow
     """
     if logging_to_mlflow_enabled():
-        print('\nLogging checkpoints to MLFlow...')
-        mlflow.log_artifact(CHECKPOINTS_DIR, '')
-        print('Logging checkpoints successful')
+        # check if there are checkpoints to log
+        if os.path.isdir(CHECKPOINTS_DIR) and len(os.listdir(CHECKPOINTS_DIR)) > 0:
+            print('\nLogging checkpoints to MLFlow...')
+            mlflow.log_artifacts(CHECKPOINTS_DIR, 'checkpoints/')
+            print('Logging checkpoints successful')
     else:
         print('Cannot log checkpoint to MLFlow, as logging is disabled')
 
@@ -87,16 +89,32 @@ def log_checkpoints():
     os.makedirs(CHECKPOINTS_DIR)  # Recreate an empty directory
 
 
-def log_metrics(metrics: Dict[str, Any]):
+def log_artifact(path, artifact_dir='', emit_warning_if_logging_disabled=True):
+    """
+    Log an artifact to MLFLow
+    Args:
+        path: path to file/directory to log
+        artifact_dir: remote run subdirectory to log the file/directory into ('' for root run directory)
+        emit_warning_if_logging_disabled: True if a warning should be emitted in case logging to MLFlow is disabled,
+                                          and False otherwise
+    """
+    if logging_to_mlflow_enabled():
+        mlflow.log_artifact(path, artifact_dir)
+    elif emit_warning_if_logging_disabled:
+        print(f'Cannot log "{path}" to MLFlow, as logging is disabled')
+
+
+def log_metrics(metrics: Dict[str, Any], aggregate_iteration_idx: int):
     """
     Log metrics to MLFlow
     Args:
         metrics (Dict[str, Any]): dictionary of metrics to log
+        aggregate_iteration_idx (int): index of current aggregate training iteration
     """
 
     # do not emit a warning here, as this is likely to spam the console
     if logging_to_mlflow_enabled():
-        mlflow.log_metrics(metrics)
+        mlflow.log_metrics(metrics, step=aggregate_iteration_idx)
 
 
 def log_hyperparams(hyperparams: Dict[str, Any]):
@@ -111,6 +129,7 @@ def log_hyperparams(hyperparams: Dict[str, Any]):
         mlflow.log_params(hyperparams)
     else:
         print('Cannot log checkpoint to MLFlow, as logging is disabled')
+
 
 def log_logfiles():
     """
