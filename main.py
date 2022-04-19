@@ -44,7 +44,7 @@ def main():
     # float check taken from https://thispointer.com/check-if-a-string-is-a-number-or-float-in-python/
     cast_arg = lambda s: int(s) if remove_leading_dashes(s).isdigit()\
                         else float(s) if re.search('[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?$', s) is not None\
-                        else bool(s) if s.lower() in ['true', 'false']\
+                        else s.lower() == 'true' if s.lower() in ['true', 'false']\
                         else eval(s) if (s.startswith('(') and s.endswith(')')) or (s.startswith('[') and s.endswith(']'))\
                         else s
 
