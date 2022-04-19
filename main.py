@@ -10,6 +10,7 @@ import re
 
 from factory import Factory
 from utils import *
+from utils.logging import pushbullet_logger
 
 
 def main():
@@ -69,7 +70,19 @@ def main():
                                                                                                 *filter_args]})
     trainer = factory.get_trainer_class()(dataloader=dataloader, model=model,
                                         **{k: v for k, v in arg_dict.items() if k.lower() in trainer_args})
-    trainer.train()
+
+    # do not move these Pushbullet messages into the Trainer class, as this may lead to a large amount of
+    # messages when using Hyperopt
+
+    if not IS_DEBUG:
+        pushbullet_logger.send_pushbullet_message('Training started.\n' +\
+                                                  f'Hyperparameters:\n{trainer._get_hyperparams()}')
+
+    last_test_loss = trainer.train()
+    
+    if not IS_DEBUG:
+        pushbullet_logger.send_pushbullet_message(('Training finished. Last test loss: %.4f\n' % last_test_loss) +\
+                                                  f'Hyperparameters:\n{trainer._get_hyperparams()}')
 
 
 if __name__ == '__main__':
@@ -87,10 +100,15 @@ if __name__ == '__main__':
     if IS_DEBUG:
         main()
     else:
-        print(f'Session ID: {SESSION_ID}\n'
-              'Not running in debug mode\n'
-              'stderr and stdout will be written to "%s" and "%s", respectively\n' % (stderr_path, stdout_path))
-        # buffering=1: use line-by-line buffering
-        with open(stderr_path, 'w', buffering=1) as stderr_f, open(stdout_path, 'w', buffering=1) as stdout_f:
-            with redirect_stderr(stderr_f), redirect_stdout(stdout_f):
-                main()
+        try:
+            print(f'Session ID: {SESSION_ID}\n'
+                'Not running in debug mode\n'
+                'stderr and stdout will be written to "%s" and "%s", respectively\n' % (stderr_path, stdout_path))
+            # buffering=1: use line-by-line buffering
+            with open(stderr_path, 'w', buffering=1) as stderr_f, open(stdout_path, 'w', buffering=1) as stdout_f:
+                with redirect_stderr(stderr_f), redirect_stdout(stdout_f):
+                    main()
+        except Exception as e:
+            err_msg = f'*** Exception encountered: ***\n{e}'
+            pushbullet_logger.send_pushbullet_message(err_msg)
+            raise e

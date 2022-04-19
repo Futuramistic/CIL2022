@@ -9,6 +9,7 @@ import warnings
 
 from data_handling import *
 from factory import Factory
+from utils.logging import pushbullet_logger
 from trainers.trainer_tf import TFTrainer
 from trainers.trainer_torch import TorchTrainer
 
@@ -59,6 +60,12 @@ class HyperParamOptimizer:
         Returns:
             output (Hyperopt Trials): Trial history
         """
+
+        # we log these Pushbullet messages regardless of whether we're in debug mode or not, as the optimization may
+        # take very long
+
+        pushbullet_logger.send_pushbullet_message("Hyperopt optimization started.")
+
         # run objective function n times with different variations of the parameter space and search for the variation minimizing the loss
         best_run = fmin(
                 partial(self.objective),
@@ -67,7 +74,9 @@ class HyperParamOptimizer:
                 algo=tpe.suggest,
                 max_evals = n_runs
             )
-        print(f"------------Best Run:-----------\n{best_run}")
+        
+        print(f"-----------Best Run:-----------\n{best_run}")
+        pushbullet_logger.send_pushbullet_message(f"Hyperopt optimization finished.\nBest run: {best_run}")
         
         return self.trials
     
@@ -89,7 +98,10 @@ class HyperParamOptimizer:
             test_loss = trainer.train()
             average_f1_score = trainer.get_F1_score_validation()
         except RuntimeError as r:
-            print(f"Current hyperparams, that lead to error:\n{hyperparams}\n\nError message:\n{r}")
+            err_msg = f"Hyperopt failed.\nCurrent hyperparams that lead to error:\n{hyperparams}" +\
+                      f"\n\nError message:\n{r}"
+            print(err_msg)
+            pushbullet_logger.send_pushbullet_message(err_msg)
             return {
                 'status': STATUS_FAIL,
                 'params': hyperparams

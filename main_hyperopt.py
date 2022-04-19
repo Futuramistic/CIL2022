@@ -10,6 +10,8 @@ import time
 import warnings
 
 from utils import *
+from utils.logging import pushbullet_logger
+
 
 def main_hyperopt():
     warnings.filterwarnings("ignore", category=UserWarning) 
@@ -43,10 +45,15 @@ if __name__ == '__main__':
     if IS_DEBUG:
         main_hyperopt()
     else:
-        print(f'Session ID: {SESSION_ID}\n'
-              'Not running in debug mode\n'
-              'stderr and stdout will be written to "%s" and "%s", respectively\n' % (stderr_path, stdout_path))
-        # buffering=1: use line-by-line buffering
-        with open(stderr_path, 'w', buffering=1) as stderr_f, open(stdout_path, 'w', buffering=1) as stdout_f:
-            with redirect_stderr(stderr_f), redirect_stdout(stdout_f):
-                main_hyperopt()
+        try:
+            print(f'Session ID: {SESSION_ID}\n'
+                'Not running in debug mode\n'
+                'stderr and stdout will be written to "%s" and "%s", respectively\n' % (stderr_path, stdout_path))
+            # buffering=1: use line-by-line buffering
+            with open(stderr_path, 'w', buffering=1) as stderr_f, open(stdout_path, 'w', buffering=1) as stdout_f:
+                with redirect_stderr(stderr_f), redirect_stdout(stdout_f):
+                    main_hyperopt()
+        except Exception as e:
+            err_msg = f'*** Exception encountered: ***\n{e}'
+            pushbullet_logger.send_pushbullet_message(err_msg)
+            raise e

@@ -14,8 +14,8 @@ import tensorflow.keras as K
 import time
 
 from data_handling import DataLoader
-from utils.logging import mlflow_logger, optim_hyparam_serializer
 from utils import *
+from utils.logging import mlflow_logger, optim_hyparam_serializer
 
 
 class Trainer(abc.ABC):
@@ -234,15 +234,18 @@ class Trainer(abc.ABC):
                         mlflow_logger.log_checkpoints()
                     mlflow_logger.log_logfiles()
                 except Exception as e:
-                    print(f'\n\n*** Exception encountered: ***\n{e}\n')
+                    err_msg = f'*** Exception encountered: ***\n{e}'
+                    print(f'\n\n{err_msg}\n')
                     mlflow_logger.log_logfiles()
+                    if not IS_DEBUG:
+                        pushbullet_logger.send_pushbullet_message(err_msg)
                     raise e
         else:
             last_test_loss = self._fit_model(mlflow_run=None)
 
         if os.path.exists(CHECKPOINTS_DIR):
             shutil.rmtree(CHECKPOINTS_DIR)
-            
+
         return last_test_loss
 
     @staticmethod

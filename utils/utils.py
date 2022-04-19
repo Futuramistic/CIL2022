@@ -5,6 +5,7 @@ DO NOT MOVE!
 
 import math
 import os
+import pathlib
 import random
 from stat import S_ISDIR, S_ISREG
 import sys
@@ -47,6 +48,9 @@ MLFLOW_TRACKING_URI = f"http://{MLFLOW_HOST}:8000"
 MLFLOW_JUMP_HOST = "eu-login-01"
 MLFLOW_PASS_URL = "https://algvrithm.com/files/mlflow_cil_pass.txt"
 MLFLOW_PROFILING = False
+# Pushbullet access token to use for sending notifications about critical events such as exceptions during training
+# (None to avoid sending Pushbullet notifications)
+DEFAULT_PUSHBULLET_ACCESS_TOKEN = pathlib.Path('pb_token.txt').read_text() if os.path.isfile('pb_token.txt') else None
 
 
 ###########################################################################################
