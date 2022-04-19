@@ -205,8 +205,8 @@ class Trainer(abc.ABC):
                 try:
                     mlflow_logger.log_hyperparams(self._get_hyperparams())
                     mlflow_logger.snapshot_codebase()  # snapshot before training as the files may change in-between
+                    mlflow_logger.log_codebase()  # log codebase before training, to be invariant to training crashes and stops
                     last_test_loss = self._fit_model(mlflow_run=run)
-                    mlflow_logger.log_codebase()
                     if self.do_checkpoint:
                         mlflow_logger.log_checkpoints()
                     mlflow_logger.log_logfiles()
