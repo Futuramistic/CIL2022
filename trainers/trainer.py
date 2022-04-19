@@ -65,6 +65,10 @@ class Trainer(abc.ABC):
 
         self.loss_function_name = str(loss_function)
         if isinstance(loss_function, str):
+            # additional imports to expand scope of losses accessible via "eval"
+            import torch
+            import torch.nn
+            import tensorflow.keras.losses
             self.loss_function = eval(loss_function)
         else:
             self.loss_function = loss_function
