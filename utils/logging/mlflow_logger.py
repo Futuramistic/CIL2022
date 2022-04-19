@@ -25,13 +25,16 @@ def log_visualizations(trainer, iteration_index):
     temp_dir = tempfile.mkdtemp()
 
     eval_inference_start = time.time()
-    trainer.create_visualizations(temp_dir)
-    eval_inference_end = time.time()
 
     # MLFlow does not have the functionality to log artifacts per training step,
-    # so we have to incorporate the training step (iteration_idx) into the artifact path
+    # so we have to incorporate the training step (iteration_idx) into the filename
+    vis_file_path = os.path.join(temp_dir, 'iteration_%07i.png' % iteration_index)
+    trainer.create_visualizations(vis_file_path)
+    eval_inference_end = time.time()
+
     eval_mlflow_start = time.time()
-    mlflow.log_artifacts(temp_dir, 'training/iteration_%07i' % iteration_index)
+    # log the file to the run's root directory for quicker access
+    mlflow.log_artifact(vis_file_path, '')
     eval_mlflow_end = time.time()
 
     shutil.rmtree(temp_dir)

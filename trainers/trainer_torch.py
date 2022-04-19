@@ -81,7 +81,7 @@ class TorchTrainer(Trainer, abc.ABC):
     # and the "create_visualizations" functions of the Trainer subclasses (containing ML framework-specific code)
     # Specifically, the Trainer calls mlflow_logger's "log_visualizations" (e.g. in "on_train_batch_end" of the
     # tensorflow.keras.callbacks.Callback subclass), which in turn uses the Trainer's "create_visualizations".
-    def create_visualizations(self, directory):
+    def create_visualizations(self, file_path):
         # sample image indices to visualize
         # fix half of the samples, randomize other half
         # the first, fixed half of samples serves for comparison purposes across models/runs
@@ -111,7 +111,7 @@ class TorchTrainer(Trainer, abc.ABC):
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
             self._fill_images_array(preds, batch_ys, images)
 
-        self._save_image_array(images, directory)
+        self._save_image_array(images, file_path)
 
     def _save_checkpoint(self, model, epoch, epoch_iteration, total_iteration):
         if None not in [epoch, epoch_iteration, total_iteration]:

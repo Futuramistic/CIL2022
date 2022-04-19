@@ -235,7 +235,7 @@ class Trainer(abc.ABC):
             images.append(rgb[batch_sample_idx])
 
     @staticmethod
-    def _save_image_array(images, directory):
+    def _save_image_array(images, file_path):
 
         def segmentation_to_image(x):
             x = (x * 255).astype(int)
@@ -260,5 +260,4 @@ class Trainer(abc.ABC):
             arr.append(row)
         # Concatenate in the second-to-last dimension to get the final big image
         final = np.concatenate(arr, axis=-2)
-        K.preprocessing.image.save_img(os.path.join(directory, 'rgb.png'),
-                                       segmentation_to_image(final), data_format="channels_first")
+        K.preprocessing.image.save_img(file_path, segmentation_to_image(final), data_format="channels_first")

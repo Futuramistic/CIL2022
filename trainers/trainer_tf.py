@@ -118,7 +118,7 @@ class TFTrainer(Trainer, abc.ABC):
     # and the "create_visualizations" functions of the Trainer subclasses (containing ML framework-specific code)
     # Specifically, the Trainer calls mlflow_logger's "log_visualizations" (e.g. in "on_train_batch_end" of the
     # tensorflow.keras.callbacks.Callback subclass), which in turn uses the Trainer's "create_visualizations".
-    def create_visualizations(self, directory):
+    def create_visualizations(self, file_path):
         # for batch_xs, batch_ys in self.test_loader.shuffle(10 * num_samples).batch(num_samples):
 
         # fix half of the samples, randomize other half
@@ -155,7 +155,7 @@ class TFTrainer(Trainer, abc.ABC):
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
             self._fill_images_array(preds, batch_ys, images)
 
-        self._save_image_array(images, directory)
+        self._save_image_array(images, file_path)
 
     def _compile_model(self):
         self.model.compile(loss=self.loss_function, optimizer=self.optimizer_or_lr)
