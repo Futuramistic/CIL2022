@@ -42,11 +42,13 @@ def main():
 
     remove_leading_dashes = lambda s: ''.join(itertools.dropwhile(lambda c: c == '-', s))
     # float check taken from https://thispointer.com/check-if-a-string-is-a-number-or-float-in-python/
-    cast_arg = lambda s: int(s) if remove_leading_dashes(s).isdigit()\
-                        else float(s) if re.search('[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?$', s) is not None\
-                        else s.lower() == 'true' if s.lower() in ['true', 'false']\
-                        else eval(s) if (s.startswith('(') and s.endswith(')')) or (s.startswith('[') and s.endswith(']'))\
-                        else s
+    cast_arg = lambda s: s[1:-1] if s.startswith('"') and s.endswith('"')\
+                         else int(s) if remove_leading_dashes(s).isdigit()\
+                         else float(s) if re.search('[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?$', s) is not None\
+                         else s.lower() == 'true' if s.lower() in ['true', 'false']\
+                         else None if s.lower() == 'none'\
+                         else eval(s) if (s.startswith('(') and s.endswith(')')) or (s.startswith('[') and s.endswith(']'))\
+                         else s
 
     known_args_dict = dict(map(lambda arg: (arg, getattr(known_args, arg)), vars(known_args)))
     unknown_args_dict = dict(map(lambda arg: (remove_leading_dashes(arg.split('=')[0]),
