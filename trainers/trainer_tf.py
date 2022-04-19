@@ -11,6 +11,7 @@ import tensorflow as tf
 import tensorflow.keras.callbacks as KC
 from urllib.parse import urlparse
 
+from losses.loss_harmonizer import DEFAULT_TF_DIM_LAYOUT
 from losses.precision_recall_f1 import *
 from utils.logging import mlflow_logger
 from .trainer import Trainer
@@ -20,7 +21,7 @@ from utils import *
 class TFTrainer(Trainer, abc.ABC):
     def __init__(self, dataloader, model, preprocessing, steps_per_training_epoch,
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
-                 optimizer_or_lr=None, loss_function=None, evaluation_interval=None,
+                 optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None, evaluation_interval=None,
                  num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
                  segmentation_threshold=None):
         """
@@ -30,8 +31,8 @@ class TFTrainer(Trainer, abc.ABC):
             model: the model to train
         """
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
-                         loss_function, evaluation_interval, num_samples_to_visualize, checkpoint_interval,
-                         load_checkpoint_path, segmentation_threshold)
+                         loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
+                         checkpoint_interval, load_checkpoint_path, segmentation_threshold)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
@@ -147,7 +148,12 @@ class TFTrainer(Trainer, abc.ABC):
         for (batch_xs, batch_ys) in vis_dataloader:
             batch_xs = tf.squeeze(batch_xs, axis=1)
             batch_ys = tf.squeeze(batch_ys, axis=1).numpy()
-            output = self.model.predict(batch_xs)
+            output = self.model.predict(batch_xs)  # returns np.ndarray
+            channel_dim_idx = DEFAULT_TF_DIM_LAYOUT.find('C')
+            if output.shape[channel_dim_idx] > 1:
+                output = np.argmax(output, axis=channel_dim_idx)
+                output = np.expand_dims(output, axis=channel_dim_idx)
+
             preds = (output >= self.segmentation_threshold).astype(np.float)
             # preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
             batch_ys = np.moveaxis(batch_ys, -1, 1)  # TODO only do this if we know the network uses HWC format

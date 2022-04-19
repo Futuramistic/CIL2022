@@ -6,6 +6,7 @@ import tensorflow as tf
 import tensorflow.keras as K
 
 from losses import DiceLoss
+from losses.loss_harmonizer import expand_channel_dim_tf
 from .trainer_tf import TFTrainer
 from utils import *
 
@@ -16,9 +17,9 @@ class UNetTFTrainer(TFTrainer):
     """
 
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
-                 batch_size=None, optimizer_or_lr=None, loss_function=None, evaluation_interval=None,
-                 num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
-                 segmentation_threshold=None):
+                 batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
+                 evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
+                 load_checkpoint_path=None, segmentation_threshold=None):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
@@ -46,19 +47,24 @@ class UNetTFTrainer(TFTrainer):
         # According to the online github repo
         if loss_function is None:
             loss_function = DiceLoss
+            # loss_function = K.losses.BinaryCrossentropy(from_logits=False,
+            #                                            reduction=K.losses.Reduction.SUM_OVER_BATCH_SIZE)
 
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs, num_samples_to_visualize)
 
         # convert model input to float32 \in [0, 1] & remove A channel;
         # convert ground truth to int \in {0, 1} & remove A channel
+
+        # note: no batch dim
         preprocessing =\
             lambda x, is_gt: (tf.cast(x[:, :, :3], dtype=tf.float32) / 255.0) if not is_gt \
-            else (x[:, :, :1] // 255)
+            else x[:, :, :1] // 255
 
         super().__init__(dataloader, model, preprocessing, steps_per_training_epoch, experiment_name, run_name, split,
-                         num_epochs, batch_size, optimizer_or_lr, loss_function, evaluation_interval,
-                         num_samples_to_visualize, checkpoint_interval, load_checkpoint_path, segmentation_threshold)
+                         num_epochs, batch_size, optimizer_or_lr, loss_function, loss_function_hyperparams,
+                         evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
+                         segmentation_threshold)
 
     def _get_hyperparams(self):
         return {**(super()._get_hyperparams()),

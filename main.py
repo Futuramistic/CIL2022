@@ -4,6 +4,7 @@ then passes the remaining command line arguments to the constructor of the corre
 import argparse
 from contextlib import redirect_stderr, redirect_stdout
 import itertools
+import json
 import os
 import re
 
@@ -16,9 +17,9 @@ def main():
     # model's constructor
 
     trainer_args = ['experiment_name', 'E', 'run_name', 'R', 'split', 's', 'num_epochs', 'e', 'batch_size', 'b',
-                    'optimizer_or_lr', 'l', 'evaluation_interval', 'i',
-                    'num_samples_to_visualize', 'v', 'checkpoint_interval', 'c', 'load_checkpoint_path', 'C',
-                    'segmentation_threshold', 't']
+                    'optimizer_or_lr', 'l', 'loss_function', 'L', 'loss_function_hyperparams', 'H',
+                    'evaluation_interval', 'i', 'num_samples_to_visualize', 'v', 'checkpoint_interval', 'c',
+                    'load_checkpoint_path', 'C', 'segmentation_threshold', 't']
     dataloader_args = ['dataset', 'd']
 
     # list of other arguments to avoid passing to constructor of model class
@@ -32,6 +33,9 @@ def main():
     parser.add_argument('-e', '--num_epochs', type=int, required=False)
     parser.add_argument('-b', '--batch_size', type=int, required=False)
     parser.add_argument('-l', '--optimizer_or_lr', type=float, required=False)
+    parser.add_argument('-L', '--loss_function', type=str, required=False)
+    # json.loads: substitute for dict
+    parser.add_argument('-H', '--loss_function_hyperparams', type=json.loads, required=False)
     parser.add_argument('-i', '--evaluation_interval', type=float, required=False)
     parser.add_argument('-v', '--num_samples_to_visualize', type=int, required=False)
     parser.add_argument('-c', '--checkpoint_interval', type=int, required=False)
@@ -47,7 +51,9 @@ def main():
                          else float(s) if re.search('[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?$', s) is not None\
                          else s.lower() == 'true' if s.lower() in ['true', 'false']\
                          else None if s.lower() == 'none'\
-                         else eval(s) if (s.startswith('(') and s.endswith(')')) or (s.startswith('[') and s.endswith(']'))\
+                         else eval(s) if any([s.startswith('(') and s.endswith(')'),
+                                              s.startswith('[') and s.endswith(']'),
+                                              s.startswith('{') and s.endswith('}')])\
                          else s
 
     known_args_dict = dict(map(lambda arg: (arg, getattr(known_args, arg)), vars(known_args)))

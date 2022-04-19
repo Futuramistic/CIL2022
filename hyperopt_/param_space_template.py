@@ -25,6 +25,7 @@ space_for_tf = {
             'batch_size': ...,
             'optimizer_or_lr':..., 
             'loss_function':...,
+            'loss_function_hyperparams':...,
             'evaluation_interval':...,
             'num_samples_to_visualize': ..., 
             'checkpoint_interval': ...,

@@ -13,9 +13,9 @@ class UNetTrainer(TorchTrainer):
     """
 
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
-                 batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None, evaluation_interval=None,
-                 num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
-                 segmentation_threshold=None):
+                 batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None,
+                 loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
+                 checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
@@ -47,8 +47,9 @@ class UNetTrainer(TorchTrainer):
         preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
 
         super().__init__(dataloader, model, preprocessing, experiment_name, run_name, split,
-                         num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, evaluation_interval,
-                         num_samples_to_visualize, checkpoint_interval, load_checkpoint_path, segmentation_threshold)
+                         num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
+                         evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
+                         segmentation_threshold)
         
     def _train_step(self, model, device, train_loader, callback_handler):
         # unet y may not be squeezed like in torch trainer, dtype is float for BCE

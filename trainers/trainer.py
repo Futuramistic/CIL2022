@@ -1,5 +1,6 @@
 import abc
-import tensorflow.keras as K
+import inspect
+from losses import *
 import mlflow
 import numpy as np
 import os
@@ -9,6 +10,7 @@ import pysftp
 import requests
 import shutil
 import socket
+import tensorflow.keras as K
 import time
 
 from data_handling import DataLoader
@@ -18,9 +20,9 @@ from utils import *
 
 class Trainer(abc.ABC):
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
-                 batch_size=None, optimizer_or_lr=None, loss_function=None, evaluation_interval=None,
-                 num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
-                 segmentation_threshold=None):
+                 batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
+                 evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
+                 load_checkpoint_path=None, segmentation_threshold=None):
         """
         Abstract class for model trainers.
         Args:
@@ -35,7 +37,9 @@ class Trainer(abc.ABC):
             batch_size: number of samples to use per training iteration (None to use default)
             optimizer_or_lr: optimizer to use, or learning rate to use with this method's default optimizer
                              (None to use default)
-            loss_function: loss function to use (None to use default)
+            loss_function: (name of) loss function to use (None to use default)
+            loss_function_hyperparams: hyperparameters of loss function to use
+                                       (will be bound to the loss function automatically; None to skip)
             evaluation_interval: interval, in iterations, in which to perform an evaluation on the test set
                                  (None to use default)
             num_samples_to_visualize: number of samples to visualize predictions for during evaluation
@@ -57,7 +61,21 @@ class Trainer(abc.ABC):
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.optimizer_or_lr = optimizer_or_lr
-        self.loss_function = loss_function
+        self.loss_function_hyperparams = loss_function_hyperparams if loss_function_hyperparams is not None else {}
+
+        self.loss_function_name = str(loss_function)
+        if isinstance(loss_function, str):
+            self.loss_function = eval(loss_function)
+        else:
+            self.loss_function = loss_function
+        if inspect.isclass(self.loss_function):
+            # instantiate class with given hyperparameters
+            self.loss_function = self.loss_function(**self.loss_function_hyperparams)
+        elif inspect.isfunction(self.loss_function):
+            self.orig_loss_function = self.loss_function
+            self.loss_function = lambda *args, **kwargs: self.orig_loss_function(*args, **kwargs,
+                                                                                 **self.loss_function_hyperparams)
+
         self.evaluation_interval = evaluation_interval
         self.num_samples_to_visualize =\
             num_samples_to_visualize if num_samples_to_visualize is not None else DEFAULT_NUM_SAMPLES_TO_VISUALIZE
@@ -164,13 +182,14 @@ class Trainer(abc.ABC):
             'split': self.split,
             'epochs': self.num_epochs,
             'batch_size': self.batch_size,
-            'loss_function': self.loss_function,
+            'loss_function': self.loss_function_name if hasattr(self, 'loss_function_name') else self.loss_function,
             'seg_threshold': self.segmentation_threshold,
             'model': self.model.name if hasattr(self.model, 'name') else type(self.model).__name__,
             'dataset': self.dataloader.dataset,
             'from_checkpoint': self.load_checkpoint_path if self.load_checkpoint_path is not None else '',
             'session_id': SESSION_ID,
-            **(optim_hyparam_serializer.serialize_optimizer_hyperparams(self.optimizer_or_lr))
+            **(optim_hyparam_serializer.serialize_optimizer_hyperparams(self.optimizer_or_lr)),
+            **({f'loss_{k}': v for k, v in self.loss_function_hyperparams.items()})
         }
 
     @staticmethod
@@ -226,6 +245,9 @@ class Trainer(abc.ABC):
     def _fill_images_array(preds, batch_ys, images):
         if batch_ys is None:
             batch_ys = np.zeros_like(preds)
+        if len(batch_ys.shape) > len(preds.shape):
+            # collapse channel dimension
+            batch_ys = np.argmax(batch_ys, axis=-1)
         merged = (2 * preds + batch_ys)
         green_channel = merged == 3  # true positives
         red_channel = merged == 2  # false positive
