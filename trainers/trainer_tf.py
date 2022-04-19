@@ -119,9 +119,32 @@ class TFTrainer(Trainer, abc.ABC):
     # Specifically, the Trainer calls mlflow_logger's "log_visualizations" (e.g. in "on_train_batch_end" of the
     # tensorflow.keras.callbacks.Callback subclass), which in turn uses the Trainer's "create_visualizations".
     def create_visualizations(self, directory):
+        # for batch_xs, batch_ys in self.test_loader.shuffle(10 * num_samples).batch(num_samples):
+
+        # fix half of the samples, randomize other half
+        # the first, fixed half of samples serves for comparison purposes across models/runs
+        # the second, randomized half allows us to spot weaknesses of the model we might miss when
+        # always visualizing the same samples
+
+        num_to_visualize = self.num_samples_to_visualize
+        # never exceed the given training batch size, else we might face memory problems
+        vis_batch_size = min(num_to_visualize, self.batch_size)
+
+        _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
+        if num_to_visualize >= test_dataset_size:
+            # just visualize the entire test set
+            vis_dataloader = self.test_loader.take(test_dataset_size).batch(vis_batch_size)
+        else:
+            num_fixed_samples = num_to_visualize // 2
+            num_random_samples = num_to_visualize - num_fixed_samples
+
+            fixed_samples = self.test_loader.take(num_fixed_samples)
+            random_samples = self.test_loader.skip(num_fixed_samples).take(num_random_samples).shuffle(num_random_samples)
+            vis_dataloader = fixed_samples.concatenate(random_samples).batch(vis_batch_size)
+
         images = []
-        num_samples = self.num_samples_to_visualize
-        for batch_xs, batch_ys in self.test_loader.shuffle(10 * num_samples).batch(num_samples):
+
+        for (batch_xs, batch_ys) in vis_dataloader:
             batch_xs = tf.squeeze(batch_xs, axis=1)
             batch_ys = tf.squeeze(batch_ys, axis=1).numpy()
             output = self.model.predict(batch_xs)
@@ -131,8 +154,6 @@ class TFTrainer(Trainer, abc.ABC):
             preds = np.moveaxis(preds, -1, 1)
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
             self._fill_images_array(preds, batch_ys, images)
-            
-            break  # Only operate on one batch of 'self.trainer.num_samples_to_visualize' samples
 
         self._save_image_array(images, directory)
 

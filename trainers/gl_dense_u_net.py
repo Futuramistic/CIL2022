@@ -43,7 +43,7 @@ class GLDenseUNetTrainer(TFTrainer):
                                                              reduction=K.losses.Reduction.SUM_OVER_BATCH_SIZE)
 
         if evaluation_interval is None:
-            evaluation_interval = 10
+            evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs, num_samples_to_visualize)
 
         # convert samples to float32 \in [0, 1] & remove A channel;
         # convert ground truth to int \in {0, 1} & remove A channel

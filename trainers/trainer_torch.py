@@ -1,10 +1,14 @@
 import abc
 import datetime
+import functools
+import math
 import numpy as np
 import pysftp
 import requests
+from sklearn.utils import shuffle
 import torch
 import torch.cuda
+from torch.utils.data import DataLoader, Subset
 from urllib.parse import urlparse
 
 from losses.precision_recall_f1 import *
@@ -78,14 +82,29 @@ class TorchTrainer(Trainer, abc.ABC):
     # Specifically, the Trainer calls mlflow_logger's "log_visualizations" (e.g. in "on_train_batch_end" of the
     # tensorflow.keras.callbacks.Callback subclass), which in turn uses the Trainer's "create_visualizations".
     def create_visualizations(self, directory):
-        # Sample image indices to visualize
-        length = len(self.test_loader)
-        indices = random.sample(range(length), self.num_samples_to_visualize)
+        # sample image indices to visualize
+        # fix half of the samples, randomize other half
+        # the first, fixed half of samples serves for comparison purposes across models/runs
+        # the second, randomized half allows us to spot weaknesses of the model we might miss when
+        # always visualizing the same samples
+        num_to_visualize = self.num_samples_to_visualize
+        num_fixed_samples = num_to_visualize // 2
+        num_random_samples = num_to_visualize - num_fixed_samples
+        # start sampling random indices from "num_fixed_samples + 1" to avoid duplicates
+        # convert to np.array to allow subsequent slicing
+        if num_to_visualize >= len(self.test_loader):
+            # just visualize the entire test set
+            indices = np.array(list(range(len(self.test_loader))))
+        else:
+            indices = np.array(list(range(num_fixed_samples)) +\
+                            random.sample(range(num_fixed_samples + 1, len(self.test_loader)), num_random_samples))
         images = []
-
-        for i, (batch_xs, batch_ys) in enumerate(self.test_loader):
-            if i not in indices:  # TODO works but dirty, find a better solution..
-                continue
+        # never exceed the given training batch size, else we might face memory problems
+        vis_batch_size = min(num_to_visualize, self.batch_size)
+        subset_ds = Subset(self.test_loader.dataset, indices)
+        subset_dl = DataLoader(subset_ds, batch_size=vis_batch_size, shuffle=False)
+        
+        for (batch_xs, batch_ys) in subset_dl:
             batch_xs, batch_ys = batch_xs.to(self.device), batch_ys.numpy()
             output = self.model(batch_xs)
             preds = (output >= self.segmentation_threshold).float().cpu().detach().numpy()

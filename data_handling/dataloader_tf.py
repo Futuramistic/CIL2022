@@ -49,7 +49,7 @@ class TFDataLoader(DataLoader):
     #    mask_dir   (string): the directory of corresponding masks
     # Returns: Dataset
     ###  
-    def __get_image_data(self, img_paths, gt_paths=None, shuffle=True, preprocessing=None, offset=0, length=10**12):
+    def __get_image_data(self, img_paths, gt_paths=None, shuffle=True, preprocessing=None, offset=0, length=1e12):
         # WARNING: must use lambda captures (see https://stackoverflow.com/q/10452770)
         img_paths_tf = tf.convert_to_tensor(img_paths[offset:offset+length])
         parse_img = (lambda x, preprocessing=preprocessing: self.__parse_data(x)) if preprocessing is None else \
@@ -60,7 +60,7 @@ class TFDataLoader(DataLoader):
         # itertools.count() gives infinite generators
 
         if gt_paths is not None:
-            gt_paths_tf = tf.convert_to_tensor(gt_paths[offset:])
+            gt_paths_tf = tf.convert_to_tensor(gt_paths[offset:offset+length])
             output_types = (parse_img(img_paths_tf[0]).dtype, parse_gt(gt_paths_tf[0]).dtype)
             if shuffle:
                 return tf.data.Dataset.from_generator(
@@ -95,9 +95,15 @@ class TFDataLoader(DataLoader):
     ###  
     def get_training_dataloader(self, split, batch_size, preprocessing=None, **args):
         # Get images' names and data
+
+        # WARNING: the train/test splitting behavior must be consistent across TFDataLoader and TorchDataLoader,
+        # and may not be stochastic, so as to ensure comparability across models/runs
+        # for the same reason, while the training set should be shuffled, the test set should not
+
         dataset_size = len(self.training_img_paths)
         train_size = int(dataset_size * split)
         test_size = dataset_size - train_size
+
         self.training_data = self.__get_image_data(self.training_img_paths, self.training_gt_paths, shuffle=True,
                                                    preprocessing=preprocessing, offset=0, length=train_size)
         self.testing_data = self.__get_image_data(self.training_img_paths, self.training_gt_paths, shuffle=False,

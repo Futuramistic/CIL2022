@@ -21,6 +21,7 @@ IS_DEBUG = getattr(sys, 'gettrace', None) is not None and getattr(sys, 'gettrace
 ACCEPTED_IMAGE_EXTENSIONS = [".png", ".jpeg", ".jpg", ".gif"]
 DEFAULT_SEGMENTATION_THRESHOLD = 0.5
 DEFAULT_TRAIN_FRACTION = 0.8
+DEFAULT_NUM_SAMPLES_TO_VISUALIZE = 36
 DEFAULT_TF_INPUT_SHAPE = (None, None, 3)
 DATASET_ZIP_URLS = {
     # "original": dataset used in the ETHZ CIL Road Segmentation 2022 Kaggle competition

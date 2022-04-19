@@ -1,7 +1,6 @@
 import warnings
 import torch
-from torch.utils.data import DataLoader as torchDL
-from torch.utils.data import random_split
+from torch.utils.data import DataLoader as torchDL, Subset
 from .torchDataset import SegmentationDataset
 from .dataloader import DataLoader
 import utils
@@ -40,13 +39,18 @@ class TorchDataLoader(DataLoader):
             Torch Dataloader
         """
         #load training data and possibly split
-        shuffled_training_img_paths, shuffled_training_gt_paths = utils.consistent_shuffling(self.training_img_paths,
-                                                                                             self.training_gt_paths)
-        dataset = SegmentationDataset(shuffled_training_img_paths, shuffled_training_gt_paths, preprocessing)
+        
+        # WARNING: the train/test splitting behavior must be consistent across TFDataLoader and TorchDataLoader,
+        # and may not be stochastic, so as to ensure comparability across models/runs
+        # for the same reason, while the training set should be shuffled, the test set should not
+
+        dataset = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing)
         training_data_len = int(len(dataset)*split)
         testing_data_len = len(dataset)-training_data_len
         
-        self.training_data, self.testing_data = random_split(dataset, [training_data_len, testing_data_len])
+        self.training_data = Subset(dataset, list(range(training_data_len)))
+        self.testing_data = Subset(dataset, list(range(training_data_len, len(dataset))))
+        
         return torchDL(self.training_data, batch_size, shuffle=True, **args)
     
     def get_testing_dataloader(self, batch_size, preprocessing=None, **args):
@@ -60,20 +64,19 @@ class TorchDataLoader(DataLoader):
         Returns:
             Torch Dataloader
         """
+        # WARNING: the train/test splitting behavior must be consistent across TFDataLoader and TorchDataLoader,
+        # and may not be stochastic, so as to ensure comparability across models/runs
+        # for the same reason, while the training set should be shuffled, the test set should not
+
         if self.testing_data is None:
             warnings.warn("You called test dataloader before training dataloader. \
                 Usually the test data is created by splitting the training data when calling get_training_dataloader. \
                     If groundtruth test data is explicitely available in the Dataset, this will be used, otherwise the complete training dataset will be used.\n \
                         Call <get_unlabeled_testing_dataloader()> in order to get the test data of a dataset without annotations.")
             if self.test_gt_dir is not None:
-                shuffled_test_img_paths, shuffled_test_gt_paths = utils.consistent_shuffling(self.test_img_paths,
-                                                                                             self.test_gt_paths)
-                self.testing_data = SegmentationDataset(shuffled_test_img_paths, shuffled_test_gt_paths, preprocessing)
+                self.testing_data = SegmentationDataset(self.test_img_paths, self.test_gt_paths, preprocessing)
             else:
-                shuffled_training_img_paths, shuffled_training_gt_paths =\
-                    utils.consistent_shuffling(self.training_img_paths, self.training_gt_paths)
-                self.testing_data = SegmentationDataset(shuffled_training_img_paths, shuffled_training_gt_paths,
-                                                        preprocessing)
+                self.testing_data = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing)
 
         return torchDL(self.testing_data, batch_size, shuffle=False, **args)
             

@@ -40,7 +40,7 @@ class UNetTrainer(TorchTrainer):
             loss_function = torch.nn.BCELoss()
 
         if evaluation_interval is None:
-            evaluation_interval = 10
+            evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs, num_samples_to_visualize)
 
         # convert samples to float32 \in [0, 1] & remove A channel;
         # convert ground truth to int \in {0, 1} & remove A channel
@@ -84,7 +84,6 @@ class UNetTrainer(TorchTrainer):
                 del x
                 del y
         test_loss /= len(test_loader.dataset)
-        print(f'\nTest loss: {test_loss:.3f}')
         return test_loss
 
     def _get_hyperparams(self):

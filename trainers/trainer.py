@@ -59,7 +59,8 @@ class Trainer(abc.ABC):
         self.optimizer_or_lr = optimizer_or_lr
         self.loss_function = loss_function
         self.evaluation_interval = evaluation_interval
-        self.num_samples_to_visualize = num_samples_to_visualize if num_samples_to_visualize is not None else 6
+        self.num_samples_to_visualize =\
+            num_samples_to_visualize if num_samples_to_visualize is not None else DEFAULT_NUM_SAMPLES_TO_VISUALIZE
         self.checkpoint_interval = checkpoint_interval
         self.do_checkpoint = self.checkpoint_interval is not None and self.checkpoint_interval > 0
         self.segmentation_threshold =\
@@ -259,5 +260,5 @@ class Trainer(abc.ABC):
             arr.append(row)
         # Concatenate in the second-to-last dimension to get the final big image
         final = np.concatenate(arr, axis=-2)
-        K.preprocessing.image.save_img(os.path.join(directory, f'rgb.png'),
+        K.preprocessing.image.save_img(os.path.join(directory, 'rgb.png'),
                                        segmentation_to_image(final), data_format="channels_first")
