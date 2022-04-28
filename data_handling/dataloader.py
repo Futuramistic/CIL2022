@@ -126,6 +126,16 @@ class DataLoader(abc.ABC):
         """
         raise NotImplementedError('must be defined for torch or tensorflow loader')
 
+    def get_default_evaluation_interval(self, split, batch_size, num_epochs, num_samples_to_visualize):
+        train_dataset_size, test_dataset_size, _ = self.get_dataset_sizes(split)
+        iterations_per_epoch = train_dataset_size // batch_size
+        # every time EVALUATE_AFTER_PROCESSING_SAMPLES samples are processed, perform an evaluation
+        # cap frequency at one evaluation per MIN_EVALUATION_INTERVAL iterations
+        EVALUATE_AFTER_PROCESSING_SAMPLES = 200
+        MIN_EVALUATION_INTERVAL = 20
+        interval = max(MIN_EVALUATION_INTERVAL, EVALUATE_AFTER_PROCESSING_SAMPLES // batch_size)
+        return interval
+
     @abc.abstractmethod
     def load_model(self, path):
         raise NotImplementedError('must be defined for torch or tensorflow loader')

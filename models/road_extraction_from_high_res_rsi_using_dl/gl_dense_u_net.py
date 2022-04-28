@@ -4,8 +4,10 @@
 import tensorflow as tf
 import tensorflow.keras as K
 
+from utils import DEFAULT_TF_INPUT_SHAPE
 
-def GLDenseUNet(input_shape,
+
+def GLDenseUNet(input_shape=DEFAULT_TF_INPUT_SHAPE,
                 growth_rate=16,
                 layers_per_block=(4, 5, 7, 10, 12),
                 conv2d_activation=tf.nn.relu,
@@ -118,5 +120,5 @@ def GLDenseUNet(input_shape,
 
     inputs = K.Input(input_shape)
     outputs = __build_model(inputs)
-    model = K.Model(inputs=inputs, outputs=outputs)
+    model = K.Model(inputs=inputs, outputs=outputs, name='GLDenseUNet')
     return model

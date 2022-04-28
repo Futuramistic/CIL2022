@@ -1,22 +1,25 @@
+import datetime
 from functools import partial
 from hyperopt import STATUS_OK, fmin, tpe, Trials, STATUS_FAIL
-import pickle
-import os
 import numpy as np
-from data_handling.dataloader_torch import TorchDataLoader
-from data_handling.dataloader_tf import TFDataLoader
+import os
+import pickle
+import time
+import warnings
+
+from data_handling import *
+from factory import Factory
+from utils.logging import pushbullet_logger
 from trainers.trainer_tf import TFTrainer
 from trainers.trainer_torch import TorchTrainer
-from datetime import datetime
-from factory.factory import Factory
-import warnings
+
 
 class HyperParamOptimizer:
     """Class for Hyperparameter Optimization, based on the F1 score
         Args: 
             param_space (Dictionary) - hyparparameter search space, beware that no two params are called the same, see param_spaces_UNet.py for an example
     """
-    def __init__(self, param_space):
+    def __init__(self, param_space, param_space_name=None):
         warnings.filterwarnings("ignore", category=UserWarning) 
         self.param_space = param_space
         factory = Factory.get_factory(param_space['model']['model_type'].lower())
@@ -27,9 +30,12 @@ class HyperParamOptimizer:
         # hyperopt can only minimize loss functions --> change sign if loss has to be maximized
         self.minimize_loss = param_space['training']['minimize_loss']
         # specify names for mlflow
-        # take name of dictionary as run name, code taken from: https://bytes.com/topic/python/answers/525219-how-do-you-get-name-dictionary
-        self.run_name = filter(lambda x:id(eval(x))==id(param_space),dir())
-        self.exp_name = self.model_class.__name__ # maybe change later
+        self.run_name = param_space_name
+        if 'experiment_name' in param_space['training']['trainer_params']:
+            self.exp_name = param_space['training']['trainer_params']['experiment_name']
+            del param_space['training']['trainer_params']['experiment_name']  # delete to avoid error due to duplicate argument
+        else:
+            self.exp_name = self.model_class.__name__
         
         # prepare file for saving trials and eventually reload trials if file already exists        
         # code adapted from https://stackoverflow.com/questions/63599879/can-we-save-the-result-of-the-hyperopt-trials-with-sparktrials
@@ -56,6 +62,12 @@ class HyperParamOptimizer:
         Returns:
             output (Hyperopt Trials): Trial history
         """
+
+        # we log these Pushbullet messages regardless of whether we're in debug mode or not, as the optimization may
+        # take very long
+
+        pushbullet_logger.send_pushbullet_message("Hyperopt optimization started.")
+
         # run objective function n times with different variations of the parameter space and search for the variation minimizing the loss
         best_run = fmin(
                 partial(self.objective),
@@ -64,7 +76,9 @@ class HyperParamOptimizer:
                 algo=tpe.suggest,
                 max_evals = n_runs
             )
-        print(f"------------Best Run:-----------\n{best_run}")
+        
+        print(f"-----------Best Run:-----------\n{best_run}")
+        pushbullet_logger.send_pushbullet_message(f"Hyperopt optimization finished.\nBest run: {best_run}")
         
         return self.trials
     
@@ -77,16 +91,19 @@ class HyperParamOptimizer:
         output (Dictionary[loss, status, and other things])
         """
         # for mlflow logger
-        run_name = f"Hyperopt_{self.run_name}"+"{:%Y_%m_%d_%H_%M}".format(datetime.now())
+        run_name = f"Hyperopt{'_' + self.run_name if self.run_name is not None else ''}" + "_{:%Y_%m_%d_%H_%M}".format(datetime.datetime.now())
         with open(self.trials_path, 'wb') as handle:
             pickle.dump(self.trials, handle)
         try:
             model = self.model_class(**hyperparams['model']['kwargs'])
             trainer = self.trainer_class(**hyperparams['training']['trainer_params'], dataloader = self.dataloader, model=model, experiment_name=self.exp_name, run_name=run_name)
             test_loss = trainer.train()
-            average_f1_score = trainer.get_F1_score_validation(model)
+            average_f1_score = trainer.get_F1_score_validation()
         except RuntimeError as r:
-            print(f"Current hyperparams, that lead to error:\n{hyperparams}")
+            err_msg = f"Hyperopt failed.\nCurrent hyperparams that lead to error:\n{hyperparams}" +\
+                      f"\n\nError message:\n{r}"
+            print(err_msg)
+            pushbullet_logger.send_pushbullet_message(err_msg)
             return {
                 'status': STATUS_FAIL,
                 'params': hyperparams

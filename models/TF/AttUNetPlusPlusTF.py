@@ -1,9 +1,20 @@
-import tensorflow as tf
 from keras.layers import *
+import tensorflow as tf
 import tensorflow.keras as K
-from .blocks import *
 
-def AttUNetPlusPlusTF(input_shape,name="AttUnetPlusPlusTF-",dropout=0.5,kernel_init='he_normal',normalize=False,deep_supervision=False, up_transpose = True, kernel_regularizer=K.regularizers.l2(),**kwargs):
+from .blocks import *
+from utils import *
+
+
+def AttUNetPlusPlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
+                      name="AttUnetPlusPlusTF-",
+                      dropout=0.5,
+                      kernel_init='he_normal',
+                      normalize=False,
+                      deep_supervision=False,
+                      up_transpose=True,
+                      kernel_regularizer=K.regularizers.l2(),
+                      **kwargs):
     def __build_model(inputs):
         nb_filters = [32,64,128,256,512]
 
@@ -69,5 +80,12 @@ def AttUNetPlusPlusTF(input_shape,name="AttUnetPlusPlusTF-",dropout=0.5,kernel_i
 
     inputs = K.Input(input_shape)
     outputs = __build_model(inputs)
-    model = K.Model(inputs=inputs, outputs=outputs)
+    model = K.Model(inputs=inputs, outputs=outputs, name='AttUNetPlusPlus')
+    # store parameters for the Trainer to be able to log them to MLflow
+    model.dropout = dropout
+    model.kernel_init = kernel_init
+    model.normalize = normalize
+    model.deep_supervision = deep_supervision
+    model.up_transpose = up_transpose
+    model.kernel_regularizer = kernel_regularizer
     return model

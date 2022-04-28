@@ -4,9 +4,10 @@ import os
 import mlflow
 import tensorflow as tf
 import tensorflow.keras as K
+
+from losses import DiceBCELoss2, DiceBCELoss1
 from .trainer_tf import TFTrainer
 from utils import *
-from losses.diceBCELoss import DiceBCELoss2, DiceBCELoss1
 
 
 class UNetPlusPlusTrainer(TFTrainer):
@@ -15,8 +16,9 @@ class UNetPlusPlusTrainer(TFTrainer):
     """
 
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
-                 batch_size=None, optimizer_or_lr=None, loss_function=None, evaluation_interval=None,
-                 num_samples_to_visualize=None, checkpoint_interval=None):
+                 batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
+                 evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
+                 load_checkpoint_path=None, segmentation_threshold=None):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
@@ -46,18 +48,25 @@ class UNetPlusPlusTrainer(TFTrainer):
             loss_function = DiceBCELoss1
 
         if evaluation_interval is None:
-            evaluation_interval = 10
+            evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs, num_samples_to_visualize)
 
-        # convert training samples to float32 \in [0, 1] & remove A channel;
-        # convert test samples to int \in {0, 1} & remove A channel
+        # convert model input to float32 \in [0, 1] & remove A channel;
+        # convert ground truth to int \in {0, 1} & remove A channel
         preprocessing =\
             lambda x, is_gt: (tf.cast(x[:, :, :3], dtype=tf.float32) / 255.0) if not is_gt \
             else (x[:, :, :1] // 255)
 
         super().__init__(dataloader, model, preprocessing, steps_per_training_epoch, experiment_name, run_name, split,
-                         num_epochs, batch_size, optimizer_or_lr, loss_function, evaluation_interval,
-                         num_samples_to_visualize, checkpoint_interval)
+                         num_epochs, batch_size, optimizer_or_lr, loss_function, loss_function_hyperparams,
+                         evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
+                         segmentation_threshold)
 
+    def _get_hyperparams(self):
+        return {**(super()._get_hyperparams()),
+                **({param: getattr(self.model, param)
+                   for param in ['dropout', 'kernel_init', 'normalize', 'up_transpose', 'average', 'kernel_regularizer']
+                   if hasattr(self.model, param)})}
+    
     @staticmethod
     def get_default_optimizer_with_lr(lr):
         # no mention on learning rate decay; can be reintroduced

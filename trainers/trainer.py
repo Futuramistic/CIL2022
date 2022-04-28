@@ -1,23 +1,28 @@
 import abc
+import inspect
+from losses import *
 import mlflow
+import numpy as np
+import os
 import pexpect
 import paramiko
 import pysftp
 import requests
+import shutil
 import socket
+import tensorflow.keras as K
 import time
-import os
 
-from data_handling.dataloader import DataLoader
+from data_handling import DataLoader
 from utils import *
-import mlflow_logger
-import numpy as np
+from utils.logging import mlflow_logger, optim_hyparam_serializer
 
 
 class Trainer(abc.ABC):
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
-                 batch_size=None, optimizer_or_lr=None, loss_function=None, evaluation_interval=None,
-                 num_samples_to_visualize=None, checkpoint_interval=None):
+                 batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
+                 evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
+                 load_checkpoint_path=None, segmentation_threshold=None):
         """
         Abstract class for model trainers.
         Args:
@@ -32,13 +37,20 @@ class Trainer(abc.ABC):
             batch_size: number of samples to use per training iteration (None to use default)
             optimizer_or_lr: optimizer to use, or learning rate to use with this method's default optimizer
                              (None to use default)
-            loss_function: loss function to use (None to use default)
+            loss_function: (name of) loss function to use (None to use default)
+            loss_function_hyperparams: hyperparameters of loss function to use
+                                       (will be bound to the loss function automatically; None to skip)
             evaluation_interval: interval, in iterations, in which to perform an evaluation on the test set
                                  (None to use default)
             num_samples_to_visualize: number of samples to visualize predictions for during evaluation
                                       (None to use default)
             checkpoint_interval: interval, in iterations, in which to create model checkpoints
+                                 specify an extremely high number (e.g. 1e15) to only create a single checkpoint after training has finished
                                  (WARNING: None or 0 to discard model)
+            load_checkpoint_path: path to checkpoint file, or SFTP checkpoint URL for MLflow, to load a checkpoint and
+                                  resume training from (None to start training from scratch instead)
+            segmentation_threshold: threshold >= which to consider the model's prediction for a given pixel to
+                                    correspond to class 1 rather than class 0 (None to use default)
         """
         self.dataloader = dataloader
         self.model = model
@@ -49,12 +61,37 @@ class Trainer(abc.ABC):
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.optimizer_or_lr = optimizer_or_lr
-        self.loss_function = loss_function
+        self.loss_function_hyperparams = loss_function_hyperparams if loss_function_hyperparams is not None else {}
+
+        self.loss_function_name = str(loss_function)
+        if isinstance(loss_function, str):
+            # additional imports to expand scope of losses accessible via "eval"
+            import torch
+            import torch.nn
+            import tensorflow.keras.losses
+            self.loss_function = eval(loss_function)
+        else:
+            self.loss_function = loss_function
+        if inspect.isclass(self.loss_function):
+            # instantiate class with given hyperparameters
+            self.loss_function = self.loss_function(**self.loss_function_hyperparams)
+        elif inspect.isfunction(self.loss_function):
+            self.orig_loss_function = self.loss_function
+            self.loss_function = lambda *args, **kwargs: self.orig_loss_function(*args, **kwargs,
+                                                                                 **self.loss_function_hyperparams)
+
         self.evaluation_interval = evaluation_interval
-        self.num_samples_to_visualize = num_samples_to_visualize if num_samples_to_visualize is not None else 6
+        self.num_samples_to_visualize =\
+            num_samples_to_visualize if num_samples_to_visualize is not None else DEFAULT_NUM_SAMPLES_TO_VISUALIZE
         self.checkpoint_interval = checkpoint_interval
         self.do_checkpoint = self.checkpoint_interval is not None and self.checkpoint_interval > 0
+        self.segmentation_threshold =\
+            segmentation_threshold if segmentation_threshold is not None else DEFAULT_SEGMENTATION_THRESHOLD
         self.is_windows = os.name == 'nt'
+        self.load_checkpoint_path = load_checkpoint_path
+        if not self.do_checkpoint:
+            print('\n*** WARNING: no checkpoints of this model will be created! Specify valid checkpoint_interval '
+                  '(in iterations) to Trainer in order to create checkpoints. ***\n')
 
     def _init_mlflow(self):
         self.mlflow_experiment_id = None
@@ -111,18 +148,34 @@ class Trainer(abc.ABC):
 
                     pysftp.Connection._start_transport = new_start_transport
 
-            mlflow_pass = requests.get(MLFLOW_PASS_URL).text
-            try:
-                add_known_hosts(MLFLOW_HOST, MLFLOW_USER, mlflow_pass)
-            except:
-                add_known_hosts(MLFLOW_HOST, MLFLOW_USER, mlflow_pass, MLFLOW_JUMP_HOST)
+            mlflow_init_successful = True
+            MLFLOW_INIT_ERROR_MSG = 'MLflow initialization failed. Will not use MLflow for this run.'
 
-            mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-            experiment = mlflow.get_experiment_by_name(self.mlflow_experiment_name)
-            if experiment is None:
-                self.mlflow_experiment_id = mlflow.create_experiment(self.mlflow_experiment_name)
-            else:
-                self.mlflow_experiment_id = experiment.experiment_id
+            try:
+                mlflow_pass = requests.get(MLFLOW_PASS_URL).text
+                try:
+                    add_known_hosts(MLFLOW_HOST, MLFLOW_USER, mlflow_pass)
+                except:
+                    add_known_hosts(MLFLOW_HOST, MLFLOW_USER, mlflow_pass, MLFLOW_JUMP_HOST)
+            except:
+                mlflow_init_successful = False
+                print(MLFLOW_INIT_ERROR_MSG)
+
+            if mlflow_init_successful:
+                try:
+                    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+                    experiment = mlflow.get_experiment_by_name(self.mlflow_experiment_name)
+                    if experiment is None:
+                        self.mlflow_experiment_id = mlflow.create_experiment(self.mlflow_experiment_name)
+                    else:
+                        self.mlflow_experiment_id = experiment.experiment_id
+                except:
+                    mlflow_init_successful = False
+                    print(MLFLOW_INIT_ERROR_MSG)
+
+            return mlflow_init_successful
+        else:
+            return False
 
     def _get_hyperparams(self):
         """
@@ -132,9 +185,15 @@ class Trainer(abc.ABC):
         return {
             'split': self.split,
             'epochs': self.num_epochs,
-            'batch size': self.batch_size,
-            'optimizer': self.optimizer_or_lr,
-            'loss function': self.loss_function,
+            'batch_size': self.batch_size,
+            'loss_function': self.loss_function_name if hasattr(self, 'loss_function_name') else self.loss_function,
+            'seg_threshold': self.segmentation_threshold,
+            'model': self.model.name if hasattr(self.model, 'name') else type(self.model).__name__,
+            'dataset': self.dataloader.dataset,
+            'from_checkpoint': self.load_checkpoint_path if self.load_checkpoint_path is not None else '',
+            'session_id': SESSION_ID,
+            **(optim_hyparam_serializer.serialize_optimizer_hyperparams(self.optimizer_or_lr)),
+            **({f'loss_{k}': v for k, v in self.loss_function_hyperparams.items()})
         }
 
     @staticmethod
@@ -163,23 +222,39 @@ class Trainer(abc.ABC):
         """
         if self.do_checkpoint and not os.path.exists(CHECKPOINTS_DIR):
             os.makedirs(CHECKPOINTS_DIR)
-        if self.mlflow_experiment_name is not None:
-            self._init_mlflow()
+        
+        if self.mlflow_experiment_name is not None and self._init_mlflow():
             with mlflow.start_run(experiment_id=self.mlflow_experiment_id, run_name=self.mlflow_run_name) as run:
-                mlflow_logger.log_hyperparams(self._get_hyperparams())
-                mlflow_logger.snapshot_codebase()  # snapshot before training as the files may change in-between
-                last_test_loss = self._fit_model(mlflow_run=run)
-                mlflow_logger.log_codebase()
-                if self.do_checkpoint:
-                    mlflow_logger.log_checkpoints()
+                try:
+                    mlflow_logger.log_hyperparams(self._get_hyperparams())
+                    mlflow_logger.snapshot_codebase()  # snapshot before training as the files may change in-between
+                    mlflow_logger.log_codebase()  # log codebase before training, to be invariant to training crashes and stops
+                    last_test_loss = self._fit_model(mlflow_run=run)
+                    if self.do_checkpoint:
+                        mlflow_logger.log_checkpoints()
+                    mlflow_logger.log_logfiles()
+                except Exception as e:
+                    err_msg = f'*** Exception encountered: ***\n{e}'
+                    print(f'\n\n{err_msg}\n')
+                    mlflow_logger.log_logfiles()
+                    if not IS_DEBUG:
+                        pushbullet_logger.send_pushbullet_message(err_msg)
+                    raise e
         else:
             last_test_loss = self._fit_model(mlflow_run=None)
+
+        if os.path.exists(CHECKPOINTS_DIR):
+            shutil.rmtree(CHECKPOINTS_DIR)
+
         return last_test_loss
 
     @staticmethod
     def _fill_images_array(preds, batch_ys, images):
         if batch_ys is None:
             batch_ys = np.zeros_like(preds)
+        if len(batch_ys.shape) > len(preds.shape):
+            # collapse channel dimension
+            batch_ys = np.argmax(batch_ys, axis=-1)
         merged = (2 * preds + batch_ys)
         green_channel = merged == 3  # true positives
         red_channel = merged == 2  # false positive
@@ -189,7 +264,7 @@ class Trainer(abc.ABC):
             images.append(rgb[batch_sample_idx])
 
     @staticmethod
-    def _save_image_array(images, directory):
+    def _save_image_array(images, file_path):
 
         def segmentation_to_image(x):
             x = (x * 255).astype(int)
@@ -214,5 +289,4 @@ class Trainer(abc.ABC):
             arr.append(row)
         # Concatenate in the second-to-last dimension to get the final big image
         final = np.concatenate(arr, axis=-2)
-        K.preprocessing.image.save_img(os.path.join(directory, f'rgb.png'),
-                                       segmentation_to_image(final), data_format="channels_first")
+        K.preprocessing.image.save_img(file_path, segmentation_to_image(final), data_format="channels_first")
