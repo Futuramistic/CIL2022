@@ -53,12 +53,14 @@ class TorchDataLoader(DataLoader):
         
         return torchDL(self.training_data, batch_size, shuffle=True, **args)
     
-    def get_testing_dataloader(self, batch_size, preprocessing=None, **args):
+    def get_testing_dataloader(self, batch_size, preprocessing=None, replace_with_train_set_if_no_test_gt=True, **args):
         """
         Args:
             batch_size (int): training batch size
             preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
                                       constructing the native dataloader
+            replace_with_train_set_if_no_test_gt (bool): If this parameter is set to True, the loader will use
+            the training set as a test set.
             **args: parameters for torch dataloader, e.g. shuffle (boolean)
 
         Returns:
@@ -76,7 +78,11 @@ class TorchDataLoader(DataLoader):
             if self.test_gt_dir is not None:
                 self.testing_data = SegmentationDataset(self.test_img_paths, self.test_gt_paths, preprocessing)
             else:
-                self.testing_data = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing)
+                if replace_with_train_set_if_no_test_gt:
+                    self.testing_data = SegmentationDataset(self.training_img_paths, self.training_gt_paths,
+                                                            preprocessing)
+                else:
+                    self.testing_data = SegmentationDataset(self.test_img_paths, None, preprocessing)
 
         return torchDL(self.testing_data, batch_size, shuffle=False, **args)
             

@@ -46,7 +46,7 @@ class DataLoader(abc.ABC):
         if have_samples:
             img_paths = []
             img_idxs = {}
-            for img_name in os.listdir(img_dir):
+            for img_name in sorted(os.listdir(img_dir)):
                 _, ext = os.path.splitext(img_name)
                 if ext.lower() in ACCEPTED_IMAGE_EXTENSIONS:
                     pth = f"{img_dir}/{img_name}"
