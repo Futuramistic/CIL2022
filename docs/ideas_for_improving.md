@@ -59,3 +59,27 @@ __Note__: many more good ideas can be found in the paper summaries; it might be 
   * __warning__: make sure to give mark copied parts, give appropriate credit and consider the project's license!
   * be critical of "non-official" implementations (not implemented by authors themselves)
 * consistency reasons might require us to reimplement baselines without official codebases, to evaluate all baseline models on our dataset using F1 score as metric
+
+
+## Next TODOs
+- add print command
+- mask_to_submission to upload result
+- find limited hyperparam spaces (e.g. lr between [0.1, .05] or [e-5, e-1]) for well working params --> analyze with probabilistic space
+- ideas for better models:
+  - u-square-net (smaller unets embedded in bigger unets)
+  - unet+++ (more skip connections)
+  - idea: combine both approaches, add attention unet
+  - look above at "architectures"
+  - problem: hyperparams of hough transform (threshold for line detection) --> there was a paper?
+- research other architectures from related CV fields (e.g. object detection)
+- activation and kernel initialization
+- hint: use vast.ai
+- maybe something similar to meanshift with bounding boxes of different sizes or similar to YOLO idea
+- similar to TWERSKY/DICE loss: currently many false positives, but few false negatives --> make model learn from this information --> research different losses
+- straightness
+  - find relative lines with hough transform, blurr, use this as attention layer (extra hint for network)
+  - perform hough transform on prediction: use info (maybe in postprocessing step to fill gaps of the same road)
+  - init road with hough transform on a segment, follow the lines of the road with "brush"
+  - Laplacian/Divergence operator to penalize curvature
+- passwort protect mlflow
+- print current epoch during training

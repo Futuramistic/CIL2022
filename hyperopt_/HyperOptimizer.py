@@ -15,7 +15,7 @@ from trainers.trainer_torch import TorchTrainer
 
 
 class HyperParamOptimizer:
-    """Class for Hyperparameter Optimization
+    """Class for Hyperparameter Optimization, based on the F1 score
         Args: 
             param_space (Dictionary) - hyparparameter search space, beware that no two params are called the same, see param_spaces_UNet.py for an example
     """
@@ -44,6 +44,8 @@ class HyperParamOptimizer:
             os.makedirs("archive")
         if not os.path.isdir("archive/trials"):
             os.makedirs("archive/trials")
+        if not os.path.isdir("archive/models"):
+            os.makedirs("archive/models")
         if os.path.isdir(self.trials_path):
             with open(self.trials_path, 'rb') as file:
                 self.trials = pickle.load(file)
