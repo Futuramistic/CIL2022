@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.image as mpimg
 import re
 import PIL
+from utils import *
 
 from absl import app, flags
 
@@ -13,9 +14,9 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string(
     "submission_filename", "dummy_submission.csv", "The output csv for the submission.")
 flags.DEFINE_string(
-    "base_dir", "training/groundtruth", "The directory with the predicted masks.")
+    "base_dir", f"{OUTPUT_PRED_DIR}", "The directory with the predicted masks.")
 
-foreground_threshold = 0.25 # percentage of pixels of val 255 required to assign a foreground label to a patch
+foreground_threshold = 0.25  # percentage of pixels of val 255 required to assign a foreground label to a patch
 
 # assign a label to a patch
 def patch_to_label(patch):

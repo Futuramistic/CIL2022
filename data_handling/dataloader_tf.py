@@ -51,7 +51,7 @@ class TFDataLoader(DataLoader):
     ###  
     def __get_image_data(self, img_paths, gt_paths=None, shuffle=True, preprocessing=None, offset=0, length=1e12):
         # WARNING: must use lambda captures (see https://stackoverflow.com/q/10452770)
-        img_paths_tf = tf.convert_to_tensor(img_paths[offset:offset+length])
+        img_paths_tf = tf.convert_to_tensor(img_paths[offset:int(offset+length)])  # scientific notation is not recognized as an integer
         parse_img = (lambda x, preprocessing=preprocessing: self.__parse_data(x)) if preprocessing is None else \
                     (lambda x, preprocessing=preprocessing: preprocessing(x=self.__parse_data(x), is_gt=False))
         parse_gt = (lambda x, preprocessing=preprocessing: self.__parse_data(x)) if preprocessing is None else \
