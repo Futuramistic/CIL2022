@@ -53,14 +53,12 @@ class TorchDataLoader(DataLoader):
         
         return torchDL(self.training_data, batch_size, shuffle=True, **args)
     
-    def get_testing_dataloader(self, batch_size, preprocessing=None, replace_with_train_set_if_no_test_gt=True, **args):
+    def get_testing_dataloader(self, batch_size, preprocessing=None, **args):
         """
         Args:
             batch_size (int): training batch size
             preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
                                       constructing the native dataloader
-            replace_with_train_set_if_no_test_gt (bool): If this parameter is set to True, the loader will use
-            the training set as a test set.
             **args: parameters for torch dataloader, e.g. shuffle (boolean)
 
         Returns:
@@ -78,11 +76,7 @@ class TorchDataLoader(DataLoader):
             if self.test_gt_dir is not None:
                 self.testing_data = SegmentationDataset(self.test_img_paths, self.test_gt_paths, preprocessing)
             else:
-                if replace_with_train_set_if_no_test_gt:
-                    self.testing_data = SegmentationDataset(self.training_img_paths, self.training_gt_paths,
-                                                            preprocessing)
-                else:
-                    self.testing_data = SegmentationDataset(self.test_img_paths, None, preprocessing)
+                self.testing_data = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing)
 
         return torchDL(self.testing_data, batch_size, shuffle=False, **args)
             
@@ -100,8 +94,9 @@ class TorchDataLoader(DataLoader):
         if self.test_gt_dir is not None:
             warnings.warn(f"The dataset {self.dataset} doesn't contain unlabeled test data. The test data will simply be used without loading the groundtruth")
         if self.unlabeled_testing_data is None:
-            self.unlabeled_testing_data = SegmentationDataset(*utils.consistent_shuffling(self.test_img_paths), None,
-                                                              preprocessing)
+            # self.unlabeled_testing_data = SegmentationDataset(*utils.consistent_shuffling(self.test_img_paths), None,
+            #                                                   preprocessing)
+            self.unlabeled_testing_data = SegmentationDataset(self.test_img_paths, None, preprocessing)
         return torchDL(self.unlabeled_testing_data, batch_size, shuffle=False, **args)
 
     def load_model(self, path, model_class_as_string):
