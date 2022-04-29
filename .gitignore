@@ -16,3 +16,6 @@ archive/trials/*
 logs/
 *.pt
 pb_token.txt
+output_preds/
+*.ckpt/
+*.pt
