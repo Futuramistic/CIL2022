@@ -1,6 +1,8 @@
 # Imports
 import torch
 from tqdm import tqdm
+
+from factory import Factory
 from models.TF.UNetTF import UNetTF
 from data_handling.dataloader_tf import TFDataLoader
 from trainers.UnetTF import UNetTFTrainer
@@ -14,19 +16,22 @@ from losses.loss_harmonizer import DEFAULT_TF_DIM_LAYOUT
 offset = 144  # Numbering of first test image
 dataset = 'original'
 test_set_size = 144
-
-# Parameters
-model = UNetTF()
-trained_model_path = 'cp_ep-00000_it-00210_step-210.ckpt'  # Name of the pretrained model
 segmentation_threshold = 0.5
 
-# Load the model/data
+# Parameters
+model_name = 'unettf'                                           # <<<<<<<<<<<<<<<<<< Insert model type
+trained_model_path = 'cp_ep-00000_it-00210_step-210.ckpt'       # <<<<<<<<<<<<<<<<<< Insert trained model name
+
+# Create loader, trainer etc. from factory
+factory = Factory.get_factory(model_name)
+dataloader = factory.get_dataloader_class()(dataset=dataset)
+model = factory.get_model_class()()
+trainer = factory.get_trainer_class()(dataloader=dataloader, model=model)
+
+# Load the trained model weights
 model.load_weights(trained_model_path)
 
-dataloader = TFDataLoader(dataset=dataset)
-trainer = UNetTFTrainer(dataloader, model)
 preprocessing = trainer.preprocessing
-
 test_loader = dataloader.get_unlabeled_testing_dataloader(batch_size=1, preprocessing=preprocessing)
 
 create_or_clean_directory(OUTPUT_PRED_DIR)
