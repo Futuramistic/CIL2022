@@ -248,6 +248,8 @@ def __process_dataset(dataset, output_img_path, output_gt_path, augmentation_par
     output_size = 0
     for i in tqdm(range(nb_images)):
         image, gt = dataset.__getitem__(i)
+        if gt.shape[0] != 1:
+            gt = gt[0].unsqueeze(0)
         image = image / 255.  # transform from ByteTensor to FloatTensor
         gt = gt / 255.  # transform from ByteTensor to FloatTensor
 
