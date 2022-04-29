@@ -30,6 +30,8 @@ test_loader = dataloader.get_unlabeled_testing_dataloader(batch_size=1, preproce
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 model = model.to(device)
 
+create_or_clean_directory(OUTPUT_PRED_DIR)
+
 # Prediction
 with torch.no_grad():
     for i, x in tqdm(enumerate(test_loader)):

@@ -29,6 +29,8 @@ preprocessing = trainer.preprocessing
 
 test_loader = dataloader.get_unlabeled_testing_dataloader(batch_size=1, preprocessing=preprocessing)
 
+create_or_clean_directory(OUTPUT_PRED_DIR)
+
 # Prediction
 for i, x in tqdm(enumerate(test_loader)):
     output = model.predict(x)

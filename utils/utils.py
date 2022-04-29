@@ -94,3 +94,12 @@ def sftp_download_dir_portable(sftp, remote_dir, local_dir, preserve_mtime=False
             sftp_download_dir_portable(sftp, remote_path, local_path, preserve_mtime)
         elif S_ISREG(mode):
             sftp.get(remote_path, local_path, preserve_mtime=preserve_mtime)
+
+
+# Create output directory if it does not exist, or clean it if it does
+def create_or_clean_directory(dir_name):
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+    else:
+        for f in os.listdir(dir_name):
+            os.remove(os.path.join(dir_name, f))
