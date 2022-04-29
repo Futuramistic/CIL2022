@@ -42,6 +42,7 @@ DATASET_ZIP_URLS = {
 CODEBASE_SNAPSHOT_ZIP_NAME = f"codebase_{SESSION_ID}.zip"
 CHECKPOINTS_DIR = os.path.join("checkpoints", str(SESSION_ID))
 LOGGING_DIR = "logs/"
+COMMAND_LINE_FILE_NAME = "command_line.txt"
 MLFLOW_USER = "mlflow_user"
 MLFLOW_HOST = "algvrithm.com"
 MLFLOW_TRACKING_URI = f"http://{MLFLOW_HOST}:8000"

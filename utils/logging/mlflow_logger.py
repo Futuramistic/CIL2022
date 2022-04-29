@@ -5,6 +5,7 @@ import tempfile
 import shutil
 import time
 from typing import Dict, Any
+import shlex
 
 
 def logging_to_mlflow_enabled():
@@ -144,3 +145,9 @@ def log_logfiles():
         for path in [stderr_path, stdout_path]:
             if os.path.isfile(path):
                 mlflow.log_artifact(path, 'logs/')
+
+
+def log_command_line():
+    if logging_to_mlflow_enabled():
+        cmdline = " ".join(map(shlex.quote, sys.argv[1:]))
+        mlflow.log_text(cmdline, COMMAND_LINE_FILE_NAME)

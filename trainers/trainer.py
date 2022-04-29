@@ -229,6 +229,7 @@ class Trainer(abc.ABC):
                     mlflow_logger.log_hyperparams(self._get_hyperparams())
                     mlflow_logger.snapshot_codebase()  # snapshot before training as the files may change in-between
                     mlflow_logger.log_codebase()  # log codebase before training, to be invariant to training crashes and stops
+                    mlflow_logger.log_command_line()  # log command line used to execute the script, if available
                     last_test_loss = self._fit_model(mlflow_run=run)
                     if self.do_checkpoint:
                         mlflow_logger.log_checkpoints()
