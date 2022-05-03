@@ -14,6 +14,7 @@ import tensorflow.keras as K
 import time
 
 from data_handling import DataLoader
+from requests.auth import HTTPBasicAuth
 from utils import *
 from utils.logging import mlflow_logger, optim_hyparam_serializer
 
@@ -152,11 +153,16 @@ class Trainer(abc.ABC):
             MLFLOW_INIT_ERROR_MSG = 'MLflow initialization failed. Will not use MLflow for this run.'
 
             try:
-                mlflow_pass = requests.get(MLFLOW_PASS_URL).text
+                os.environ['MLFLOW_TRACKING_USERNAME'] = MLFLOW_HTTP_USER
+                os.environ['MLFLOW_TRACKING_PASSWORD'] = MLFLOW_HTTP_PASS
+
+                mlflow_ftp_pass = requests.get(MLFLOW_FTP_PASS_URL,
+                                               auth=HTTPBasicAuth(os.environ['MLFLOW_TRACKING_USERNAME'],
+                                                                  os.environ['MLFLOW_TRACKING_PASSWORD'])).text
                 try:
-                    add_known_hosts(MLFLOW_HOST, MLFLOW_USER, mlflow_pass)
+                    add_known_hosts(MLFLOW_HOST, MLFLOW_FTP_USER, mlflow_ftp_pass)
                 except:
-                    add_known_hosts(MLFLOW_HOST, MLFLOW_USER, mlflow_pass, MLFLOW_JUMP_HOST)
+                    add_known_hosts(MLFLOW_HOST, MLFLOW_FTP_USER, mlflow_ftp_pass, MLFLOW_JUMP_HOST)
             except:
                 mlflow_init_successful = False
                 print(MLFLOW_INIT_ERROR_MSG)

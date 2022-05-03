@@ -177,9 +177,10 @@ class TFTrainer(Trainer, abc.ABC):
             print(f'Downloading checkpoint from "{checkpoint_path}" to "{final_checkpoint_path}"...')
             cnopts = pysftp.CnOpts()
             cnopts.hostkeys = None
-            mlflow_pass = requests.get(MLFLOW_PASS_URL).text
+            mlflow_ftp_pass = requests.get(MLFLOW_FTP_PASS_URL).text
             url_components = urlparse(checkpoint_path)
-            with pysftp.Connection(host=MLFLOW_HOST, username=MLFLOW_USER, password=mlflow_pass, cnopts=cnopts) as sftp:
+            with pysftp.Connection(host=MLFLOW_HOST, username=MLFLOW_FTP_USER, password=mlflow_ftp_pass,
+                                   cnopts=cnopts) as sftp:
                 sftp_download_dir_portable(sftp, remote_dir=url_components.path, local_dir=final_checkpoint_path)
             print(f'Download successful')
         else:
