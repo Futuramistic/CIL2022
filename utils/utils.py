@@ -44,11 +44,13 @@ CHECKPOINTS_DIR = os.path.join("checkpoints", str(SESSION_ID))
 LOGGING_DIR = "logs/"
 COMMAND_LINE_FILE_NAME = "command_line.txt"
 OUTPUT_PRED_DIR = "output_preds"
-MLFLOW_USER = "mlflow_user"
+MLFLOW_FTP_USER = "mlflow_user"
+MLFLOW_HTTP_USER = "cil22"
+MLFLOW_HTTP_PASS = "equilibrium"
 MLFLOW_HOST = "algvrithm.com"
 MLFLOW_TRACKING_URI = f"http://{MLFLOW_HOST}:8000"
 MLFLOW_JUMP_HOST = "eu-login-01"
-MLFLOW_PASS_URL = "https://algvrithm.com/files/mlflow_cil_pass.txt"
+MLFLOW_FTP_PASS_URL = "https://algvrithm.com/files/mlflow_cil_pass.txt"
 MLFLOW_PROFILING = False
 # Pushbullet access token to use for sending notifications about critical events such as exceptions during training
 # (None to avoid sending Pushbullet notifications)
