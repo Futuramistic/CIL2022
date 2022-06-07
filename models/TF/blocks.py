@@ -48,6 +48,30 @@ class Down_Block(tf.keras.layers.Layer):
         x2 = self.pool(x1,**kwargs)
         return (x1,x2)
 
+
+class Down_Block_LearnablePool(tf.keras.layers.Layer):
+    """
+    A learnable pooling layer.
+
+    Similar to a standard pooling layer but instead of choosing between Max Pool and Average Pool, we let the network
+    learn which one is best.
+    """
+    def __init__(self, name="down-block-learnable-pool", dropout=0.5, filters=64, kernel_init='he_normal',
+                 kernel_regularizer=K.regularizers.l2(), normalize=False, **kwargs):
+        super(Down_Block_LearnablePool, self).__init__(name=name, **kwargs)
+        self.convo_block = Convo_Block(name + "-convo-block", dropout=dropout, filters=filters, kernel_init=kernel_init,
+                                       normalize=normalize, kernel_regularizer=kernel_regularizer)
+        self.Lambda = tf.Variable(initial_value=tf.random.normal(()), trainable=True)
+        self.avgpool = AveragePooling2D(pool_size=(2, 2), strides=2, padding='same', name=name + "-max-pool")
+        self.maxpool = MaxPool2D(pool_size=(2, 2), strides=2, padding='same', name=name + "-max-pool")
+
+    # Expose training
+    def call(self, input, **kwargs):
+        fac = tf.sigmoid(self.Lambda)  # want to bound lambda in [0, 1]
+        x1 = self.convo_block(input, **kwargs)
+        x2 = fac * self.avgpool(x1, **kwargs) + (1 - fac) * self.maxpool(x1, **kwargs)
+        return (x1, x2)
+
 class Transpose_Block(tf.keras.layers.Layer):
     def __init__(self,name="up-convo",filters=64,dropout=0.5,kernel_init='he_normal',normalize=False,kernel_regularizer=K.regularizers.l2(),**kwargs):
         super(Transpose_Block,self).__init__(name=name,**kwargs)
