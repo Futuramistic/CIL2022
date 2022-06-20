@@ -36,7 +36,12 @@ DATASET_ZIP_URLS = {
     # "original_256": "original" dataset, patchified into 256x256 patches and augmented using Preprocessor
     # WARNING: take into account that this dataset has 2160/720 train/"unlabeled test" images (original has only 144/144, resp.)
     # e.g. use fewer epochs and a high train fraction (high "split" value), so the evaluation doesn't take too long!
-    "original_256": "https://polybox.ethz.ch/index.php/s/ncSp9vsJ1HAIHcR/download"
+    "original_256": "https://polybox.ethz.ch/index.php/s/ncSp9vsJ1HAIHcR/download",
+
+    # "additional_maps_1": dataset retrieved from http://efrosgans.eecs.berkeley.edu/pix2pix/datasets/ -> maps.tar.gz
+    # and processed to convert the RGB masks to B/W. The resulting masks are not perfect and could definitely
+    # use some better processing, but they seem to be good enough visually
+    "new_maps": "https://polybox.ethz.ch/index.php/s/QTxb24YMpL1Rs66/download"
 }
 # in case multiple jobs are running in the same directory, SESSION_ID will prevent name conflicts
 CODEBASE_SNAPSHOT_ZIP_NAME = f"codebase_{SESSION_ID}.zip"
