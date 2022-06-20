@@ -8,3 +8,4 @@ from .gl_dense_u_net import GLDenseUNetTrainer
 from .u_net import UNetTrainer
 from .UnetPlusPlusTF import UNetPlusPlusTrainer
 from .UnetTF import UNetTFTrainer
+from .cra_net import CRANetTrainer

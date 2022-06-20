@@ -107,6 +107,8 @@ class TorchTrainer(Trainer, abc.ABC):
         for (batch_xs, batch_ys) in subset_dl:
             batch_xs, batch_ys = batch_xs.to(self.device), batch_ys.numpy()
             output = self.model(batch_xs)
+            if type(output) is tuple:
+                output = output[0]
             preds = (output >= self.segmentation_threshold).float().cpu().detach().numpy()
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
             self._fill_images_array(preds, batch_ys, images)
@@ -244,6 +246,8 @@ class TorchTrainer(Trainer, abc.ABC):
             x = x.to(self.device, dtype=torch.float32)
             y = y.to(self.device, dtype=torch.float32)
             output = self.model(x)
+            if type(output) is tuple:
+                output = output[0]
             preds = (output >= self.segmentation_threshold).float()
             precision, recall, f1_score = precision_recall_f1_score_torch(preds, y)
             precisions.append(precision.cpu().numpy())

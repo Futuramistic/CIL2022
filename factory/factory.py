@@ -41,6 +41,8 @@ class Factory(abc.ABC):
             return GLDenseUNetFactory()
         elif model_name_lower_no_sep == "deeplabv3":
             return DeepLabV3Factory()
+        elif model_name_lower_no_sep == "cranet":
+            return CRANetFactory()
         else:
             print(f"The factory for the model {model_name} doesn't exist. Check if you wrote the model name "
                   f"correctly and implemented a corresponding factory in factory.py.")
@@ -118,6 +120,17 @@ class DeepLabV3Factory(Factory):
 
     def get_model_class(self):
         return Deeplabv3
+
+    def get_dataloader_class(self):
+        return TorchDataLoader
+
+
+class CRANetFactory(Factory):
+    def get_trainer_class(self):
+        return CRANetTrainer
+
+    def get_model_class(self):
+        return OurDinkNet50
 
     def get_dataloader_class(self):
         return TorchDataLoader
