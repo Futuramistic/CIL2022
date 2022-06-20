@@ -3,10 +3,12 @@ import tensorflow.keras as K
 from tensorflow.keras.layers import *
 
 class ConvoRelu_Block(tf.keras.layers.Layer):
-    def __init__(self,name="ConvoRelu-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,kernel_regularizer=K.regularizers.l2(),**kwargs):
+    def __init__(self,name="ConvoRelu-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,
+                 kernel_regularizer=K.regularizers.l2(),kernel_size=3,dilation_rate=1,**kwargs):
         super(ConvoRelu_Block, self).__init__(name=name,**kwargs)
         self.normalize = normalize  
-        self.convo = Conv2D(filters=filters, kernel_size=3, padding='same', kernel_initializer=kernel_init,name=name+"-conv2D", kernel_regularizer=kernel_regularizer)
+        self.convo = Conv2D(filters=filters, kernel_size=kernel_size, padding='same', kernel_initializer=kernel_init,
+                            name=name+"-conv2D", kernel_regularizer=kernel_regularizer,dilation_rate=dilation_rate)
         self.norm = BatchNormalization(name=name+"-batchNorm")
         self.actv = Activation(activation='relu',name=name+"-activ")
         self.drop = Dropout(rate=dropout,name=name+"-drop")
@@ -24,10 +26,15 @@ class ConvoRelu_Block(tf.keras.layers.Layer):
         return x
 
 class Convo_Block(tf.keras.layers.Layer):
-    def __init__(self,name="convo-block",dropout=0.5,filters=64,kernel_init='he_normal',kernel_regularizer=K.regularizers.l2(),normalize=False,**kwargs):
+    def __init__(self,name="convo-block",dropout=0.5,filters=64,kernel_init='he_normal',kernel_regularizer=K.regularizers.l2(),
+                 normalize=False,kernel_size=3,dilation_rate=1,**kwargs):
         super(Convo_Block, self).__init__(name=name,**kwargs)     
-        self.convorelu1 = ConvoRelu_Block(name=name+"-convoRelu-1",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize,kernel_regularizer=kernel_regularizer)
-        self.convorelu2 = ConvoRelu_Block(name=name+"-convoRelu-2",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize,kernel_regularizer=kernel_regularizer)
+        self.convorelu1 = ConvoRelu_Block(name=name+"-convoRelu-1",dropout=dropout,filters=filters,kernel_init=kernel_init,
+                                          normalize=normalize,kernel_regularizer=kernel_regularizer,
+                                          kernel_size=kernel_size,dilation_rate=dilation_rate)
+        self.convorelu2 = ConvoRelu_Block(name=name+"-convoRelu-2",dropout=dropout,filters=filters,kernel_init=kernel_init,
+                                          normalize=normalize,kernel_regularizer=kernel_regularizer,
+                                          kernel_size=kernel_size,dilation_rate=dilation_rate)
 
     # Expose training:
     # - Dropout -> only performed while training
@@ -37,9 +44,12 @@ class Convo_Block(tf.keras.layers.Layer):
         return self.convorelu2(x,**kwargs)
 
 class Down_Block(tf.keras.layers.Layer):
-    def __init__(self,name="down-block",dropout=0.5,filters=64,kernel_init='he_normal',kernel_regularizer=K.regularizers.l2(),normalize=False,**kwargs):
+    def __init__(self,name="down-block",dropout=0.5,filters=64,kernel_init='he_normal',kernel_regularizer=K.regularizers.l2(),
+                 normalize=False,kernel_size=3,dilation_rate=1,**kwargs):
         super(Down_Block,self).__init__(name=name,**kwargs)
-        self.convo_block = Convo_Block(name+"-convo-block",dropout=dropout,filters=filters,kernel_init=kernel_init,normalize=normalize,kernel_regularizer=kernel_regularizer)
+        self.convo_block = Convo_Block(name+"-convo-block",dropout=dropout,filters=filters,kernel_init=kernel_init,
+                                       normalize=normalize,kernel_regularizer=kernel_regularizer,
+                                       kernel_size=kernel_size,dilation_rate=dilation_rate)
         self.pool = MaxPool2D(pool_size=(2,2),strides=2,padding='same',name=name+"-max-pool")
     
     # Expose training
@@ -57,10 +67,12 @@ class Down_Block_LearnablePool(tf.keras.layers.Layer):
     learn which one is best.
     """
     def __init__(self, name="down-block-learnable-pool", dropout=0.5, filters=64, kernel_init='he_normal',
-                 kernel_regularizer=K.regularizers.l2(), normalize=False, **kwargs):
+                 kernel_regularizer=K.regularizers.l2(), normalize=False,
+                 kernel_size=3, dilation_rate=1, **kwargs):
         super(Down_Block_LearnablePool, self).__init__(name=name, **kwargs)
         self.convo_block = Convo_Block(name + "-convo-block", dropout=dropout, filters=filters, kernel_init=kernel_init,
-                                       normalize=normalize, kernel_regularizer=kernel_regularizer)
+                                       normalize=normalize, kernel_regularizer=kernel_regularizer,
+                                       kernel_size=kernel_size,dilation_rate=dilation_rate)
         self.Lambda = tf.Variable(initial_value=tf.random.normal(()), trainable=True)
         self.avgpool = AveragePooling2D(pool_size=(2, 2), strides=2, padding='same', name=name + "-max-pool")
         self.maxpool = MaxPool2D(pool_size=(2, 2), strides=2, padding='same', name=name + "-max-pool")
