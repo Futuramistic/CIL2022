@@ -625,7 +625,10 @@ def U2NetSmallTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         outconv = Conv2D(1, (1, 1), padding='same')(tf.concat([side1, side2, side3, side4, side5, side6], axis=3))
 
         sigmoid = keras.activations.sigmoid
-        return tf.stack([sigmoid(outconv), sigmoid(side1), sigmoid(side2), sigmoid(side3), sigmoid(side4), sigmoid(side5), sigmoid(side6)])
+
+        # Should return a stack and output images for all pieces - return last output for now
+        ##return tf.stack([sigmoid(outconv), sigmoid(side1), sigmoid(side2), sigmoid(side3), sigmoid(side4), sigmoid(side5), sigmoid(side6)])
+        return sigmoid(outconv)
  
     inputs = K.Input(input_shape)
     outputs = __build_model(inputs)

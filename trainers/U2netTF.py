@@ -6,6 +6,7 @@ import tensorflow as tf
 import tensorflow.keras as K
 
 from losses.u2net_loss import U2NET_BCE
+from losses.diceLoss import DiceLoss
 from .trainer_tf import TFTrainer
 from utils import *
 
@@ -43,9 +44,10 @@ class U2NetTFTrainer(TFTrainer):
 
         # According to the online github repo
         if loss_function is None:
-            loss_function = U2NET_BCE
-            # loss_function = K.losses.BinaryCrossentropy(from_logits=False,
-            #                                            reduction=K.losses.Reduction.SUM_OVER_BATCH_SIZE)
+            loss_function = DiceLoss
+            # When support for more channels is present
+            #loss_function = U2NET_BCE
+
 
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs, num_samples_to_visualize)
