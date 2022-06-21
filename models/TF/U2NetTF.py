@@ -1,4 +1,4 @@
-from blocks import *
+from .blocks import *
 from utils import *
 import keras
 

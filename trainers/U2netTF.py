@@ -5,7 +5,7 @@ import mlflow
 import tensorflow as tf
 import tensorflow.keras as K
 
-from losses import U2NET_BCE
+from losses.u2net_loss import U2NET_BCE
 from .trainer_tf import TFTrainer
 from utils import *
 
