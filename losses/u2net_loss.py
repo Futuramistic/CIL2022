@@ -1,7 +1,7 @@
 import tensorflow as tf
 import keras.backend as K
 
-def BCE_U2NET(y_true, y_pred):
+def U2NET_BCE(y_true, y_pred):
     y_pred = tf.expand_dims(y_pred, axis=-1)
     loss0 = K.BinaryCrossentropy(y_true, y_pred[0])
     loss1 = K.BinaryCrossentropy(y_true, y_pred[1])
