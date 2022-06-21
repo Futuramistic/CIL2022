@@ -528,7 +528,9 @@ def U2NetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         hx1d = RSU7(mid_channels=16,out_channels=64,**network_args)(tf.concat([hx2dup, hx1], axis=3))
         side1 = Conv2D(**convo2d_args)(hx1d)
         outconv = Conv2D(1, (1, 1), padding='same')(tf.concat([side1, side2, side3, side4, side5, side6], axis=3))
-        return Activation('sigmoid')(outconv)
+
+        sigmoid = keras.activations.sigmoid
+        return tf.stack([sigmoid(outconv), sigmoid(side1), sigmoid(side2), sigmoid(side3), sigmoid(side4), sigmoid(side5), sigmoid(side6)])
     
     inputs = K.Input(input_shape)
     outputs = __build_model(inputs)
@@ -621,8 +623,10 @@ def U2NetSmallTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         hx1d = RSU7(**network_args)(tf.concat([hx2dup, hx1], axis=3))
         side1 = Conv2D(**convo2d_args)(hx1d)
         outconv = Conv2D(1, (1, 1), padding='same')(tf.concat([side1, side2, side3, side4, side5, side6], axis=3))
-        return Activation('sigmoid')(outconv)
-    
+
+        sigmoid = keras.activations.sigmoid
+        return tf.stack([sigmoid(outconv), sigmoid(side1), sigmoid(side2), sigmoid(side3), sigmoid(side4), sigmoid(side5), sigmoid(side6)])
+ 
     inputs = K.Input(input_shape)
     outputs = __build_model(inputs)
     model = K.Model(inputs=inputs, outputs=outputs, name='U2NetTF')
