@@ -3,7 +3,7 @@ import keras.backend as K
 
 def U2NET_BCE(targets, inputs):
     targets = K.flatten(tf.cast(targets,tf.float32))
-    y_pred = tf.expand_dims(y_pred, axis=-1)
+    inputs = tf.expand_dims(inputs, axis=-1)
     loss0 = K.binary_crossentropy(targets, K.flatten(tf.cast(inputs[0],tf.float32)))
     loss1 = K.binary_crossentropy(targets, K.flatten(tf.cast(inputs[1],tf.float32)))
     loss2 = K.binary_crossentropy(targets, K.flatten(tf.cast(inputs[2],tf.float32)))
