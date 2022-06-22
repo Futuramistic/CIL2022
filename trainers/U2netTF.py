@@ -44,9 +44,7 @@ class U2NetTFTrainer(TFTrainer):
 
         # According to the online github repo
         if loss_function is None:
-            loss_function = DiceLoss
-            # When support for more channels is present
-            #loss_function = U2NET_BCE
+            loss_function = U2NET_BCE
 
 
         if evaluation_interval is None:
