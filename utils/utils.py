@@ -41,7 +41,21 @@ DATASET_ZIP_URLS = {
     # "additional_maps_1": dataset retrieved from http://efrosgans.eecs.berkeley.edu/pix2pix/datasets/ -> maps.tar.gz
     # and processed to convert the RGB masks to B/W. The resulting masks are not perfect and could definitely
     # use some better processing, but they seem to be good enough visually
-    "new_maps": "https://polybox.ethz.ch/index.php/s/QTxb24YMpL1Rs66/download"
+    "new_maps": "https://polybox.ethz.ch/index.php/s/QTxb24YMpL1Rs66/download",
+
+    # Massachusetts Road dataset (256x256)
+    # WARNING: EXTRA LARGE dataset (!!!) 
+    # Training: 25,328 Images
+    # Testing: 1,293 Images
+    # WARNING: some images have white or black outer values due to processing (mostly bottom or right side)
+    "massachusetts_256":"https://polybox.ethz.ch/index.php/s/IsMZPgeJNnflKIv/download",
+
+    # Massachusetts Road dataset (128x128)
+    # WARNING: EXTRA LARGE dataset (!!!) 
+    # Training: 81,669 Images
+    # Testing: 4,176 Images
+    # WARNING: some images have white or black outer values due to processing (mostly bottom or right side)
+    "massachusetts_128":"https://polybox.ethz.ch/index.php/s/x1ZLSAMfNBFeLIC/download"
 }
 # in case multiple jobs are running in the same directory, SESSION_ID will prevent name conflicts
 CODEBASE_SNAPSHOT_ZIP_NAME = f"codebase_{SESSION_ID}.zip"
