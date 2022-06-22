@@ -149,6 +149,11 @@ class TFTrainer(Trainer, abc.ABC):
             batch_xs = tf.squeeze(batch_xs, axis=1)
             batch_ys = tf.squeeze(batch_ys, axis=1).numpy()
             output = self.model.predict(batch_xs)  # returns np.ndarray
+
+            # More channels than needed - U^2-Net-style
+            if(len(output.shape)==5):
+                output = output[0]
+
             channel_dim_idx = DEFAULT_TF_DIM_LAYOUT.find('C')
             if output.shape[channel_dim_idx] > 1:
                 output = np.argmax(output, axis=channel_dim_idx)
@@ -226,6 +231,11 @@ class TFTrainer(Trainer, abc.ABC):
         _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
         for x, y in self.test_loader.take(test_dataset_size):
             output = self.model(x)
+            
+            # More channels than needed - U^2-Net-style
+            if(len(output.shape)==5):
+                output = output[0]
+                
             preds = tf.cast(output >= self.segmentation_threshold, tf.dtypes.int8)
             precision, recall, f1_score = precision_recall_f1_score_tf(preds, y)
             precisions.append(precision.numpy().item())
