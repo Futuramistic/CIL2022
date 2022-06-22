@@ -39,13 +39,11 @@ class ConvoRelu_Block(tf.keras.layers.Layer):
     # Expose training:
     # - Dropout -> only performed while training
     # - BatchNorm -> performs differently when predicting
-    def call(self, inputs, training=None, **kwargs):
+    def call(self, inputs, **kwargs):
         x = self.convo(inputs)
-        if self.normalize:
-            x = self.norm(x,training=training)
+        x = self.norm(x)
         x = self.actv(x)
-        if training:
-            x = self.drop(x)
+        x = self.drop(x)
         return x
 
 class Convo_Block(tf.keras.layers.Layer):

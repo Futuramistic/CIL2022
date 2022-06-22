@@ -152,7 +152,7 @@ class TFTrainer(Trainer, abc.ABC):
 
             # More channels than needed - U^2-Net-style
             if(len(output.shape)==5):
-                output = output[0]
+                output = output[0][0]
 
             channel_dim_idx = DEFAULT_TF_DIM_LAYOUT.find('C')
             if output.shape[channel_dim_idx] > 1:
@@ -233,8 +233,9 @@ class TFTrainer(Trainer, abc.ABC):
             output = self.model(x)
             
             # More channels than needed - U^2-Net-style
+            # Collapse into one image
             if(len(output.shape)==5):
-                output = output[0]
+                output = output[0][0]
                 
             preds = tf.cast(output >= self.segmentation_threshold, tf.dtypes.int8)
             precision, recall, f1_score = precision_recall_f1_score_tf(preds, y)
