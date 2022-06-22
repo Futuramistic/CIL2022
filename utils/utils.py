@@ -48,14 +48,14 @@ DATASET_ZIP_URLS = {
     # Training: 25,328 Images
     # Testing: 1,293 Images
     # WARNING: some images have white or black outer values due to processing (mostly bottom or right side)
-    "massachusetts_256":"https://polybox.ethz.ch/index.php/s/IsMZPgeJNnflKIv/download",
+    "massachusetts_256":"https://polybox.ethz.ch/index.php/s/WnctKQV89H6W7KT/download",
 
     # Massachusetts Road dataset (128x128)
     # WARNING: EXTRA LARGE dataset (!!!) 
     # Training: 81,669 Images
     # Testing: 4,176 Images
     # WARNING: some images have white or black outer values due to processing (mostly bottom or right side)
-    "massachusetts_128":"https://polybox.ethz.ch/index.php/s/x1ZLSAMfNBFeLIC/download"
+    "massachusetts_128":"https://polybox.ethz.ch/index.php/s/XjSto2pXCeZydiH/download"
 }
 # in case multiple jobs are running in the same directory, SESSION_ID will prevent name conflicts
 CODEBASE_SNAPSHOT_ZIP_NAME = f"codebase_{SESSION_ID}.zip"
