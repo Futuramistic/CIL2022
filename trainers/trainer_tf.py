@@ -152,7 +152,7 @@ class TFTrainer(Trainer, abc.ABC):
 
             # More channels than needed - U^2-Net-style
             if(len(output.shape)==5):
-                output = output[0][0]
+                output = output[0]
 
             channel_dim_idx = DEFAULT_TF_DIM_LAYOUT.find('C')
             if output.shape[channel_dim_idx] > 1:
@@ -233,7 +233,7 @@ class TFTrainer(Trainer, abc.ABC):
             output = self.model(x)
             
             # More channels than needed - U^2-Net-style
-            # Collapse into one image
+            # Collapse into 3 channels - one image
             if(len(output.shape)==5):
                 output = output[0][0]
                 
