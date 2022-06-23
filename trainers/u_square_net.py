@@ -79,7 +79,6 @@ class U2NetTrainer(TorchTrainer):
 
         train_loss /= len(train_loader.dataset)
         callback_handler.on_epoch_end()
-        self.scheduler.step()
         return train_loss
 
     def _eval_step(self, model, device, test_loader):
