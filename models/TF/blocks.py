@@ -32,7 +32,7 @@ class ConvoRelu_Block(tf.keras.layers.Layer):
         self.normalize = normalize  
         self.convo = Conv2D(filters=filters, kernel_size=kernel_size, padding='same', kernel_initializer=kernel_init,
                             name=name+"-conv2D", kernel_regularizer=kernel_regularizer,dilation_rate=dilation_rate)
-        self.norm = BatchNormalization(name=name+"-batchNorm")
+        self.norm = BatchNormalization(name=name+"-batchNorm", axis=3)
         self.actv = LeakyReLU()
         self.drop = Dropout(rate=dropout,name=name+"-drop")
     
