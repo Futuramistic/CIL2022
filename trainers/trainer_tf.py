@@ -11,6 +11,8 @@ import tensorflow as tf
 import tensorflow.keras.callbacks as KC
 from urllib.parse import urlparse
 
+from requests.auth import HTTPBasicAuth
+
 from losses.loss_harmonizer import DEFAULT_TF_DIM_LAYOUT
 from losses.precision_recall_f1 import *
 from utils.logging import mlflow_logger
@@ -182,7 +184,9 @@ class TFTrainer(Trainer, abc.ABC):
             print(f'Downloading checkpoint from "{checkpoint_path}" to "{final_checkpoint_path}"...')
             cnopts = pysftp.CnOpts()
             cnopts.hostkeys = None
-            mlflow_ftp_pass = requests.get(MLFLOW_FTP_PASS_URL).text
+            mlflow_ftp_pass = requests.get(MLFLOW_FTP_PASS_URL,
+                                           auth=HTTPBasicAuth(os.environ['MLFLOW_TRACKING_USERNAME'],
+                                                              os.environ['MLFLOW_TRACKING_PASSWORD'])).text
             url_components = urlparse(checkpoint_path)
             with pysftp.Connection(host=MLFLOW_HOST, username=MLFLOW_FTP_USER, password=mlflow_ftp_pass,
                                    cnopts=cnopts) as sftp:
