@@ -67,10 +67,9 @@ class U2NetTrainer(TorchTrainer):
             labels = Variable(labels.cuda())
             labels = labels.float().cuda()
             opt.zero_grad()
-            outputs, lower = model.forward(inputs)
+            outputs = model.forward(inputs)
             outputs = torch.squeeze(outputs, dim=1)
-            lower = torch.squeeze(lower, dim=1)
-            loss = self.loss_function(labels, lower, outputs)
+            loss = self.loss_function(labels,outputs)
 
             train_loss += loss.item()
 
@@ -94,10 +93,9 @@ class U2NetTrainer(TorchTrainer):
                 labels = Variable(labels.cuda())
                 labels = labels.float().cuda()
 
-                outputs, lower = model.forward(inputs)
+                outputs = model.forward(inputs)
                 outputs = torch.squeeze(outputs, dim=1)
-                lower = torch.squeeze(lower, dim=1)
-                loss = self.loss_function(labels, lower, outputs)
+                loss = self.loss_function(labels,outputs)
 
                 test_loss += loss.item()
 
