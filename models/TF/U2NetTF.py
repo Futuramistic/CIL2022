@@ -474,7 +474,8 @@ def U2NetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
 
     convo2d_args={
         'filters':1, 
-        'kernel_size':(3, 3), 
+        'kernel_size':(3, 3),
+        'kernel_regularizer': kernel_regularizer,
         'padding':'same'
     }
 
@@ -527,7 +528,7 @@ def U2NetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         
         hx1d = RSU7(mid_channels=16,out_channels=64,**network_args)(tf.concat([hx2dup, hx1], axis=3))
         side1 = Conv2D(**convo2d_args)(hx1d)
-        outconv = Conv2D(1, (1, 1), padding='same')(tf.concat([side1, side2, side3, side4, side5, side6], axis=3))
+        outconv = Conv2D(1, (1, 1), padding='same', kernel_regularizer=kernel_regularizer)(tf.concat([side1, side2, side3, side4, side5, side6], axis=3))
 
         sigmoid = keras.activations.sigmoid
         return tf.stack([sigmoid(outconv), sigmoid(side1), sigmoid(side2), sigmoid(side3), sigmoid(side4), sigmoid(side5), sigmoid(side6)])
