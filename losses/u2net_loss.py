@@ -15,7 +15,7 @@ def U2NET_BCE(targets, inputs):
     return loss0 + loss1 + loss2 + loss3 + loss4 + loss5 + loss6
 
 # Apply any loss to targets
-def U2NET_loss(targets, inputs, loss = DiceBCELoss1):
+def U2NET_loss(targets, inputs, loss = FocalLoss):
     targets = K.flatten(tf.cast(targets,tf.float32))
     inputs = tf.expand_dims(inputs, axis=-1)
     loss0 = loss(targets, K.flatten(tf.cast(inputs[0],tf.float32)))
