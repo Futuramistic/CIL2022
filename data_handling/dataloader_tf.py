@@ -36,8 +36,10 @@ class TFDataLoader(DataLoader):
         # Pad with zeros to a size divisible by 32 - UNet-friendly; no loss of info
         if self.pad32:
             height, width = image.shape[0],image.shape[1]
-            target_height, target_width = math.ceil(height/32)*32, math.ceil(width/32)*32
-            image = tf.image.pad_to_bounding_box(image,(target_height-height)/2,(target_width-width)/2,target_height,target_width)
+            target_height, target_width = int(math.ceil(height/32)*32), int(math.ceil(width/32)*32)
+            height_offset = int((target_height-height)/2)
+            width_offset = int((target_width-width)/2)
+            image = tf.image.pad_to_bounding_box(image,height_offset,width_offset,target_height,target_width)
         return image
 
     # Get image test data as all ones
