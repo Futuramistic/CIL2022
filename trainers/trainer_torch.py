@@ -53,11 +53,12 @@ class TorchTrainer(Trainer, abc.ABC):
             self.epoch_iteration_idx = 0
             self.do_visualize = self.trainer.num_samples_to_visualize is not None and \
                                 self.trainer.num_samples_to_visualize > 0
+            self.f1_score = None
 
         def on_train_batch_end(self):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                precision, recall, f1_score = self.trainer.get_precision_recall_F1_score_validation()
-                metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score}
+                precision, recall, self.f1_score = self.trainer.get_precision_recall_F1_score_validation()
+                metrics = {'precision': precision, 'recall': recall, 'f1_score': self.f1_score}
                 print('Metrics at aggregate iteration %i (ep. %i, ep.-it. %i): %s'
                       % (self.iteration_idx, self.epoch_idx, self.epoch_iteration_idx, str(metrics)))
                 if mlflow_logger.logging_to_mlflow_enabled():
@@ -76,6 +77,7 @@ class TorchTrainer(Trainer, abc.ABC):
         def on_epoch_end(self):
             self.epoch_idx += 1
             self.epoch_iteration_idx = 0
+            return self.f1_score
 
     # Visualizations are created using mlflow_logger's "log_visualizations" (containing ML framework-independent code),
     # and the "create_visualizations" functions of the Trainer subclasses (containing ML framework-specific code)

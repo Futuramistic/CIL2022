@@ -6,8 +6,8 @@ import torch.nn as nn
 class Deeplabv3(nn.Module):
     def __init__(self):
         super().__init__()
-        self.model = deeplabv3(pretrained=False, progress=True)
-        self.model.classifier = DeepLabHead(2048, 3)
+        self.model = deeplabv3(pretrained=True, progress=True)
+        self.model.classifier = DeepLabHead(2048, 1)
 
     def forward(self, x):
         return self.model(x)["out"]

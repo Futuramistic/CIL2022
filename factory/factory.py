@@ -116,7 +116,7 @@ class GLDenseUNetFactory(Factory):
 
 class DeepLabV3Factory(Factory):
     def get_trainer_class(self):
-        return TorchTrainer
+        return DeepLabV3Trainer
 
     def get_model_class(self):
         return Deeplabv3

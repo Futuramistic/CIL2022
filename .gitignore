@@ -19,3 +19,5 @@ pb_token.txt
 output_preds/
 *.ckpt/
 *.pt
+*.zip
+*.csv

@@ -93,6 +93,8 @@ class Trainer(abc.ABC):
         if not self.do_checkpoint:
             print('\n*** WARNING: no checkpoints of this model will be created! Specify valid checkpoint_interval '
                   '(in iterations) to Trainer in order to create checkpoints. ***\n')
+        # if load_checkpoint_path is not None:
+        #     self._load_checkpoint(load_checkpoint_path)
 
     def _init_mlflow(self):
         self.mlflow_experiment_id = None
@@ -219,6 +221,13 @@ class Trainer(abc.ABC):
     def _fit_model(self, mlflow_run):
         """
         Fit the model.
+        """
+        raise NotImplementedError('Must be defined for trainer.')
+
+    @abc.abstractmethod
+    def _load_checkpoint(self, checkpoint_path):
+        """
+        Load a checkpoint.
         """
         raise NotImplementedError('Must be defined for trainer.')
 
