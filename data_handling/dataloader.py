@@ -2,6 +2,7 @@ import abc
 import datetime, os, shutil, urllib3, zipfile
 import warnings
 import errno
+import numpy as np
 from utils import ACCEPTED_IMAGE_EXTENSIONS, DATASET_ZIP_URLS, ROOT_DIR
 
 
@@ -38,7 +39,7 @@ class DataLoader(abc.ABC):
     
     
     @staticmethod
-    def get_img_gt_paths(img_dir, gt_dir):
+    def get_img_gt_paths(img_dir, gt_dir, initial_shuffle=True):
         img_paths, gt_paths = None, None
         img_idxs = None  # match corresponding image<>gt pairs
         have_samples = img_dir is not None
@@ -64,6 +65,15 @@ class DataLoader(abc.ABC):
                         gt_paths[img_idxs[img_name]] = pth
                     else:
                         gt_paths.append(pth)
+
+        # Shuffle the dataset once to have more diversity when visualizing images
+        if initial_shuffle:
+            np.random.seed(42)
+            shuffler = np.random.permutation(len(img_paths))
+            img_paths = np.array(img_paths)[shuffler]
+            if gt_paths is not None:
+                gt_paths = np.array(gt_paths)[shuffler]
+
         return img_paths, gt_paths
 
     @abc.abstractmethod
