@@ -2,6 +2,29 @@ import tensorflow as tf
 import tensorflow.keras as K
 from tensorflow.keras.layers import *
 
+def gelu_(X):
+    return 0.5*X*(1.0 + tf.math.tanh(0.7978845608028654*(X + 0.044715*tf.math.pow(X, 3))))
+
+class GELU(tf.keras.layers.Layer):
+    def __init__(self, trainable=False, **kwargs):
+        super(GELU, self).__init__(**kwargs)
+        self.supports_masking = True
+        self.trainable = trainable
+
+    def build(self, input_shape):
+        super(GELU, self).build(input_shape)
+
+    def call(self, inputs, mask=None):
+        return gelu_(inputs)
+
+    def get_config(self):
+        config = {'trainable': self.trainable}
+        base_config = super(GELU, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
+
 class ConvoRelu_Block(tf.keras.layers.Layer):
     def __init__(self,name="ConvoRelu-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,
                  kernel_regularizer=K.regularizers.l2(),kernel_size=3,dilation_rate=1,**kwargs):
@@ -9,8 +32,8 @@ class ConvoRelu_Block(tf.keras.layers.Layer):
         self.normalize = normalize  
         self.convo = Conv2D(filters=filters, kernel_size=kernel_size, padding='same', kernel_initializer=kernel_init,
                             name=name+"-conv2D", kernel_regularizer=kernel_regularizer,dilation_rate=dilation_rate)
-        self.norm = BatchNormalization(name=name+"-batchNorm")
-        self.actv = Activation(activation='relu',name=name+"-activ")
+        self.norm = BatchNormalization(name=name+"-batchNorm", axis=3)
+        self.actv = LeakyReLU()
         self.drop = Dropout(rate=dropout,name=name+"-drop")
     
     # Expose training:
@@ -19,10 +42,9 @@ class ConvoRelu_Block(tf.keras.layers.Layer):
     def call(self, inputs, training=None, **kwargs):
         x = self.convo(inputs)
         if self.normalize:
-            x = self.norm(x,training=training)
+            x = self.norm(x,training)
         x = self.actv(x)
-        if training:
-            x = self.drop(x)
+        x = self.drop(x,training)
         return x
 
 class Convo_Block(tf.keras.layers.Layer):

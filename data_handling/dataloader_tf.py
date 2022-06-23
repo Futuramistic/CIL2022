@@ -1,15 +1,15 @@
 import itertools
 import tensorflow as tf
 import warnings
-
+import math
 from .dataloader import DataLoader
 import utils
 
 
 class TFDataLoader(DataLoader):
-    def __init__(self, dataset="original"):
+    def __init__(self, dataset="original", pad32 = False):
         super().__init__(dataset)
-
+        self.pad32 = pad32
     # Get the sizes of the training, test and unlabeled datasets associated with this DataLoader.
     # Args:
     #   split   (float): training/test splitting ratio \in [0,1]
@@ -32,6 +32,12 @@ class TFDataLoader(DataLoader):
     def __parse_data(self, image_path, channels=0):
         image_content = tf.io.read_file(image_path)
         image = tf.io.decode_png(image_content, channels)
+
+        # Pad with zeros to a size divisible by 32 - UNet-friendly; no loss of info
+        if self.pad32:
+            height, width = image.shape[0],image.shape[1]
+            target_height, target_width = math.ceil(height/32)*32, math.ceil(width/32)*32
+            image = tf.image.pad_to_bounding_box(image,(target_height-height)/2,(target_width-width)/2,target_height,target_width)
         return image
 
     # Get image test data as all ones
