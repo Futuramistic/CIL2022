@@ -161,8 +161,13 @@ class DataLoader(abc.ABC):
 
         url = next((v for k, v in DATASET_ZIP_URLS.items() if dataset_name.lower() == k.lower()), None)
         if url is None:
-            warnings.warn(f"Dataset '{dataset_name}' unknown... error in Dataloader.__download_data()")
-            return -1
+            local_dataset_path = os.path.join(*[ROOT_DIR, "dataset", dataset_name.lower()])
+            if os.path.exists(local_dataset_path):
+                warnings.warn(f"Dataset '{dataset_name}' is a local dataset. Consider uploading it to polybox")
+                return 1
+            else:
+                warnings.warn(f"Dataset '{dataset_name}' unknown... error in Dataloader.__download_data()")
+                return -1
 
         # check if data already downloaded; use timestamp file written *after* successful download for the check
         if os.path.exists(ts_path):
