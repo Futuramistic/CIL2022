@@ -208,4 +208,8 @@ class TFDataLoader(DataLoader):
         image = tf.image.stateless_random_contrast(image,lower=0.8,upper=1.2,seed=seed)
         image = tf.clip_by_value(image,0,1)
 
+        # Rotate by 90 degrees only - if we rotate by an aribitrary -> road my disappear!
+        i = randint(0,3)
+        image = tf.image.rot90(image,i)
+        label = tf.image.rot90(image,i)
         return image, label
