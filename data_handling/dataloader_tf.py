@@ -196,9 +196,7 @@ class TFDataLoader(DataLoader):
 
     # Augment data by possibly flipping horizontally and vertically and further perturb
     # Important - assumes standard preprocessed data with values between 0 and 1 !!!
-    def augmentation(self,image_label):
-
-        image,label = image_label
+    def augmentation(self,image,label):
         # Get a random seed for each pair
         seed = (Random.randint(0,sys.maxsize),Random.randint(0,sys.maxsize))
 
