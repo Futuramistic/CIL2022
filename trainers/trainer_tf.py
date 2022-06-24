@@ -237,9 +237,8 @@ class TFTrainer(Trainer, abc.ABC):
             output = self.model(x)
             
             # More channels than needed - U^2-Net-style
-            # Collapse into 3 channels - one image
             if(len(output.shape)==5):
-                output = output[0][0]
+                output = output[0]
                 
             preds = tf.cast(output >= self.segmentation_threshold, tf.dtypes.int8)
             precision, recall, f1_score = precision_recall_f1_score_tf(preds, y)
