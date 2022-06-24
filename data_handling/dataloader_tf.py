@@ -208,10 +208,4 @@ class TFDataLoader(DataLoader):
         image = tf.image.stateless_random_contrast(image,lower=0.8,upper=1.2,seed=seed)
         image = tf.clip_by_value(image,0,1)
 
-        # Rotate by 90 degrees only - if we rotate by an aribitrary -> road my disappear!
-        angles = [0,90,180,270]
-        i = randint(0,len(angles)-1)
-        if(i!=0):
-            image = tf.keras.preprocessing.image.apply_affine_transform(image,theta=angles[i])
-            label = tf.keras.preprocessing.image.apply_affine_transform(label,theta=angles[i])
         return image, label
