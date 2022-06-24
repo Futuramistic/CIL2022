@@ -125,8 +125,7 @@ class TFDataLoader(DataLoader):
         print(f'Test data consists of ({test_size}) samples')
 
         if self.augment:
-            AUTOTUNE = tf.data.AUTOTUNE
-            return self.training_data.map(self.augmentation,num_parallel_calls=AUTOTUNE).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+            return self.training_data.map(self.augmentation,num_parallel_calls=tf.data.AUTOTUNE).batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
         return self.training_data.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
@@ -198,14 +197,14 @@ class TFDataLoader(DataLoader):
     # Important - assumes standard preprocessed data with values between 0 and 1 !!!
     def augmentation(self,image,label):
         # Get a random seed for each pair
-        seed = (randint(0,sys.maxsize),randint(0,sys.maxsize))
+        seed = tf.Tensor((randint(0,sys.maxsize),randint(0,sys.maxsize)))
 
         # Flips
-        image, label = tf.image.stateless_random_flip_left_right(image,seed), tf.image.random_flip_left_right(label,seed)
-        image, label = tf.image.stateless_random_flip_up_down(image,seed), tf.image.random_flip_up_down(label,seed)
+        image, label = tf.image.stateless_random_flip_left_right(image=image,seed=seed), tf.image.random_flip_left_right(image=label,seed=seed)
+        image, label = tf.image.stateless_random_flip_up_down(image=image,seed=seed), tf.image.random_flip_up_down(image=label,seed=seed)
 
         # Random augmentations on image
-        image = tf.image.stateless_random_brightness(image,max_delta=0.1,seed=seed)
+        image = tf.image.stateless_random_brightness(image=image,max_delta=0.1,seed=seed)
         # Possible further augmentations...
         
         # Renormalize values
