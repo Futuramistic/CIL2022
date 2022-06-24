@@ -18,7 +18,7 @@ import time
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # go one dir up from the dir this file is in
 SESSION_ID = int(time.time() * 1000)  # import time of utils.py in milliseconds will be the session ID
-IS_DEBUG = getattr(sys, 'gettrace', None) is not None and getattr(sys, 'gettrace', lambda: None)() is not None
+IS_DEBUG = True  # getattr(sys, 'gettrace', None) is not None and getattr(sys, 'gettrace', lambda: None)() is not None
 ACCEPTED_IMAGE_EXTENSIONS = [".png", ".jpeg", ".jpg", ".gif"]
 DEFAULT_SEGMENTATION_THRESHOLD = 0.5
 DEFAULT_TRAIN_FRACTION = 0.8
@@ -63,7 +63,11 @@ DATASET_ZIP_URLS = {
     # Testing: 144 Images - only original testing images
     # WARNING: Some images have white or black outer values due to processing (mostly bottom or right side)!
     #          However, the number of "partial" images is limited
-    "large":"https://polybox.ethz.ch/index.php/s/uXJgQrQazhrn5gA/download"
+    "large":"https://polybox.ethz.ch/index.php/s/uXJgQrQazhrn5gA/download",
+
+    # "original_aug_6": "original" dataset, 400x400 but with augmented training set using Preprocessor (x6)
+    # I usually use a 0.975 split for this dataset
+    "original_aug_6": "https://polybox.ethz.ch/index.php/s/ICjaUr4ayCNwySJ/download",
 }
 # in case multiple jobs are running in the same directory, SESSION_ID will prevent name conflicts
 CODEBASE_SNAPSHOT_ZIP_NAME = f"codebase_{SESSION_ID}.zip"
