@@ -1,4 +1,6 @@
 import itertools
+from random import randint
+import sys
 import tensorflow as tf
 import warnings
 import math
@@ -7,9 +9,11 @@ import utils
 
 
 class TFDataLoader(DataLoader):
+
     def __init__(self, dataset="original", pad32 = False):
         super().__init__(dataset)
         self.pad32 = pad32
+
     # Get the sizes of the training, test and unlabeled datasets associated with this DataLoader.
     # Args:
     #   split   (float): training/test splitting ratio \in [0,1]
