@@ -5,7 +5,7 @@ import warnings
 import math
 from .dataloader import DataLoader
 import utils
-
+import tensorflow_addons as tfa
 
 class TFDataLoader(DataLoader):
 
@@ -124,7 +124,7 @@ class TFDataLoader(DataLoader):
         print(f'Test data consists of ({test_size}) samples')
 
         if self.use_augmentation:
-            return self.training_data.map(self.augmentation,tf.data.AUTOTUNE).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+            return self.training_data.shuffle(50, reshuffle_each_iteration=True).map(self.augmentation,tf.data.AUTOTUNE).batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
         return self.training_data.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
@@ -209,4 +209,10 @@ class TFDataLoader(DataLoader):
         image = tf.image.stateless_random_contrast(image,lower=0.8,upper=1.2,seed=seed)
         image = tf.clip_by_value(image,0,1)
 
+        # Rotate by 90 degrees only - if we rotate by an aribitrary -> road my disappear!
+        angles = [0.0,90.0,180.0,270.0]
+        i = randint(0,4)
+        if(i!=0):
+            image = tfa.image.rotate(image,angles[i]*math.pi/180.0,interpolation='bilinear')
+            label = tfa.image.rotate(label,angles[i]*math.pi/180.0,interpolation='bilinear')
         return image, label
