@@ -211,5 +211,5 @@ class TFDataLoader(DataLoader):
         # Rotate by 90 degrees only - if we rotate by an aribitrary -> road my disappear!
         i = randint(0,3)
         image = tf.image.rot90(image,i)
-        label = tf.image.rot90(image,i)
+        label = tf.image.rot90(label,i)
         return image, label
