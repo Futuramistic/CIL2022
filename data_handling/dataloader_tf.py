@@ -1,5 +1,5 @@
 import itertools
-from random import Random
+from random import randint
 import sys
 import tensorflow as tf
 import warnings
@@ -198,7 +198,7 @@ class TFDataLoader(DataLoader):
     # Important - assumes standard preprocessed data with values between 0 and 1 !!!
     def augmentation(self,image,label):
         # Get a random seed for each pair
-        seed = (Random.randint(0,sys.maxsize),Random.randint(0,sys.maxsize))
+        seed = (randint(0,sys.maxsize),randint(0,sys.maxsize))
 
         # Flips
         image, label = tf.image.stateless_random_flip_left_right(image,seed), tf.image.random_flip_left_right(label,seed)
