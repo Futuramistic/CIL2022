@@ -195,11 +195,26 @@ class TFDataLoader(DataLoader):
     def augmentation(self,image,label):
         seed1 = randint(0,pow(2,31)-1)
         seed2 = randint(0,pow(2,31)-1)
+        seed = [seed1,seed2]
 
-        image = tf.image.stateless_random_flip_left_right(image,seed=[seed1,seed2])
-        label = tf.image.stateless_random_flip_left_right(label,seed=[seed1,seed2])
+        # Flips
+        image = tf.image.stateless_random_flip_left_right(image,seed=seed)
+        label = tf.image.stateless_random_flip_left_right(label,seed=seed)
+        image = tf.image.stateless_random_flip_up_down(image,seed=seed)
+        label = tf.image.stateless_random_flip_up_down(label,seed=seed)
 
-        image = tf.image.stateless_random_flip_up_down(image,seed=[seed1,seed2])
-        label = tf.image.stateless_random_flip_up_down(label,seed=[seed1,seed2])
+        # Image colour changes
+        image = tf.image.stateless_random_brightness(image,max_delta=0.2,seed=seed)
+        image = tf.image.stateless_random_saturation(image,lower=0.8,upper=1.2,seed=seed)
+        image = tf.image.stateless_random_contrast(image,lower=0.8,upper=1.2,seed=seed)
+        image = tf.clip_by_value(image,0,1)
+
+        #Apply random rotation
+        rotation = tf.keras.Sequential([
+            tf.keras.layers.RandomRotation(0.1,seed=seed,fill_mode='constant'),
+        ])
+        image = rotation(image)
+        label = rotation(label)
+
 
         return image, label
