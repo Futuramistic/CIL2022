@@ -1,4 +1,6 @@
 import itertools
+from random import Random
+import sys
 import tensorflow as tf
 import warnings
 import math
@@ -7,9 +9,12 @@ import utils
 
 
 class TFDataLoader(DataLoader):
-    def __init__(self, dataset="original", pad32 = False):
+
+    def __init__(self, dataset="original", pad32 = False, augment = False):
         super().__init__(dataset)
         self.pad32 = pad32
+        self.augment = augment
+
     # Get the sizes of the training, test and unlabeled datasets associated with this DataLoader.
     # Args:
     #   split   (float): training/test splitting ratio \in [0,1]
@@ -119,6 +124,10 @@ class TFDataLoader(DataLoader):
         print(f'Train data consists of ({train_size}) samples')
         print(f'Test data consists of ({test_size}) samples')
 
+        if self.augment:
+            AUTOTUNE = tf.data.AUTOTUNE
+            return self.training_data.map(self.augmentation,num_parallel_calls=AUTOTUNE).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+
         return self.training_data.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
         # # Shuffle and split
@@ -183,3 +192,24 @@ class TFDataLoader(DataLoader):
     #   filepath (string)
     def save_model(self, model, filepath):
         tf.keras.models.save_model(model,filepath)
+    
+
+    # Augment data by possibly flipping horizontally and vertically and further perturb
+    # Important - assumes standard preprocessed data with values between 0 and 1 !!!
+    def augmentation(self,image_label):
+
+        image,label = image_label
+        # Get a random seed for each pair
+        seed = (Random.randint(0,sys.maxsize),Random.randint(0,sys.maxsize))
+
+        # Flips
+        image, label = tf.image.stateless_random_flip_left_right(image,seed), tf.image.random_flip_left_right(label,seed)
+        image, label = tf.image.stateless_random_flip_up_down(image,seed), tf.image.random_flip_up_down(label,seed)
+
+        # Random augmentations on image
+        image = tf.image.stateless_random_brightness(image,max_delta=0.1,seed=seed)
+        # Possible further augmentations...
+        
+        # Renormalize values
+        image = tf.clip_by_value(image, 0, 1)
+        return image,label
