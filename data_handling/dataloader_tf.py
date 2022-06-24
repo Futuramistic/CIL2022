@@ -124,7 +124,7 @@ class TFDataLoader(DataLoader):
         print(f'Test data consists of ({test_size}) samples')
 
         if self.use_augmentation:
-            return self.shuffle(1000).training_data.map(self.augmentation,tf.data.AUTOTUNE).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+            return self.training_data.shuffle(1000).map(self.augmentation,tf.data.AUTOTUNE).batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
         return self.training_data.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
@@ -218,6 +218,5 @@ class TFDataLoader(DataLoader):
 
         image = rotation(image)[0]
         label = rotation(label)[0]
-
 
         return image, label
