@@ -1,6 +1,5 @@
 import itertools
 from random import randint
-import sys
 import tensorflow as tf
 import warnings
 import math
@@ -10,9 +9,10 @@ import utils
 
 class TFDataLoader(DataLoader):
 
-    def __init__(self, dataset="original", pad32 = False):
+    def __init__(self, dataset="original", pad32 = False, use_augemntation = False):
         super().__init__(dataset)
         self.pad32 = pad32
+        self.use_augmentation = use_augemntation
 
     # Get the sizes of the training, test and unlabeled datasets associated with this DataLoader.
     # Args:
@@ -123,6 +123,9 @@ class TFDataLoader(DataLoader):
         print(f'Train data consists of ({train_size}) samples')
         print(f'Test data consists of ({test_size}) samples')
 
+        if self.use_augmentation:
+            return self.training_data.map(self.augmentation,tf.data.AUTOTUNE).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+
         return self.training_data.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
         # # Shuffle and split
@@ -187,3 +190,16 @@ class TFDataLoader(DataLoader):
     #   filepath (string)
     def save_model(self, model, filepath):
         tf.keras.models.save_model(model,filepath)
+
+    # Flip the image randomly (add possible augmentations later)
+    def augmentation(self,image,label):
+        seed1 = randint(0,pow(2,31)-1)
+        seed2 = randint(0,pow(2,31)-1)
+
+        image = tf.image.stateless_random_flip_left_right(image,seed=[seed1,seed2])
+        label = tf.image.stateless_random_flip_left_right(label,seed=[seed1,seed2])
+
+        image = tf.image.stateless_random_flip_up_down(image,seed=[seed1,seed2])
+        label = tf.image.stateless_random_flip_up_down(label,seed=[seed1,seed2])
+
+        return image, label
