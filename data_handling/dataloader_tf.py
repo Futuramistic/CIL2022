@@ -197,7 +197,8 @@ class TFDataLoader(DataLoader):
     # Important - assumes standard preprocessed data with values between 0 and 1 !!!
     def augmentation(self,image,label):
         # Get a random seed for each pair
-        seed = tf.Tensor((randint(0,sys.maxsize),randint(0,sys.maxsize)))
+        rng = tf.random.Generator.from_seed(123, alg='philox')
+        seed = rng.make_seeds(2)[0]
 
         # Flips
         image, label = tf.image.stateless_random_flip_left_right(image=image,seed=seed), tf.image.random_flip_left_right(image=label,seed=seed)
