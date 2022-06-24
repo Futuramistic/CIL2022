@@ -209,14 +209,4 @@ class TFDataLoader(DataLoader):
         image = tf.image.stateless_random_contrast(image,lower=0.8,upper=1.2,seed=seed)
         image = tf.clip_by_value(image,0,1)
 
-        #Apply random rotation
-        rotation = tf.keras.Sequential([
-            tf.keras.layers.RandomRotation(0.1,seed=seed,fill_mode='constant'),
-        ])
-        image = tf.cast(tf.expand_dims(image, 0), tf.float32)
-        label = tf.cast(tf.expand_dims(label, 0), tf.float32)
-
-        image = rotation(image)[0]
-        label = rotation(label)[0]
-
         return image, label
