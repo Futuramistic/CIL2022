@@ -211,7 +211,7 @@ class TFDataLoader(DataLoader):
 
         # Rotate by 90 degrees only - if we rotate by an aribitrary -> road my disappear!
         angles = [0.0,90.0,180.0,270.0]
-        i = randint(0,4)
+        i = randint(0,len(angles)-1)
         if(i!=0):
             image = tfa.image.rotate(image,angles[i]*math.pi/180.0,interpolation='bilinear')
             label = tfa.image.rotate(label,angles[i]*math.pi/180.0,interpolation='bilinear')
