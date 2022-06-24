@@ -10,10 +10,9 @@ import utils
 
 class TFDataLoader(DataLoader):
 
-    def __init__(self, dataset="original", pad32 = False, augment = False):
+    def __init__(self, dataset="original", pad32 = False):
         super().__init__(dataset)
         self.pad32 = pad32
-        self.augment = augment
 
     # Get the sizes of the training, test and unlabeled datasets associated with this DataLoader.
     # Args:
@@ -124,9 +123,6 @@ class TFDataLoader(DataLoader):
         print(f'Train data consists of ({train_size}) samples')
         print(f'Test data consists of ({test_size}) samples')
 
-        if self.augment:
-            return self.training_data.map(self.augmentation,num_parallel_calls=tf.data.AUTOTUNE).batch(batch_size).prefetch(tf.data.AUTOTUNE)
-
         return self.training_data.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
         # # Shuffle and split
@@ -191,23 +187,3 @@ class TFDataLoader(DataLoader):
     #   filepath (string)
     def save_model(self, model, filepath):
         tf.keras.models.save_model(model,filepath)
-    
-
-    # Augment data by possibly flipping horizontally and vertically and further perturb
-    # Important - assumes standard preprocessed data with values between 0 and 1 !!!
-    def augmentation(self,image,label):
-        # Get a random seed for each pair
-        rng = tf.random.Generator.from_seed(123, alg='philox')
-        seed = rng.make_seeds(2)[0]
-
-        # Flips
-        image, label = tf.image.stateless_random_flip_left_right(image=image,seed=seed), tf.image.random_flip_left_right(image=label,seed=seed)
-        image, label = tf.image.stateless_random_flip_up_down(image=image,seed=seed), tf.image.random_flip_up_down(image=label,seed=seed)
-
-        # Random augmentations on image
-        image = tf.image.stateless_random_brightness(image=image,max_delta=0.1,seed=seed)
-        # Possible further augmentations...
-        
-        # Renormalize values
-        image = tf.clip_by_value(image, 0, 1)
-        return image,label
