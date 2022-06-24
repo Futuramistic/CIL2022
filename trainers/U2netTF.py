@@ -5,7 +5,7 @@ import mlflow
 import tensorflow as tf
 import tensorflow.keras as K
 
-from losses.u2net_loss import U2NET_BCE
+from losses.u2net_loss import U2NET_loss
 from losses.diceLoss import DiceLoss
 from .trainer_tf import TFTrainer
 from utils import *
@@ -44,7 +44,7 @@ class U2NetTFTrainer(TFTrainer):
 
         # According to the online github repo
         if loss_function is None:
-            loss_function = U2NET_BCE
+            loss_function = U2NET_loss
 
 
         if evaluation_interval is None:
