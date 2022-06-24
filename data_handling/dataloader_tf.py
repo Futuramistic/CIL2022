@@ -5,7 +5,6 @@ import warnings
 import math
 from .dataloader import DataLoader
 import utils
-import tensorflow_addons as tfa
 
 class TFDataLoader(DataLoader):
 
@@ -210,9 +209,9 @@ class TFDataLoader(DataLoader):
         image = tf.clip_by_value(image,0,1)
 
         # Rotate by 90 degrees only - if we rotate by an aribitrary -> road my disappear!
-        angles = [0.0,90.0,180.0,270.0]
+        angles = [0,90,180,270]
         i = randint(0,len(angles)-1)
         if(i!=0):
-            image = tfa.image.rotate(image,angles[i]*math.pi/180.0,interpolation='bilinear')
-            label = tfa.image.rotate(label,angles[i]*math.pi/180.0,interpolation='bilinear')
+            image = tf.keras.preprocessing.image.apply_affine_transform(image,theta=angles[i])
+            label = tf.keras.preprocessing.image.apply_affine_transform(label,theta=angles[i])
         return image, label
