@@ -52,6 +52,7 @@ class TFTrainer(Trainer, abc.ABC):
             self.iteration_idx = 0
             self.epoch_iteration_idx = 0
             self.epoch_idx = 0
+            self.best_score = -1
             self.do_visualize = self.trainer.num_samples_to_visualize is not None and \
                                 self.trainer.num_samples_to_visualize > 0
 
@@ -105,7 +106,11 @@ class TFTrainer(Trainer, abc.ABC):
                     mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=self.iteration_idx)
                     if self.do_visualize:
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
-            
+                # save the best f1 score checkpoint
+                if self.do_checkpoint and self.best_score <= f1_score:
+                    self.best_score = f1_score
+                    keras.models.save_model(model=self.model,filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_f1.ckpt"))
+
             if self.trainer.do_checkpoint\
                 and self.iteration_idx % self.trainer.checkpoint_interval == 0\
                 and self.iteration_idx > 0:  # avoid creating checkpoints at iteration 0
