@@ -115,17 +115,18 @@ def GLDenseUNet(input_shape=DEFAULT_TF_INPUT_SHAPE,
             x = dense_block(x, falling_block_idx)
             x_last = x
 
-        x = K.layers.Conv2D(filters=2, kernel_size=(1, 1), strides=(1, 1), padding='SAME',
-                            activation='softmax', kernel_regularizer=None)(x)
         if input_resize_dim is not None:
             x = K.layers.Resizing(inputs.shape[1], inputs.shape[2], interpolation='bilinear')(x)
+            
+        x = K.layers.Conv2D(filters=2, kernel_size=(1, 1), strides=(1, 1), padding='SAME',
+                            activation='softmax', kernel_regularizer=None)(x)
         return x
 
     inputs = K.Input(input_shape)
     outputs = __build_model(inputs)
     model = K.Model(inputs=inputs, outputs=outputs, name='GLDenseUNet')
     
-    # store hyperparameters to GLDenseUNetTrainer._get_hyperparams finds them
+    # store hyperparameters so GLDenseUNetTrainer._get_hyperparams finds them
     model.growth_rate = growth_rate
     model.layers_per_block = layers_per_block
     model.conv2d_activation = tf.nn.relu
