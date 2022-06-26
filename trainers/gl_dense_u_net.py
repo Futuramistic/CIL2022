@@ -34,12 +34,12 @@ class GLDenseUNetTrainer(TFTrainer):
             num_epochs = math.ceil(100000 / steps_per_training_epoch)
 
         if optimizer_or_lr is None:
-            optimizer_or_lr = GLDenseUNetTrainer.get_default_optimizer_with_lr(1e-3, model)
+            optimizer_or_lr = GLDenseUNetTrainer.get_default_optimizer_with_lr(1e-4, model)
         elif isinstance(optimizer_or_lr, int) or isinstance(optimizer_or_lr, float):
             optimizer_or_lr = GLDenseUNetTrainer.get_default_optimizer_with_lr(optimizer_or_lr, model)
 
         if loss_function is None:
-            loss_function = K.losses.CategoricalCrossentropy(from_logits=True,
+            loss_function = K.losses.CategoricalCrossentropy(from_logits=False,
                                                              reduction=K.losses.Reduction.SUM_OVER_BATCH_SIZE)
 
         if evaluation_interval is None:
@@ -55,6 +55,12 @@ class GLDenseUNetTrainer(TFTrainer):
                          num_epochs, batch_size, optimizer_or_lr, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
                          segmentation_threshold)
+
+    def _get_hyperparams(self):
+        return {**(super()._get_hyperparams()),
+                **({param: getattr(self.model, param)
+                   for param in ['growth_rate', 'layers_per_block', 'conv2d_activation', 'num_classes', 'input_resize_dim']
+                   if hasattr(self.model, param)})}
 
     @staticmethod
     def get_default_optimizer_with_lr(lr, model):
