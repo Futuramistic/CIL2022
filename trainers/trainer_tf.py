@@ -251,3 +251,19 @@ class TFTrainer(Trainer, abc.ABC):
             recalls.append(recall.numpy().item())
             f1_scores.append(f1_score.numpy().item())
         return np.mean(precisions), np.mean(recalls), np.mean(f1_scores)
+
+    def find_best_segmentation_threshold(self,step=0.05):
+        # Save original threshold
+        original_threshold = self.segmentation_threshold
+        best_threshold = None
+        best_f1 = 0.0
+        for i in np.arange(step,1+step,step):
+            self.segmentation_threshold = i
+            _,_,f1 = self.get_precision_recall_F1_score_validation()
+            if(best_f1<=f1):
+                best_f1 = f1
+                best_threshold = self.segmentation_threshold
+        # Restore to the original threshold
+        self.segmentation_threshold = original_threshold
+        print(f'F1 score: {best_f1:.4f} for threshold: {best_threshold:.4f}')
+        return best_threshold
