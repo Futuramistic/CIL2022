@@ -1,8 +1,93 @@
-Basic Ideas:
-- use reinforcement learning as a refinement tool after segmentation --> input is raw image and segmentation
-- only use reinforcement learning to segment the raw image --> input is raw image and segmentation so far?
-- state space is all possibilities every pixel can have
-- action and transition is both changing a pixel state (foreground/background), network sees state of complete segmented image at all times
-or
-- network only has local information and starts at a point: action is painting road pixels within that patch (velocity, angle, put down brush)
-- penalize: putting a brush down, changing the road width within the same stroke, wrong segmentation
+# Reinforcement Learning
+## Basic ideas
+- how to use RL to segment image?
+    - use reinforcement learning as a _refinement tool_ after segmentation --> input is raw image and segmentation, output is refined segmentation
+    - _only_ use reinforcement learning to segment the raw image --> input is raw image and segmentation so far?
+- state space is all possible combinations of pixel labels (2^{HxW} for 2 classes "background", "road"), plus position (and/or velocity/acceleration/orientation?) of agent
+- actions:
+    - formulation 1: "non-interactive" / outputting whole segmentation at once
+        - action is changing a pixel state (foreground/background)
+        - no real benefit over using segmentation network
+    - formulation 2: "interactive" / agent moves around in environment
+        - putting brush down/picking brush up
+        - options for moving:
+            - simply "up/down/left/right" will not work, because we want to support arbitrary angles of the brush when we paint
+            - changing angle; options:
+                - angle set at each timestep
+                - delta to angle output by agent/policy network at each timestep
+                    - positive: can limit magnitude of angle change per timestep, to achieve smoothness 
+        - acceleration dynamics, or simply "move forward"/"move backward"?
+            - acceleration dynamics provide good prior
+            - but: may be difficult to segment e.g. road forks (will have to drive forward, then drive back to that spot and take fork, then at the end of the fork slow down and go back, etc.); due to slowdown/braking necessary, risk of "overpainting"
+            - better: simply "move forward"/"move backward"
+                - arguably, magnitude of movement will not bring any benefits; we can simply take longer with a lower speed if necessary
+                - will have to choose speed fairly low to avoid "too coarse" segmentations
+                - may look further into "smoothing methods" (Bezier curves? Splines?)
+- what to use as observation?
+    - remember: distinction between _observation_ (what agent (policy network) sees/receives as input) and _state_ (complete description of environment)
+        - if we're in a POMDP (_partially observable_ Markov decision process), then observation ≠ state
+    - network sees state of complete segmented image at all times ("non-interactive formulation" mentioned above), _or..._
+    - network only has local information and starts at a point: action is painting road pixels within that patch (velocity, angle, put down/pick up brush)
+        - possible patch representations (not exclusive, could also concat multiple of those along the channel dimension):
+            - screenshot of image
+            - extracted features
+                - e.g. Canny
+                - pretrained backbone (part of pretrained ResNet/...)
+            - could also include agent in screenshot, e.g. as point/stickman/car/directed arrow, also showing current orientation and/or speed (length of arrow?)
+            - __segmentation from another network__ (which we refine), could also be patchwise!
+                - concat to extra channel?
+- penalize
+    - putting brush down and/or picking brush up: avoid discontinuous roads
+    - changing the road width within the same stroke: avoid "unnatural" roads changing their width too often
+        - agent will have to find tradeoff between wrong width due to too little width switching, and switching width too often
+        - __idea__: maybe even penalize having too many different road widths in the same segmentation, or cluster road widths after segmentation?
+            - usually, roads in an image will have similar widths
+    - wrong segmentation (false positive/"painting outside the lines")
+        - (fixed) penalty per false positive pixel
+    - missing segmentation? (false negative)
+        - (fixed) penalty per false negative pixel
+        - maybe at each timestep, we receive some negative reward for each road pixel not yet marked as such?
+            - this could be an alternative (or an addition!) to receiving a constant timestep penalty, albeit the agent would likely get slower as we go on (lower "timestep penalty" the more road pixels have been marked already)
+    - __walking outside environment's bounding box__
+        - nothing to segment there, so we're just wasting time
+- agent's starting point
+    - place randomly in image, or
+    - always place at same position
+    - will likely not make much of a difference because we use replay buffer
+    - hopefully agent will learn to explore the image and drive down a road once it finds one, to collect the reward as much as possible
+- when to terminate an episode?
+    - after fixed number of timesteps: may be disadvantageous because different images have different number of roads, so we may miss some roads
+        - if we do not always traverse the image in a fixed manner (e.g. from top to bottom, left to right), but instead follow roads in their direction, we may take a different number of timesteps for different images, depending on how many/which roads there are
+    - maybe: __let agent signal when to end episode__, e.g.
+        - when agent walks outside environment's bounding box / walks some distance _d_ outside bounding box
+        - when agent outputs special "terminate" action
+- integration with our framework
+    - write new `TorchRLTrainer` class
+        - may even make sense to subclass `TorchTrainer`
+        - will have additional hyperparams (see all the different possibilities above; we may want to be able to choose between different options to evaluate how good different options are); those will be logged to MLflow
+        - depending on whether we want use a replay buffer or not (maybe even choosable?), will have different training logic
+        - *** TODO: think more about integration! ***
+    - may make sense to create animation of how agent traverses environment (GIF?)
+        - see e.g. `render` function in https://blog.paperspace.com/creating-custom-environments-openai-gym/
+            - could be useful to have a "live preview" of what the agent is doing with `cv2.imshow`, and _also_ have capability of creating animation from multiple frames
+        - could then use this animation as a visualization (and possibly indicate true positives/false positives/false negatives there, as in the current visualizations?), instead of only logging the final segmentation to MLflow?
+            - could help us catch errors (agent gets stuck/...), but probably low priority
+
+
+## Tutorials
+- Q-Network and existing `cartpole` OpenAI Gym environment: https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
+    - uses a target network, which we do not have yet... how would we get such a network? Will have to train on-policy first (e.g. SARSA)?
+        - they simply freeze the weights of the policy network to obtain the target network: "the target network has its weights kept frozen most of the time, but is updated with the policy network’s weights every so often"
+        - `target_net.load_state_dict(policy_net.state_dict())`
+        - `if i_episode % TARGET_UPDATE == 0: ...`, ...)
+    - next action to take is chosen according to the currently trained network, _not_ the target network 
+    - they use gradient clipping (CTRL+F `clamp_`)
+    - samples are called "episodes" (see last code block; one episode would be one satellite image in our case)
+        - is there a way to batchify?
+    - optimization is performed during each training iteration (`for i_episode in range(num_episodes): ...`, inside this `for t in count(): ...`, inside this we add one observation to the replay memory, then `optimize_model()` is called, which _samples_ `BATCH_SIZE` many random transitions from the replay buffer, and compares the policy network's output with the target network's output)
+- Random actions, custom environment
+    - https://blog.paperspace.com/getting-started-with-openai-gym/ (pt. 1)
+        - introduces some basic concepts and shows how to create a wrapper around an existing OpenAI Gym environment, but we want to create an entirely new environment
+    - https://blog.paperspace.com/creating-custom-environments-openai-gym/ (pt. 2)
+        - `ChopperScape` class describes environment; create something similar
+            - *** TODO: think about environment! ***
