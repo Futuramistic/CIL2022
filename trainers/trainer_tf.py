@@ -109,7 +109,7 @@ class TFTrainer(Trainer, abc.ABC):
                 # save the best f1 score checkpoint
                 if self.trainer.do_checkpoint and self.best_score <= f1_score:
                     self.best_score = f1_score
-                    tf.saved_model.save(self.model,export_dir=os.path.join(CHECKPOINTS_DIR, "cp_best_f1.ckpt"))
+                    keras.models.save_model(model=self.model,filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_f1.ckpt"))
 
             if self.trainer.do_checkpoint\
                 and self.iteration_idx % self.trainer.checkpoint_interval == 0\
@@ -117,7 +117,7 @@ class TFTrainer(Trainer, abc.ABC):
                 checkpoint_path = f'{CHECKPOINTS_DIR}/cp_ep-{"%05i" % self.epoch_idx}'+\
                                   f'_it-{"%05i" % self.epoch_iteration_idx}' +\
                                   f'_step-{self.iteration_idx}.ckpt'
-                tf.saved_model.save(self.trainer.model, export_dir=checkpoint_path)
+                keras.models.save_model(model=self.trainer.model, filepath=checkpoint_path)
             
             self.iteration_idx += 1
             self.epoch_iteration_idx += 1
@@ -201,7 +201,7 @@ class TFTrainer(Trainer, abc.ABC):
             final_checkpoint_path = checkpoint_path
 
         print(f'Loading checkpoint "{checkpoint_path}"...')  # log the supplied checkpoint_path here
-        self.model = tf.saved_model.load(final_checkpoint_path)
+        self.model.load_weights(final_checkpoint_path)
         print('Checkpoint loaded\n')
 
         # Note that the final_checkpoint_path directory cannot be deleted right away! This leads to errors.
@@ -228,8 +228,8 @@ class TFTrainer(Trainer, abc.ABC):
         
         if self.do_checkpoint:
             # save final checkpoint
-            tf.saved_model.save(self.model,
-                                    export_dir=os.path.join(CHECKPOINTS_DIR, "cp_final.ckpt"))
+            keras.models.save_model(model=self.model,
+                                    filepath=os.path.join(CHECKPOINTS_DIR, "cp_final.ckpt"))
 
     def get_F1_score_validation(self):
         _, _, f1_score = self.get_precision_recall_F1_score_validation()
