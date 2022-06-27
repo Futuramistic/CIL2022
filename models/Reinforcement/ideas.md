@@ -2,7 +2,9 @@
 ## Basic ideas
 - how to use RL to segment image?
     - use reinforcement learning as a _refinement tool_ after segmentation --> input is raw image and segmentation, output is refined segmentation
+    - __use reinforcement learning to provide prior to segmentation network?__ --> segmentation from RL framework is additional input to segmentation network (extra channel)
     - _only_ use reinforcement learning to segment the raw image --> input is raw image and segmentation so far?
+    - __iterative refinement__: e.g. first segment using network, then use network output to segment using RL, then use RL output to segment using network, etc. (or start with RL approach)
 - state space is all possible combinations of pixel labels (2^{HxW} for 2 classes "background", "road"), plus position (and/or velocity/acceleration/orientation?) of agent
 - actions:
     - formulation 1: "non-interactive" / outputting whole segmentation at once
@@ -45,17 +47,21 @@
 
 - penalize
     - putting brush down and/or picking brush up: avoid discontinuous roads (penalty less then wrong or missing segmentation)
+    - if agent (slightly, not yet in "kill zone") outside of image, can simply reenter image at other point while brush still up -> less penalty
     - running over the same pixels many times (otherwise could possibly become infinity loop over same road with no negative reward)
     - changing the road width within the same stroke: avoid "unnatural" roads changing their width too often
         - agent will have to find tradeoff between wrong width due to too little width switching, and switching width too often
         - __idea__: maybe even penalize having too many different road widths in the same segmentation, or cluster road widths after segmentation?
             - usually, roads in an image will have similar widths
+            - __problem__: we often have "rounded corners" of streets in ground-truth maps
+                - __idea: penalize according to (squared?) magnitude of brush width change__
     - wrong segmentation (false positive/"painting outside the lines")
         - (fixed) penalty per false positive pixel
     - missing segmentation? (false negative)
         - (fixed) penalty per false negative pixel
+            - missing large roads will be penalized more than missing small roads due to the area difference, but this reflects each road type's contribution to the F1 score
         - maybe at each timestep, we receive some negative reward for each road pixel not yet marked as such?
-            - this could be an alternative (or an addition!) to receiving a constant timestep penalty, albeit the agent would likely get slower as we go on (lower "timestep penalty" the more road pixels have been marked already)
+            - this could be an alternative (or an addition!) to receiving a constant timestep penalty, albeit the agent would likely get slower as we go on (we have a lower "timestep penalty" the more road pixels have been marked already)
     - __walking outside environment's bounding box__
         - nothing to segment there, so we're just wasting time
         - for locality oriented network:
@@ -81,11 +87,60 @@
         - when agent walks outside environment's bounding box / walks some distance _d_ outside bounding box
         - when agent outputs special "terminate" action
 - integration with our framework
-    - write new `TorchRLTrainer` class
+    - structure of own `Environment` class
+        - __make everything batch-wise, not sample-wise!__
+            - `Environment` ctor receives as input
+        - attributes:
+            - agent position
+            - agent direction (angle)
+            - brush width (rather, circle radius; see below)
+            - brush state
+            - current segmentation map (all zeros at beginning)
+        - function to perform step
+            - __instead of drawing line, draw filled circle!__ ([example of how this leads to smoothness](https://dl3.pushbulletusercontent.com/iGIRlmcfYKMh6dG9iPrU6qkUfoyPAHSS/grafik.png)) 
+                - also a good solution for the "rounded corner" problem mentioned below ([example](https://dl3.pushbulletusercontent.com/KTIbEHBWGLtKHdXUgatDKkd3m09TgTmi/grafik.png)) 
+            - returns (https://blog.paperspace.com/getting-started-with-openai-gym/ -> "Interacting with the Environment")
+                - observation: new environment observation
+                - reward: reward we get after executing action given as input to `step` function
+                - done: whether episode has terminated
+                - info: additional information depending on environment, e.g. number of lives left
+        - function to draw what agent will see (called within function to perform step?)
+    - structure of reinforcement Q learning's training loop
+        - replay memory
+            - stores transitions agent observes
+            - "By sampling from it randomly, the transitions that build up a batch are decorrelated. It has been shown that this greatly stabilizes and improves the DQN training procedure."
+            - `ReplayMemory` class
+                - `push` function
+                - `sample` function
+        - Q-Network
+            - CNN: will have to try different architectures!
+                - in tutorial: 3 x [Conv2d -> BatchNorm2d], then classification head (CTRL + F `class DQN`)
+        - training:
+            - `optimize_model`
+                - performs optimizer step, minimizing temporal difference error `delta`
+                    - _predicted_ state-action value obtained by _policy_ network
+                    - maximum of Q-value over all actions (in TD equation) is maximum over all Q-values (for all known actions, for each known next state) predicted by _target_ network
+                    - using this and observed rewards, _expected_ state-action value is calculated
+                    - then, loss (here: Huber loss) is minimized (here: using RMSProp optimizer) between _expected_ and _predicted_ state-action values
+                - see https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html for details
+            - training loop: episode corresponds to batch (in tutorial: rather a sample); during each iteration:
+                - enter infinite loop, then `break` once termination condition reached
+                - select next action to perform (epsilon-greedy)
+                - perform step in environment, obtain `(new_observation, reward, done, new_info)` tuple (see "function to perform step" above)
+                - compute `new_state` from `new_observation`
+                - push `(old_state, action, new_state, reward)` to replay memory
+                - update current state to `new_state`
+                - call `optimize_model`
+                - `if episode_idx % TARGET_UPDATE_INTERVAL == 0:` update target net's weights with current weights of policy net
+    - integrate these two: write new `TorchRLTrainer` class
         - may even make sense to subclass `TorchTrainer`
         - will have additional hyperparams (see all the different possibilities above; we may want to be able to choose between different options to evaluate how good different options are); those will be logged to MLflow
-        - depending on whether we want use a replay buffer or not (maybe even choosable?), will have different training logic
-        - *** TODO: think more about integration! ***
+        - depending on whether we want to use a replay buffer or not (maybe even choosable?), will have different training logic
+        - integration:
+            - create `Environment` class representing environment (see above)
+            - instantiate environment in `__init__` of `TorchRLTrainer`
+                - `TorchRLTrainer` receives environment hyperparameters & passes them to environment
+        *** TODO: think more about integration! ***
     - may make sense to create animation of how agent traverses environment (GIF?)
         - see e.g. `render` function in https://blog.paperspace.com/creating-custom-environments-openai-gym/
             - could be useful to have a "live preview" of what the agent is doing with `cv2.imshow`, and _also_ have capability of creating animation from multiple frames
@@ -108,5 +163,4 @@
     - https://blog.paperspace.com/getting-started-with-openai-gym/ (pt. 1)
         - introduces some basic concepts and shows how to create a wrapper around an existing OpenAI Gym environment, but we want to create an entirely new environment
     - https://blog.paperspace.com/creating-custom-environments-openai-gym/ (pt. 2)
-        - `ChopperScape` class describes environment; create something similar
-            - *** TODO: think about environment! ***
+        - `ChopperScape` class describes environment; create something similar (see "structure of own `Environment` class" above)
