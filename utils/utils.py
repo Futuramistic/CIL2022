@@ -132,3 +132,6 @@ def create_or_clean_directory(dir_name):
     else:
         for f in os.listdir(dir_name):
             os.remove(os.path.join(dir_name, f))
+
+def flatten(xss):
+    return [x for xs in xss for x in xs]
