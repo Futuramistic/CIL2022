@@ -52,6 +52,7 @@ class TFTrainer(Trainer, abc.ABC):
             self.iteration_idx = 0
             self.epoch_iteration_idx = 0
             self.epoch_idx = 0
+            self.best_score = -1
             self.do_visualize = self.trainer.num_samples_to_visualize is not None and \
                                 self.trainer.num_samples_to_visualize > 0
 
@@ -105,7 +106,11 @@ class TFTrainer(Trainer, abc.ABC):
                     mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=self.iteration_idx)
                     if self.do_visualize:
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
-            
+                # save the best f1 score checkpoint
+                if self.trainer.do_checkpoint and self.best_score <= f1_score:
+                    self.best_score = f1_score
+                    keras.models.save_model(model=self.model,filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_f1.ckpt"))
+
             if self.trainer.do_checkpoint\
                 and self.iteration_idx % self.trainer.checkpoint_interval == 0\
                 and self.iteration_idx > 0:  # avoid creating checkpoints at iteration 0
@@ -237,9 +242,8 @@ class TFTrainer(Trainer, abc.ABC):
             output = self.model(x)
             
             # More channels than needed - U^2-Net-style
-            # Collapse into 3 channels - one image
             if(len(output.shape)==5):
-                output = output[0][0]
+                output = output[0]
                 
             preds = tf.cast(output >= self.segmentation_threshold, tf.dtypes.int8)
             precision, recall, f1_score = precision_recall_f1_score_tf(preds, y)
@@ -247,3 +251,19 @@ class TFTrainer(Trainer, abc.ABC):
             recalls.append(recall.numpy().item())
             f1_scores.append(f1_score.numpy().item())
         return np.mean(precisions), np.mean(recalls), np.mean(f1_scores)
+
+    def find_best_segmentation_threshold(self,step=0.05):
+        # Save original threshold
+        original_threshold = self.segmentation_threshold
+        best_threshold = None
+        best_f1 = 0.0
+        for i in np.arange(step,1+step,step):
+            self.segmentation_threshold = i
+            _,_,f1 = self.get_precision_recall_F1_score_validation()
+            if(best_f1<=f1):
+                best_f1 = f1
+                best_threshold = self.segmentation_threshold
+        # Restore to the original threshold
+        self.segmentation_threshold = original_threshold
+        print(f'F1 score: {best_f1:.4f} for threshold: {best_threshold:.4f}')
+        return best_threshold

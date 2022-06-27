@@ -27,13 +27,13 @@ class GELU(tf.keras.layers.Layer):
 
 class ConvoRelu_Block(tf.keras.layers.Layer):
     def __init__(self,name="ConvoRelu-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,
-                 kernel_regularizer=K.regularizers.l2(),kernel_size=3,dilation_rate=1,**kwargs):
+                 kernel_regularizer=K.regularizers.l2(),kernel_size=3,dilation_rate=1,activation='leaky_relu',**kwargs):
         super(ConvoRelu_Block, self).__init__(name=name,**kwargs)
         self.normalize = normalize  
         self.convo = Conv2D(filters=filters, kernel_size=kernel_size, padding='same', kernel_initializer=kernel_init,
                             name=name+"-conv2D", kernel_regularizer=kernel_regularizer,dilation_rate=dilation_rate)
         self.norm = BatchNormalization(name=name+"-batchNorm", axis=3)
-        self.actv = LeakyReLU()
+        self.actv = Activation(name=name+"-"+activation,activation=activation)
         self.drop = Dropout(rate=dropout,name=name+"-drop")
     
     # Expose training:
