@@ -228,8 +228,8 @@ class TFTrainer(Trainer, abc.ABC):
         
         if self.do_checkpoint:
             # save final checkpoint
-            tf.saved_model.save(model=self.model,
-                                    filepath=os.path.join(CHECKPOINTS_DIR, "cp_final.ckpt"))
+            tf.saved_model.save(self.model,
+                                    export_dir=os.path.join(CHECKPOINTS_DIR, "cp_final.ckpt"))
 
     def get_F1_score_validation(self):
         _, _, f1_score = self.get_precision_recall_F1_score_validation()
