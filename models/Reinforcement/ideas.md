@@ -28,16 +28,24 @@
         - if we're in a POMDP (_partially observable_ Markov decision process), then observation ≠ state
     - network sees state of complete segmented image at all times ("non-interactive formulation" mentioned above), _or..._
     - network only has local information and starts at a point: action is painting road pixels within that patch (velocity, angle, put down/pick up brush)
+        - can be beneficial to get a more generalizing network
+        - the patch should be big enough to include local context for the current road (e.g. cars and houses as well)
         - possible patch representations (not exclusive, could also concat multiple of those along the channel dimension):
             - screenshot of image
             - extracted features
                 - e.g. Canny
                 - pretrained backbone (part of pretrained ResNet/...)
             - could also include agent in screenshot, e.g. as point/stickman/car/directed arrow, also showing current orientation and/or speed (length of arrow?)
+                - how do we include the speed and velocity information when using convnets? --> either arrow (image) in extra channel, or sparse extra channel with a gradient and a magnitude (like edge), e.g. [-3 0 3] has magnitude 6 (velocity) and depending on where this vector is positioned in the extra channel, that defines the angle
+            - give a position of the patch in the global image (sparse extra channel with min/max coordinates and current position could be sufficient)
             - __segmentation from another network__ (which we refine), could also be patchwise!
                 - concat to extra channel?
+            - previous brush down/up (maybe just again as extra channels with either 0s or 1s filling the complete channel, OR we could specify at each pixel of the patch, what our last decision was at this pixel (e.g. 1 brush down, 0 brush up, -1 unvisited --> part of the environment)
+            - general idea: instead of channels for each prior prediction (orientation, speed, brush) we can simply aggregate the last n predictions and feed it into the network (appearantly done a lot in RL) --> network learns these attributes implicitely
+
 - penalize
-    - putting brush down and/or picking brush up: avoid discontinuous roads
+    - putting brush down and/or picking brush up: avoid discontinuous roads (penalty less then wrong or missing segmentation)
+    - running over the same pixels many times (otherwise could possibly become infinity loop over same road with no negative reward)
     - changing the road width within the same stroke: avoid "unnatural" roads changing their width too often
         - agent will have to find tradeoff between wrong width due to too little width switching, and switching width too often
         - __idea__: maybe even penalize having too many different road widths in the same segmentation, or cluster road widths after segmentation?
@@ -50,11 +58,22 @@
             - this could be an alternative (or an addition!) to receiving a constant timestep penalty, albeit the agent would likely get slower as we go on (lower "timestep penalty" the more road pixels have been marked already)
     - __walking outside environment's bounding box__
         - nothing to segment there, so we're just wasting time
+        - for locality oriented network:
+            - penalizing this only makes sense, if we give the network global information about the localization of the current patch in the global image, e.g. pad with -1 values on the edge of the global image (however, we cannot guarantee that it won't still go outside); or give information as specified in "what to use as observation"
+- reward
+    - true positives
+    - true negatives?
+    - having hovered over every pixel of the complete image in at least one of the patches
+        - encourages not leaving out some areas
+        - might be hard to train, as the reward can only appear at the end of segmentation in this specific scenario --> therefore maybe increase the reward for any action taken into a new direction (this reward has to be less than the true positives/negatives in order for the network to consistently paint one road)
+    - typical road shapes (use geometric prior, e.g. reward if the angle doesn't change too much)
+
 - agent's starting point
     - place randomly in image, or
     - always place at same position
     - will likely not make much of a difference because we use replay buffer
     - hopefully agent will learn to explore the image and drive down a road once it finds one, to collect the reward as much as possible
+    - TODO Question: will our agent be able to handle images of different sizes?
 - when to terminate an episode?
     - after fixed number of timesteps: may be disadvantageous because different images have different number of roads, so we may miss some roads
         - if we do not always traverse the image in a fixed manner (e.g. from top to bottom, left to right), but instead follow roads in their direction, we may take a different number of timesteps for different images, depending on how many/which roads there are

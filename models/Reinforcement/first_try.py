@@ -47,8 +47,8 @@ class RefinementQ(nn.Module):
                 curr_output_dim=((curr_output_dim - (kernel_size - 1) - 1) // stride  + 1)
             else:
                 # final conv, can't have too large dimensions because of final linear layer
-                layers.append(nn.Conv2d(in_channels, 1, kernel_size=3, stride=1, padding=1))
-                layers.append(nn.Sigmoid())
+                layers.append(nn.Conv2d(in_channels, 1, kernel_size, stride=1, padding=1))
+                layers.append(nn.Sigmoid()) # TODO sigmoid the best option here?
                 curr_output_dim=((curr_output_dim - (kernel_size - 1) - 1)  + 1)
         self.conv_layers = nn.ModuleList(layers)
         self.canny = Canny()
