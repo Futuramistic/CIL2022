@@ -217,13 +217,13 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
                         sampled_actions.append(sampled_action)
                         action_log_probabilities.append(dist.log_prob(sampled_action))
 
-                        delta_angle = -1 + 2 * action[0]  # in [-1, 1] (later changed to [-pi, pi] in SegmentationEnvironment)
-                        self.magnitude = action[1] * (self.min_patch_size / 2)  # 
-                        new_brush_state = torch.round(action[2])  # tanh --> [-1, 1] 
-                        # sigmoid stretched --> float [0, min_patch_size]
-                        new_brush_radius = action[3] * (self.min_patch_size / 2)
-                        # sigmoid rounded --> float [0, 1]
-                        self.terminated = torch.round(action[4])   
+                    sampled_actions[0] = -1 + 2 * sampled_actions[0]  # delta_angle in [-1, 1] (later changed to [-pi, pi] in SegmentationEnvironment)
+                    sampled_actions[1] = sampled_actions[1] * (env.min_patch_size / 2)  # magnitude
+                    sampled_actions[2] = torch.round(-1 + 2 * sampled_actions[2])  # new_brush_state
+                    # sigmoid stretched --> float [0, min_patch_size]
+                    sampled_actions[3] = sampled_actions[3] * (env.min_patch_size / 2) # new_brush_radius
+                    # sigmoid rounded --> float [0, 1]
+                    sampled_actions[4] = torch.round(sampled_actions[4]) # terminated   
                     
                     # TODO: test using different sigmas
                     # TODO: adapt Environment to output only action values in [0, 1] 
@@ -260,11 +260,8 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
                         opt.zero_grad()
                         loss.backward(retain_graph=False)
                         opt.step()
-
-
                 memory.reset()
-
-
+                
                 # ORIGINAL CODE STARTS HERE
                 preds = model(x)
                 loss = self.loss_function(preds, y)
@@ -284,14 +281,43 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
     def _eval_step(self, model, device, test_loader):
         model.eval()
         test_loss = 0
-        with torch.no_grad():
-            for (x, y) in test_loader:
-                x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.long)
-                y = torch.squeeze(y, dim=1)
-                preds = model(x)
-                test_loss += self.loss_function(preds, y).item()
-                del x
-                del y
+
+        for (x, y) in test_loader:
+            for sample_x, sample_y in x, y:
+                sample_x, sample_y = sample_x.to(device, dtype=torch.float32), sample_y.to(device, dtype=torch.long)
+                # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
+                # accordingly, sample_y must be of shape (H, W) not (1, H, W)
+                sample_y = torch.squeeze(sample_y)
+                env = SegmentationEnvironment(sample_x, sample_y, self.patch_size, self.history_size, test_loader.img_val_min, test_loader.img_val_max) # take standard reward
+                env.reset()
+                # "state" is input to model
+                # observation in init state: RGB (3), history (5 by default), brush state (1)
+                # use neutral action that does not affect anything to get initial state
+                # env.step returns: (new_observation, reward, done, new_info)
+                # "state" in tutorial is "observation" here
+                observation, _, _, _ = env.step(env.get_neutral_action())
+                
+                # in https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html,
+                # they loop for "rollouts.rollout_size" iterations, but here, we loop until network tells us to terminate
+                for timestep_idx in range(self.max_rollout_len):  # loop until model terminates or max len reached
+                    model_output = self.model(observation)
+                    # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate', all in [0,1]
+                    # we use the output of the network as the direct prediction instead of sampling like during training
+                    # we assume all outputs are in [0, 1]
+                    action = torch.zeros_like(model_output)
+                    action[0] = -1 + 2 * model_output[0]  # delta_angle in [-1, 1] (later changed to [-pi, pi] in SegmentationEnvironment)
+                    action[1] = model_output[1] * (env.min_patch_size / 2)  # magnitude
+                    action[2] = torch.round(-1 + 2 * model_output[2])  # new_brush_state
+                    # sigmoid stretched --> float [0, min_patch_size]
+                    action[3] = model_output[3] * (env.min_patch_size / 2) # new_brush_radius
+                    # sigmoid rounded --> float [0, 1]
+                    action[4] = torch.round(model_output[4]) # terminated   
+
+                    new_observation, reward, terminated, info = env.step(action)
+                    observation = new_observation
+                    if terminated:
+                        break
+                test_loss += self.loss_function(env.get_unpadded_segmentation(), sample_y).item()
         test_loss /= len(test_loader.dataset)
         return test_loss
 
