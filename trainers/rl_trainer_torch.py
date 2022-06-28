@@ -35,7 +35,8 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, scheduler=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
-                 load_checkpoint_path=None, segmentation_threshold=None, patch_size=[100,100], history_size=5, max_rollout_len=1e6, std=1e-3):
+                 load_checkpoint_path=None, segmentation_threshold=None, patch_size=[100,100], history_size=5,
+                 max_rollout_len=1e6, std=1e-3, reward_discount_factor=0.99, num_policy_epochs=4, policy_batch_size=10):
         
         """
         Trainer for RL-based models.
@@ -43,18 +44,25 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
             dataloader: the DataLoader to use when training the model
             model: the policy network to train
             ...
-            patch_size: (int, int) the size of the observations for the actor
-            history_size: (int) how many steps the actor can look back (become part of the observation)
-            max_rollout_len: (int) how large each rollout can get on maximum
-            std: (float) standard deviation assumed on the prediction of the actor network to use on a beta distribution as a policy to compute the next action
+            patch_size (int, int): the size of the observations for the actor
+            history_size (int): how many steps the actor can look back (become part of the observation)
+            max_rollout_len (int): how large each rollout can get on maximum
+            std (float): standard deviation assumed on the prediction of the actor network to use on a beta distribution as a policy to compute the next action
+            reward_discount_factor (float): factor by which to discount the reward per timestep into the future, when calculating the accumulated future return
+            num_policy_epochs (int): number of epochs for which to train the policy network during a single iteration (for a single sample)
+            policy_batch_size (int): size of batches to sample from the replay memory of the policy per policy training epoch
         """
+        if loss_function is not None:
+            raise RuntimeError('Custom losses not supported by TorchRLTrainer')
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold)
         self.patch_size = patch_size
         self.history_size = history_size
         self.max_rollout_len = max_rollout_len
-        self.std=std
+        self.std = std
+        self.reward_discount_factor = reward_discount_factor
+        self.num_policy_epochs = num_policy_epochs
         # self.preprocessing and self.scheduler set by TorchTrainer superclass
 
     # This class is a mimicry of TensorFlow's "Callback" class behavior, used not out of necessity (as we write the
@@ -101,8 +109,9 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
             return self.f1_score
     
     class ReplayMemory(object):
-        # inspired by https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html and https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html
-        def __init__(self, capacity,):
+        # inspired by https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
+        # and https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html
+        def __init__(self, capacity):
             self.memory = deque([], maxlen=capacity)
 
         def push(self, *args):
@@ -111,6 +120,15 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
 
         def sample(self, batch_size):
             return random.sample(self.memory, batch_size)
+
+        def compute_accumulated_discounted_returns(self, gamma):
+            # memory.push(observation, new_observation, model_output, action_log_probabilities, sampled_actions,
+            #                   self.terminated, reward, torch.tensor(float('nan')))
+            for step_idx in reversed(range(len(self.memory))):  # differs from tutorial code (but appears to be equivalent)
+                terminated = self.memory[step_idx + 1][5]
+                future_return = self.memory[step_idx + 1][-1] if step_idx < len(self.memory) else 0
+                current_reward = self.memory[step_idx + 1][-1]
+                self.memory[step_idx][-1] = future_return * gamma * (1 - terminated) + current_reward
 
         def __len__(self):
             return len(self.memory)
@@ -193,9 +211,9 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
                     # we assume all outputs are in [0, 1]
                     # we first use the same variance for all distributions
                     for idx, action_name in enumerate(['delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate']):
-                        alpha, beta = get_beta_params(mu=model_output[:, idx], sigma=self.std)
-                        dist = torch.distributions.Beta(alpha, beta)
-                        sampled_action = dist.sample(1)
+                        alphas, betas = get_beta_params(mu=model_output[:, idx], sigma=self.std)
+                        dist = torch.distributions.Beta(alphas, betas)
+                        sampled_action = dist.sample()
                         sampled_actions.append(sampled_action)
                         action_log_probabilities.append(dist.log_prob(sampled_action))
 
@@ -215,15 +233,39 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
                     
                     new_observation, reward, terminated, info = env.step(sampled_actions)
                 
-                        
-                    memory.push(observation, model_output, new_observation, action_log_probabilities, sampled_actions, reward)
+                    # NaN to reserve space for return (not yet calculated; return = sum of discounted rewards from current step)
+                    # assume return at last position
+                    memory.push(observation, new_observation, model_output, action_log_probabilities, sampled_actions,
+                                self.terminated, reward, torch.tensor(float('nan')))
                     
                     observation = new_observation
                     eps_reward += reward
                     if terminated:
                         break
-                    
+                
+                memory.compute_accumulated_discounted_returns(gamma=self.reward_discount_factor)
 
+                for epoch_idx in range(self.num_policy_epochs):
+                    policy_batch = memory.sample(self.policy_batch_size)
+                    for sample in policy_batch:
+                        # memory.push(observation, new_observation, model_output, action_log_probabilities, sampled_actions,
+                        #                   self.terminated, reward, torch.tensor(float('nan')))
+                        observation_batch, new_observation_batch, model_output_batch, action_log_probabilities_batch,\
+                            sampled_actions_batch, terminated_batch, reward_batch, returns_batch = sample
+
+                        policy_loss = -(action_log_probabilities_batch * returns_batch).mean()
+                        # TODO: add entropy loss and see if it helps
+                        # entropy_loss = ...
+                        loss = policy_loss
+                        opt.zero_grad()
+                        loss.backward(retain_graph=False)
+                        opt.step()
+
+
+                memory.reset()
+
+
+                # ORIGINAL CODE STARTS HERE
                 preds = model(x)
                 loss = self.loss_function(preds, y)
                 with torch.no_grad():
