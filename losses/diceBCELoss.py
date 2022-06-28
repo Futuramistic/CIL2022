@@ -4,7 +4,9 @@ import keras.backend as K
 
 # Wrapper for Binary Cross Entropy for other functions
 def BCELoss(logits=False):
-    def loss(targets, inputs):       
+    def loss(targets, inputs):
+        inputs  =   K.flatten(tf.cast(inputs,tf.float32))
+        targets =   K.flatten(tf.cast(targets,tf.float32))       
         BCE =  K.binary_crossentropy(targets, inputs, from_logits=logits)
         return BCE
     return loss
