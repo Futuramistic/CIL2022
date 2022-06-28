@@ -206,10 +206,12 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
                         new_brush_radius = action[3] * (self.min_patch_size / 2)
                         # sigmoid rounded --> float [0, 1]
                         self.terminated = torch.round(action[4])   
-                        
-
+                    
                     # TODO: test using different sigmas
                     # TODO: adapt Environment to output only action values in [0, 1] 
+                    # TODO: optimize model
+                    # TODO: MLFlow
+                    # TODO: Visualization in real time and afterwards as animation, log viszualization to mlflow
                     
                     new_observation, reward, terminated, info = env.step(sampled_actions)
                 
