@@ -115,7 +115,7 @@ def compute_best_threshold(loader, apply_sigmoid):
                 del x_
                 del y
         f1_score = np.mean(f1_scores)
-        print('F1 score:', f1_score)
+        print('Threshold', thresh, '- F1 score:', f1_score)
         if f1_score > best_f1_score:
             best_thresh = thresh
             best_f1_score = f1_score
@@ -140,6 +140,7 @@ def predict(segmentation_threshold, apply_sigmoid):
             while len(pred.shape) > 3:
                 pred = pred[0]
             K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred, data_format="channels_first")
+            i += 1
             del x
 
 
@@ -149,9 +150,9 @@ dataset = 'original'
 sigmoid = torch.nn.Sigmoid()
 
 # Parameters
-model_name = 'deeplabv3'                                             # <<<<<<<<<<<<<<<<<< Insert model type
+model_name = 'unet'                                             # <<<<<<<<<<<<<<<<<< Insert model type
 trained_model_path = 'cp_final.pt'                                  # <<<<<<<<<<<<<<<<<< Insert trained model name
-apply_sigmoid = True                                                # <<<<<<<<<<<<<<<< Specify whether Sigmoid should
+apply_sigmoid = False                                                # <<<<<<<<<<<<<<<< Specify whether Sigmoid should
                                                                     # be applied to the model's output
 
 # Create loader, trainer etc. from factory
