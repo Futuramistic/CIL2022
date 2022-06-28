@@ -75,7 +75,21 @@ class DataLoader(abc.ABC):
                 gt_paths = np.array(gt_paths)[shuffler]
 
         return img_paths, gt_paths
-
+    
+    @abc.abstractmethod
+    def get_img_val_min_max(self, preprocessing):
+        """
+        Get the minimum and maximum possible values of an image pixel, when preprocessing the image using the given
+        preprocessing function.
+        Args:
+            preprocessing: function taking a raw sample and returning a preprocessed sample to be used when
+                           constructing the native dataloader
+        Returns:
+            Tuple of (int, int)
+        """
+        raise NotImplementedError('must be defined for torch or tensorflow loader')
+    
+    
     @abc.abstractmethod
     def get_dataset_sizes(self, split):
         """

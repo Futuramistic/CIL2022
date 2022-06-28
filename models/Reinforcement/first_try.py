@@ -1,6 +1,7 @@
 from collections import namedtuple, deque
+import functools
 import random
-from requests import patch
+from requests import head, patch
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -25,6 +26,7 @@ class ReplayMemory(object):
 
 class RefinementQ(nn.Module):
     def __init__(self, num_conv_layer, patch_size=10):
+        super(RefinementQ, self).__init__()
         self.transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
         layers = []
         in_channels = 7 # RGB, Binary, 3 for canny (gradient magnitude, orientation, thin edges)
@@ -50,7 +52,7 @@ class RefinementQ(nn.Module):
                 layers.append(nn.Conv2d(in_channels, 1, kernel_size, stride=1, padding=1))
                 layers.append(nn.Sigmoid()) # TODO sigmoid the best option here?
                 curr_output_dim=((curr_output_dim - (kernel_size - 1) - 1)  + 1)
-        self.conv_layers = nn.ModuleList(layers)
+        self.conv_layers = nn.Sequential(*layers)
         self.canny = Canny()
         self.final_prediction = nn.Linear(curr_output_dim**2, 3) # output dim of 3 for velocity, angle, brush or don't brush
     
@@ -64,6 +66,32 @@ class RefinementQ(nn.Module):
         brush = torch.round(F.sigmoid(linear_out))
         return torch.concat((vel_angle, brush), dim=1)
 
+class SimpleRLCNN(nn.Module):
+    def __init__(self, patch_size, in_channels=10):
+        super(SimpleRLCNN, self).__init__()
+        layers = []
+        curr_output_dims = patch_size
+        kernel_size = 3
+        stride=1
+        padding=1
+        # initial input: RGB (3), history (5 by default), brush state (1)
+        for _ in range(3):
+            layers.append(nn.Conv2d(in_channels, in_channels*2, kernel_size, stride, padding))
+            in_channels *= 2
+            layers.append(nn.BatchNorm2d(in_channels))
+            layers.append(nn.LeakyReLU())
+            curr_output_dims=[((curr_output_dims[dim] - kernel_size + 2 * padding ) // stride  + 1) for dim in range(len(curr_output_dims))]
+            
+        self.convs = nn.Sequential(*layers)
+        flattened_dims = functools.reduce(lambda x, y: x*y, curr_output_dims)*in_channels
+        self.head = nn.Linear(flattened_dims, 5)
+        
+    # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate', for which we return the mean of the beta distribution
+    # the action is then sampled in the trainer from that distribution --> we only need values between 0 and 1 --> sigmoid everything
+    def forward(self, x):
+        conv_out = self.convs(x)
+        head_in = torch.flatten(conv_out, start_dim=1)
+        return F.sigmoid(self.head(head_in))
 
 # adapted from https://github.com/DCurro/CannyEdgePytorch to process batches
 class Canny(nn.Module):

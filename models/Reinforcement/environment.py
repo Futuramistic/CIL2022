@@ -86,6 +86,11 @@ class SegmentationEnvironment(Env):
     
         self.reset()        
 
+    def get_neutral_action(self):
+        # returns a neutral action
+        # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'
+        return torch.tensor([0.0, 0.0, BRUSH_STATE_NOTHING, 0.0, 0.0], dtype=torch.float)
+
     def reset(self):
         self.agent_pos = [dim_size // 2 for dim_size in self.img.shape[:2]]
         self.agent_angle = 0.0
@@ -113,7 +118,7 @@ class SegmentationEnvironment(Env):
         # Create a canvas to render the environment images upon 
         # self.canvas = np.ones(self.observation_shape) * 1
         self.seen_pixels = torch.zeros_like(self.img[:2])
-    
+
     def calculate_reward(self, delta_angle, new_brush_state, new_brush_radius,
                          new_seen_pixels):
         # we penalize "brush radius changes performed at the same time as angle changes" less
@@ -159,24 +164,12 @@ class SegmentationEnvironment(Env):
         reward += num_newly_seen_pixels * self.rewards['unseen_pix_rew']
         
         return reward
-        
-        
-    def step(self, action):
-        # returns:
-        # (new_observation, reward, done, new_info)
 
+    def step(self, action):
+        # returns: (new_observation, reward, done, new_info)
         # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'
-        
-        # even though we assign an interval of size 1 to 
-        # tanh applied to delta_angle, magnitude, brush_state neuron
-        # sigmoid applied to magnitude, ;  [-1, 1]
-        delta_angle = action[0]
-        self.magnitude = action[1] * (self.min_patch_size / 2)
-        new_brush_state = torch.round(action[2])  # tanh --> [-1, 1] 
-        # sigmoid stretched --> float [0, min_patch_size]
-        new_brush_radius = action[3] * (self.min_patch_size / 2)
-        # sigmoid rounded --> float [0, 1]
-        self.terminated = torch.round(action[4])        
+        # unpack
+        delta_angle, self.magnitude, new_brush_state, new_brush_radius, self.terminated = action        
         
         # calculate new segmentation
         # we don't need the old segmentation anymore, hence we do not store it
