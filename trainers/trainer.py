@@ -98,7 +98,7 @@ class Trainer(abc.ABC):
 
     def _init_mlflow(self):
         self.mlflow_experiment_id = None
-        if False and self.mlflow_experiment_name is not None:
+        if self.mlflow_experiment_name is not None:
             def add_known_hosts(host, user, password, jump_host=None):
                 spawn_str =\
                     'ssh %s@%s' % (user, host) if jump_host is None else 'ssh -J %s %s@%s' % (jump_host, user, host)

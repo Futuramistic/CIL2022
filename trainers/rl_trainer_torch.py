@@ -29,6 +29,9 @@ import torch.distributions
 
 # TODO: try letting the policy network output sigma parameters of distributions as well!
 
+EPSILON = 0.01/2
+MULTIPLIER = 0.99
+
 class TorchRLTrainer(TorchTrainer):
     def __init__(self, dataloader, model, preprocessing=None,
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
@@ -64,6 +67,9 @@ class TorchRLTrainer(TorchTrainer):
         elif isinstance(optimizer_or_lr, int) or isinstance(optimizer_or_lr, float):
             optimizer_or_lr = TorchRLTrainer.get_default_optimizer_with_lr(optimizer_or_lr, model)
 
+        if scheduler is None:
+            scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer_or_lr, lr_lambda=lambda epoch: 1.0)
+
         super().__init__(dataloader=dataloader, model=model, preprocessing=preprocessing,
                  experiment_name=experiment_name, run_name=run_name, split=split, num_epochs=num_epochs, batch_size=batch_size,
                  optimizer_or_lr=optimizer_or_lr, scheduler=scheduler, loss_function=loss_function, loss_function_hyperparams=loss_function_hyperparams,
@@ -71,7 +77,7 @@ class TorchRLTrainer(TorchTrainer):
                  load_checkpoint_path=load_checkpoint_path, segmentation_threshold=segmentation_threshold)
         self.history_size = int(history_size)
         self.max_rollout_len = int(max_rollout_len)
-        self.std = torch.tensor(std, device=self.device)
+        self.std = torch.tensor(std, device=self.device).detach()
         self.reward_discount_factor = float(reward_discount_factor)
         self.num_policy_epochs = int(num_policy_epochs)
         self.sample_from_action_distributions = bool(sample_from_action_distributions)
@@ -130,19 +136,18 @@ class TorchRLTrainer(TorchTrainer):
 
         def push(self, *args):
             """Save a transition"""
-            self.memory.append(list(args))
+            self.memory.append([tensor.clone() for tensor in args])
 
         def sample(self, batch_size):
             return random.sample(self.memory, min(batch_size, len(self.memory)))
 
         def compute_accumulated_discounted_returns(self, gamma):
-            # memory.push(observation, new_observation, model_output, action_log_probabilities, sampled_actions,
+            # memory.push(observation, new_observation, model_output, sampled_actions,
             #                   self.terminated, reward, torch.tensor(float('nan')))
             for step_idx in reversed(range(len(self.memory))):  # differs from tutorial code (but appears to be equivalent)
-                terminated = self.memory[step_idx][5]
+                terminated = self.memory[step_idx][4] 
                 future_return = self.memory[step_idx + 1][-1] if step_idx < len(self.memory) - 1 else 0
-                current_reward = self.memory[step_idx][6]
-                print(current_reward, future_return, gamma, terminated)
+                current_reward = self.memory[step_idx][5]
                 self.memory[step_idx][-1] = current_reward + future_return * gamma * (1 - terminated)
 
         def __len__(self):
@@ -212,7 +217,6 @@ class TorchRLTrainer(TorchTrainer):
         return super()._fit_model(mlflow_run)
 
     def _train_step(self, model, device, train_loader, callback_handler):
-        torch.autograd.set_detect_anomaly(True)
         # WARNING: some models subclassing TorchTrainer overwrite this function, so make sure any changes here are
         # reflected appropriately in these models' files
         
@@ -255,24 +259,41 @@ class TorchRLTrainer(TorchTrainer):
                 memory.compute_accumulated_discounted_returns(gamma=self.reward_discount_factor)
 
                 for epoch_idx in range(self.num_policy_epochs):
+                    loss_accumulator = []
                     policy_batch = memory.sample(self.policy_batch_size)
-                    for sample in policy_batch:
+                    for sample_idx, sample in enumerate(policy_batch):
                         # memory.push(observation, new_observation, model_output, action_log_probabilities, sampled_actions,
                         #                   self.terminated, reward, torch.tensor(float('nan')))
-                        observation_batch, new_observation_batch, model_output_batch, action_log_probabilities_batch,\
-                            sampled_actions_batch, terminated_batch, reward_batch, returns_batch = sample
 
-                        policy_loss = -(action_log_probabilities_batch * returns_batch).mean()
+                        # model_output_sample, action_log_probabilities_sample, sampled_actions_sample: have requires_grad=True
+                        # model_output_sample, sampled_actions_sample not even used
+                        observation_sample, new_observation_sample, model_output_sample,\
+                            sampled_actions_sample, terminated_sample, reward_sample, returns_sample = sample
+
+                        # recalculate log probabilities (see tutorial: also recalculated)
+                        # if we do not recalculate, we will get 
+
+                        model_output = self.model(observation_sample.unsqueeze(0))
+
+                        # mean = alpha / (alpha + beta)
+
+                        alphas, betas = TorchRLTrainer.get_beta_params(mu=model_output[0]*MULTIPLIER+EPSILON, sigma=self.std)  # remove batch dimension, multiply and add to avoid extreme points
+                        dist = torch.distributions.Beta(alphas, betas)
+                        action_log_probabilities_sample = dist.log_prob(model_output_sample*MULTIPLIER+EPSILON)
+
+                        policy_loss = -(action_log_probabilities_sample * returns_sample).mean()
                         # TODO: add entropy loss and see if it helps
                         # entropy_loss = ...
-                        loss = policy_loss
+                            
                         opt.zero_grad()
-                        loss.backward(retain_graph=False)
+                        loss = policy_loss
+                        loss.backward(retain_graph=True) # retain computational graph because needed when sampling the same trajectory multiple time
+                        for param in self.model.parameters(): # gradient clipping
+                            param.grad.data.clamp_(-1, 1)
                         opt.step()
                         
                         with torch.no_grad():
-                            train_loss += loss.item()
-                memory.reset()
+                            train_loss += policy_loss.item()
                 
             train_loss /= (len(train_loader.dataset) * self.policy_batch_size * self.num_policy_epochs)
             callback_handler.on_epoch_end()
@@ -307,7 +328,15 @@ class TorchRLTrainer(TorchTrainer):
 
         test_loss /= len(test_loader.dataset)
         return test_loss
-    
+
+    @staticmethod
+    def get_beta_params(mu, sigma):
+        # returns (alpha, beta) parameters for Beta distribution, based on mu and sigma for that distribution
+        # based on https://stats.stackexchange.com/a/12239
+        alpha = ((1 - mu) / (sigma ** 2) - 1/mu) * mu ** 2
+        beta = alpha * (1 / mu - 1)
+        return alpha, beta
+
     def trajectory_step(self, env, observation, sample_from_action_distributions=None, memory=None):
         """Uses model predictions to create trajectory until terminated
 
@@ -317,12 +346,6 @@ class TorchRLTrainer(TorchTrainer):
             sample_from_action_distributions (bool, optional): Whether to sample from the action distribution created by the model output or use model output directly. Defaults to self.sample_action_distribution.
             memory (Memory, optional): Memory to store the trajectory during training. Defaults to None.
         """
-        def get_beta_params(mu, sigma):
-            # returns (alpha, beta) parameters for Beta distribution, based on mu and sigma for that distribution
-            # based on https://stats.stackexchange.com/a/12239
-            alpha = ((1 - mu) / (sigma ** 2) - 1/mu) * mu ** 2
-            beta = alpha * (1 / mu - 1)
-            return alpha, beta
         
         eps_reward = 0.0
 
@@ -330,7 +353,7 @@ class TorchRLTrainer(TorchTrainer):
             sample_from_action_distributions = self.sample_from_action_distributions
 
         for timestep_idx in range(self.max_rollout_len):  # loop until model terminates or max len reached
-            model_output = self.model(observation.unsqueeze(0))
+            model_output = self.model(observation.detach().unsqueeze(0)).detach()
 
             # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate', all in [0,1]
             # we use the output of the network as the direct prediction instead of sampling like during training
@@ -341,14 +364,13 @@ class TorchRLTrainer(TorchTrainer):
             
             # action: ['delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate']
             # define 5 distributions at once and sample from them
-            action_mus = model_output[0]  # remove batch dimension
-            alphas, betas = get_beta_params(mu=action_mus, sigma=self.std)
+    
+            alphas, betas = TorchRLTrainer.get_beta_params(mu=model_output[0]*MULTIPLIER + EPSILON, sigma=self.std)  # remove batch dimension
             dist = torch.distributions.Beta(alphas, betas)
             if sample_from_action_distributions:
                 action = dist.sample()  # TODO: is this even differentiable? check!
             else:
                 action = model_output[0]  # remove batch dimension
-            action_log_probabilities = dist.log_prob(action)
 
             action_rounded_list = []
             action_rounded_list.append(-1 + 2 * action[0])  # delta_angle in [-1, 1] (later changed to [-pi, pi] in SegmentationEnvironment)
@@ -364,7 +386,7 @@ class TorchRLTrainer(TorchTrainer):
             new_observation, reward, terminated, info = env.step(action)
             
             if memory is not None:
-                memory.push(observation, new_observation, model_output, action_log_probabilities, action_rounded,
+                memory.push(observation, new_observation, model_output, action_rounded,
                                 terminated, reward, torch.tensor(float('nan')))
 
             observation = new_observation
@@ -372,7 +394,7 @@ class TorchRLTrainer(TorchTrainer):
             if terminated >= 0.5:
                 break
         
-        return observation, reward, eps_reward, terminated, info, action_log_probabilities
+        return observation, reward, eps_reward, terminated, info
 
     def get_F1_score_validation(self):
         return super().get_F1_score_validation()

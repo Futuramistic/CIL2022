@@ -87,7 +87,7 @@ class SegmentationEnvironment(Env):
         }
         self.action_space = gym.spaces.Dict(action_spaces)
 
-        self.grid_x, self.grid_y = torch.meshgrid(torch.arange(self.img_size[0]), torch.arange(self.img_size[1]),
+        self.grid_x, self.grid_y = torch.meshgrid(torch.arange(self.img_size[1]), torch.arange(self.img_size[2]),
                                                   indexing='xy')
 
                                                   
@@ -175,10 +175,11 @@ class SegmentationEnvironment(Env):
         
         return reward
 
-    def step(self, action):
+    def step(self, _action):
         # returns: (new_observation, reward, done, new_info)
         # action is Tensor, with highest dimension containing: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'
         # unpack
+        action = _action.detach()
         delta_angle, self.magnitude, new_brush_state, new_brush_radius, self.terminated = [action[idx] for idx in range(5)]
         
         # calculate new segmentation
@@ -196,7 +197,7 @@ class SegmentationEnvironment(Env):
             # paint: OR everything within stroke_ball with 1 (set to 1)
             # erase: AND everything within stroke_ball with 0 (set to 0)
             #current_seg, new_seg_map
-            self.seg_map_padded[stroke_ball] = 1 if new_brush_state == BRUSH_STATE_PAINT else 0 # 1 if new_brush_state = 1
+            self.get_unpadded_segmentation()[stroke_ball] = 1 if new_brush_state == BRUSH_STATE_PAINT else 0 # 1 if new_brush_state = 1
 
         # calculate new_seen_pixels
         
