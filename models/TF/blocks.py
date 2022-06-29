@@ -119,7 +119,7 @@ class Transpose_Block(tf.keras.layers.Layer):
     # - Dropout -> only performed while training
     # - BatchNorm -> performs differently when predicting
     def call(self, inputs, training=None, **kwargs):
-        x = self.convo(inputs)
+        x = self.transpose(inputs)
         if self.normalize:
             x = self.norm(x,training)
         x = self.actv(x)
