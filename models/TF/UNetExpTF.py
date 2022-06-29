@@ -155,7 +155,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo4_2 = Convo_Block(name=name+"-convo4_2",filters=nb_filters[1],**down_args)(convo4_2)
 
         convo1_2 = MaxPool2D((2,2),2,'same')(convo1)
-        convo1_2 = Convo_Block(name=name+"-convo1_2",filters=nb_filters[2],**down_args)(convo1_2)
+        convo1_2 = Convo_Block(name=name+"-convo1_2",filters=nb_filters[1],**down_args)(convo1_2)
 
         up3 = Up_Block(name=name+"-up-block-3",filters=nb_filters[1],**up_args)(x=up2,   merger=[convo2,convo1_2,convo4_2,convo5_2])
 
@@ -168,7 +168,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo3_1 = UpSampling2D(name=name+"-up3_1",size=(4,4),interpolation='bilinear')(up2)
         convo3_1 = Convo_Block(name=name+"-convo3_1",filters=nb_filters[0],**down_args)(convo3_1)
 
-        up4 = Up_Block(name=name+"-up-block-4",filters=nb_filters[0],**up_args)(x=up3,merger=[convo1,convo5_1,convo4_1,convo3_1])
+        up4 = Up_Block(name=name+"-up-block-4",filters=nb_filters[0],**up_args)(x=up3,  merger=[convo1,convo5_1,convo4_1,convo3_1])
 
         return Conv2D(name=name+"-final-convo",**out_args)(up4)
     
