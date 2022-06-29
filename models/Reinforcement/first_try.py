@@ -8,22 +8,6 @@ import torch.nn.functional as F
 import numpy as np
 from scipy.signal.windows import gaussian
 
-class ReplayMemory(object):
-    # inspired by https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
-    def __init__(self, capacity, rl_network):
-        self.memory = deque([],maxlen=capacity)
-        self.rl_network = rl_network
-
-    def push(self, *args):
-        """Save a transition"""
-        self.memory.append(self.rl_network.transition(*args))
-
-    def sample(self, batch_size):
-        return random.sample(self.memory, batch_size)
-
-    def __len__(self):
-        return len(self.memory)
-
 class RefinementQ(nn.Module):
     def __init__(self, num_conv_layer, patch_size=10):
         super(RefinementQ, self).__init__()
@@ -69,6 +53,8 @@ class RefinementQ(nn.Module):
 class SimpleRLCNN(nn.Module):
     def __init__(self, patch_size, in_channels=10):
         super(SimpleRLCNN, self).__init__()
+        self.patch_size = patch_size
+        
         layers = []
         curr_output_dims = patch_size
         kernel_size = 3

@@ -8,5 +8,6 @@ from .TF.AttUNetTF import AttUnetTF
 from .TF.AttUNetPlusPlusTF import AttUNetPlusPlusTF
 from .TF.UNetPlusPlusTF import UNetPlusPlusTF
 from .cascade_residual_attention.CRA_Net import OurDinkNet50
+from .reinforcement.first_try import SimpleRLCNN
 
 from .TF import blocks as tf_blocks

@@ -38,7 +38,7 @@ class TFDataLoader(DataLoader):
         min_img_val = preprocessing(min_img).min()
         max_img = tf.ones((1, 1, 1, 3), dtype=tf.dtypes.uint8) * 255
         max_img_val = preprocessing(max_img).max()
-        return min_img_val, max_img_val
+        return min_img_val.numpy().item(), max_img_val.numpy().item()
 
     # Get image data
     # Args:

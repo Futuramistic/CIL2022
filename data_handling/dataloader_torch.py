@@ -40,10 +40,10 @@ class TorchDataLoader(DataLoader):
         if preprocessing is None:
             preprocessing = lambda x: x
         min_img = torch.zeros((1, 1, 1, 3), dtype=torch.uint8)
-        min_img_val = preprocessing(min_img).min()
+        min_img_val = preprocessing(min_img, is_gt=False).min()
         max_img = torch.ones((1, 1, 1, 3), dtype=torch.uint8) * 255
-        max_img_val = preprocessing(max_img).max()
-        return min_img_val, max_img_val
+        max_img_val = preprocessing(max_img, is_gt=False).max()
+        return min_img_val.detach().cpu().numpy().item(), max_img_val.detach().cpu().numpy().item()
 
     def get_training_dataloader(self, split, batch_size, preprocessing=None, **args):
         """

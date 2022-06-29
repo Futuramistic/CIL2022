@@ -10,13 +10,13 @@ from requests.auth import HTTPBasicAuth
 from sklearn.utils import shuffle
 import torch
 import torch.cuda
+import torch.optim as optim
 from torch.utils.data import DataLoader, Subset
 from urllib.parse import urlparse
 from collections import namedtuple, deque
 
 from losses.precision_recall_f1 import *
-from models.Reinforcement.first_try import ReplayMemory
-from models.Reinforcement.environment import SegmentationEnvironment, TERMINATE_NO, TERMINATE_YES
+from models.reinforcement.environment import SegmentationEnvironment, TERMINATE_NO, TERMINATE_YES
 from utils.logging import mlflow_logger
 from .trainer_torch import TorchTrainer
 from utils import *
@@ -27,16 +27,16 @@ from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 import torch.distributions
 
 
-# TODO: try beta distribution for policy network's outputs!
+# TODO: try letting the policy network output sigma parameters of distributions as well!
 
-
-class TorchRLTrainer(TorchTrainer, abc.ABC):
-    def __init__(self, dataloader, model, preprocessing,
+class TorchRLTrainer(TorchTrainer):
+    def __init__(self, dataloader, model, preprocessing=None,
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, scheduler=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
-                 load_checkpoint_path=None, segmentation_threshold=None, patch_size=[100,100], history_size=5,
-                 max_rollout_len=1e6, std=1e-3, reward_discount_factor=0.99, num_policy_epochs=4, policy_batch_size=10):
+                 load_checkpoint_path=None, segmentation_threshold=None, history_size=5,
+                 max_rollout_len=int(1e6), std=1e-3, reward_discount_factor=0.99, num_policy_epochs=4, policy_batch_size=10,
+                 sample_from_action_distributions=False):
         
         """
         Trainer for RL-based models.
@@ -51,19 +51,28 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
             reward_discount_factor (float): factor by which to discount the reward per timestep into the future, when calculating the accumulated future return
             num_policy_epochs (int): number of epochs for which to train the policy network during a single iteration (for a single sample)
             policy_batch_size (int): size of batches to sample from the replay memory of the policy per policy training epoch
+            sample_from_action_distributions (bool): controls whether to sample from the action distributions or to always use the mean
         """
         if loss_function is not None:
             raise RuntimeError('Custom losses not supported by TorchRLTrainer')
-        super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
-                         loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
-                         checkpoint_interval, load_checkpoint_path, segmentation_threshold)
-        self.patch_size = patch_size
-        self.history_size = history_size
-        self.max_rollout_len = max_rollout_len
-        self.std = std
-        self.reward_discount_factor = reward_discount_factor
-        self.num_policy_epochs = num_policy_epochs
-        # self.preprocessing and self.scheduler set by TorchTrainer superclass
+        
+        if preprocessing is None:
+            preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
+
+        super().__init__(dataloader=dataloader, model=model, preprocessing=preprocessing,
+                 experiment_name=experiment_name, run_name=run_name, split=split, num_epochs=num_epochs, batch_size=batch_size,
+                 optimizer_or_lr=optimizer_or_lr, scheduler=scheduler, loss_function=loss_function, loss_function_hyperparams=loss_function_hyperparams,
+                 evaluation_interval=evaluation_interval, num_samples_to_visualize=num_samples_to_visualize, checkpoint_interval=checkpoint_interval,
+                 load_checkpoint_path=load_checkpoint_path, segmentation_threshold=segmentation_threshold)
+        self.history_size = int(history_size)
+        self.max_rollout_len = int(max_rollout_len)
+        self.std = torch.tensor(std, device=self.device)
+        self.reward_discount_factor = float(reward_discount_factor)
+        self.num_policy_epochs = int(num_policy_epochs)
+        self.sample_from_action_distributions = bool(sample_from_action_distributions)
+        self.policy_batch_size = int(policy_batch_size)
+
+        # self.scheduler set by TorchTrainer superclass
 
     # This class is a mimicry of TensorFlow's "Callback" class behavior, used not out of necessity (as we write the
     # training loop explicitly in Torch, instead of using the "all-inclusive" model.fit(...) in TF, and can thus just
@@ -116,7 +125,7 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
 
         def push(self, *args):
             """Save a transition"""
-            self.memory.append(tuple(*args))
+            self.memory.append(tuple(args))
 
         def sample(self, batch_size):
             return random.sample(self.memory, batch_size)
@@ -138,7 +147,54 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
     # Specifically, the Trainer calls mlflow_logger's "log_visualizations" (e.g. in "on_train_batch_end" of the
     # tensorflow.keras.callbacks.Callback subclass), which in turn uses the Trainer's "create_visualizations".
     def create_visualizations(self, file_path):
-        return super().create_visualizations(file_path)
+        num_to_visualize = self.num_samples_to_visualize
+        num_fixed_samples = num_to_visualize // 2
+        num_random_samples = num_to_visualize - num_fixed_samples
+        # start sampling random indices from "num_fixed_samples + 1" to avoid duplicates
+        # convert to np.array to allow subsequent slicing
+        if num_to_visualize >= len(self.test_loader):
+            # just visualize the entire test set
+            indices = np.array(list(range(len(self.test_loader))))
+        else:
+            indices = np.array(list(range(num_fixed_samples)) +\
+                            random.sample(range(num_fixed_samples + 1, len(self.test_loader)), num_random_samples))
+        images = []
+        # never exceed the given training batch size, else we might face memory problems
+        vis_batch_size = min(num_to_visualize, self.batch_size)
+        subset_ds = Subset(self.test_loader.dataset, indices)
+        subset_dl = DataLoader(subset_ds, batch_size=vis_batch_size, shuffle=False)
+        
+        for (batch_xs, batch_ys) in subset_dl:
+            # batch_xs, batch_ys = batch_xs.to(self.device), batch_ys.numpy()
+            # output = self.model(batch_xs)
+            # if type(output) is tuple:
+            #     output = output[0]
+            # preds = (output >= self.segmentation_threshold).float().cpu().detach().numpy()
+
+            for sample_x, sample_y in batch_xs, batch_ys:
+                sample_x, sample_y =\
+                    sample_x.to(self.device, dtype=torch.float32), sample_y.to(self.device, dtype=torch.long)
+                # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
+                # accordingly, sample_y must be of shape (H, W) not (1, H, W)
+                sample_y = torch.squeeze(sample_y)
+                env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size,
+                                              self.test_loader.img_val_min, self.test_loader.img_val_max)
+                env.reset()
+                observation, _, _, _ = env.step(env.get_neutral_action())
+                
+                # in https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html,
+                # they loop for "rollouts.rollout_size" iterations, but here, we loop until network tells us to terminate
+                # loop until termination/timeout already inside this function
+                self.trajectory_step(self, env, observation,
+                                     sample_from_action_distributions=self.sample_from_action_distributions)
+                preds = env.get_unpadded_segmentation().float()
+
+                # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
+                self._fill_images_array(preds.unsqueeze(0), sample_y.unsqueeze(0), images)
+
+        self._save_image_array(images, file_path)
+
+        # return super().create_visualizations(file_path)
 
     def _save_checkpoint(self, model, epoch, epoch_iteration, total_iteration):
         return super()._save_checkpoint(model, epoch, epoch_iteration, total_iteration)
@@ -154,27 +210,21 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
         # reflected appropriately in these models' files
         
         # TODO: parallelize with SubprocVecEnv
-    
-        def get_beta_params(mu, sigma):
-            # returns (alpha, beta) parameters for Beta distribution, based on mu and sigma for that distribution
-            # based on https://stats.stackexchange.com/a/12239
-            alpha = ((1 - mu) / (sigma ** 2) - 1/mu) * mu ** 2
-            beta = alpha * (1 / mu - 1)
-            return alpha, beta
 
         model.train()
         opt = self.optimizer_or_lr
         train_loss = 0
 
         for (x, y) in train_loader:
-            for sample_x, sample_y in x, y:
+            for idx, sample_x in enumerate(x):
+                sample_y = y[idx]
                 sample_x, sample_y = sample_x.to(device, dtype=torch.float32), sample_y.to(device, dtype=torch.long)
                 # insert each patch into ReplayMemory
                 # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
                 # accordingly, sample_y must be of shape (H, W) not (1, H, W)
                 sample_y = torch.squeeze(sample_y)
-                env = SegmentationEnvironment(sample_x, sample_y, self.patch_size, self.history_size, train_loader.img_val_min, train_loader.img_val_max) # take standard reward
-                memory = ReplayMemory(capacity = self.max_rollout_len)
+                env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size, train_loader.img_val_min, train_loader.img_val_max) # take standard reward
+                memory = self.ReplayMemory(capacity = int(self.max_rollout_len))
                 env.reset()
                 # "state" is input to model
                 # observation in init state: RGB (3), history (5 by default), brush state (1)
@@ -188,61 +238,13 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
 
                 eps_reward = 0.0
 
-                for timestep_idx in range(self.max_rollout_len):  # loop until model terminates or max len reached
-                    # env.step(): action
-                    model_output = self.model(observation)
-                    
-                    # calculate probs
-                    # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'
+                # if we exit this function and "terminated" is false, we timed out
+                # (more than self.max_rollout_len iterations)
+                # loop until termination/timeout already inside this function
+                self.trajectory_step(env, observation,
+                                    sample_from_action_distributions=self.sample_from_action_distributions,
+                                    memory=memory)
 
-                    # policy network outputs parameters of action distributions, then we sample from distributions
-                    # parameterized by outputs of network
-                    # choose sharp peak for Beta distributions to reduce stochasticity!
-                    # assume Beta distribution for delta_angle (unscaled, in [0, 1])
-                    # -> normalize to ((delta_angle + 1) / 2) before inputting to probability density function; after sampling, unnormalize output by -1 + 2 * sample(Beta( get_beta_params(center=((delta_angle + 1) / 2)) ))
-                    # assume Beta distribution for magnitude, scaled to [0, patch_size / 2]
-                    # assume Beta distribution for brush_state (unscaled, in [0, 1]) (here, peak should be especially sharp!)
-                    # assume Beta distribution for brush_radius [0, patch_size / 2]
-                    # assume Beta distribution for terminate (unscaled, in [0, 1])
-
-                    action_log_probabilities = []
-                    sampled_actions = []
-
-                    # we assume all outputs are in [0, 1]
-                    # we first use the same variance for all distributions
-                    for idx, action_name in enumerate(['delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate']):
-                        alphas, betas = get_beta_params(mu=model_output[:, idx], sigma=self.std)
-                        dist = torch.distributions.Beta(alphas, betas)
-                        sampled_action = dist.sample()
-                        sampled_actions.append(sampled_action)
-                        action_log_probabilities.append(dist.log_prob(sampled_action))
-
-                    sampled_actions[0] = -1 + 2 * sampled_actions[0]  # delta_angle in [-1, 1] (later changed to [-pi, pi] in SegmentationEnvironment)
-                    sampled_actions[1] = sampled_actions[1] * (env.min_patch_size / 2)  # magnitude
-                    sampled_actions[2] = torch.round(-1 + 2 * sampled_actions[2])  # new_brush_state
-                    # sigmoid stretched --> float [0, min_patch_size]
-                    sampled_actions[3] = sampled_actions[3] * (env.min_patch_size / 2) # new_brush_radius
-                    # sigmoid rounded --> float [0, 1]
-                    sampled_actions[4] = torch.round(sampled_actions[4]) # terminated   
-                    
-                    # TODO: test using different sigmas
-                    # TODO: adapt Environment to output only action values in [0, 1] 
-                    # TODO: optimize model
-                    # TODO: MLFlow
-                    # TODO: Visualization in real time and afterwards as animation, log viszualization to mlflow
-                    
-                    new_observation, reward, terminated, info = env.step(sampled_actions)
-                
-                    # NaN to reserve space for return (not yet calculated; return = sum of discounted rewards from current step)
-                    # assume return at last position
-                    memory.push(observation, new_observation, model_output, action_log_probabilities, sampled_actions,
-                                self.terminated, reward, torch.tensor(float('nan')))
-                    
-                    observation = new_observation
-                    eps_reward += reward
-                    if terminated:
-                        break
-                
                 memory.compute_accumulated_discounted_returns(gamma=self.reward_discount_factor)
 
                 for epoch_idx in range(self.num_policy_epochs):
@@ -260,20 +262,11 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
                         opt.zero_grad()
                         loss.backward(retain_graph=False)
                         opt.step()
+                        with torch.no_grad():
+                            train_loss += loss.item()
                 memory.reset()
                 
-                # ORIGINAL CODE STARTS HERE
-                preds = model(x)
-                loss = self.loss_function(preds, y)
-                with torch.no_grad():
-                    train_loss += loss.item()
-                opt.zero_grad()
-                loss.backward()
-                opt.step()
-                callback_handler.on_train_batch_end()
-                del x
-                del y
-            train_loss /= len(train_loader.dataset)
+            train_loss /= (len(train_loader.dataset) * self.policy_batch_size * self.num_policy_epochs)
             callback_handler.on_epoch_end()
             self.scheduler.step()
         return train_loss
@@ -288,7 +281,7 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
                 # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
                 # accordingly, sample_y must be of shape (H, W) not (1, H, W)
                 sample_y = torch.squeeze(sample_y)
-                env = SegmentationEnvironment(sample_x, sample_y, self.patch_size, self.history_size, test_loader.img_val_min, test_loader.img_val_max) # take standard reward
+                env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size, test_loader.img_val_min, test_loader.img_val_max) # take standard reward
                 env.reset()
                 # "state" is input to model
                 # observation in init state: RGB (3), history (5 by default), brush state (1)
@@ -299,30 +292,117 @@ class TorchRLTrainer(TorchTrainer, abc.ABC):
                 
                 # in https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html,
                 # they loop for "rollouts.rollout_size" iterations, but here, we loop until network tells us to terminate
-                for timestep_idx in range(self.max_rollout_len):  # loop until model terminates or max len reached
-                    model_output = self.model(observation)
-                    # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate', all in [0,1]
-                    # we use the output of the network as the direct prediction instead of sampling like during training
-                    # we assume all outputs are in [0, 1]
-                    action = torch.zeros_like(model_output)
-                    action[0] = -1 + 2 * model_output[0]  # delta_angle in [-1, 1] (later changed to [-pi, pi] in SegmentationEnvironment)
-                    action[1] = model_output[1] * (env.min_patch_size / 2)  # magnitude
-                    action[2] = torch.round(-1 + 2 * model_output[2])  # new_brush_state
-                    # sigmoid stretched --> float [0, min_patch_size]
-                    action[3] = model_output[3] * (env.min_patch_size / 2) # new_brush_radius
-                    # sigmoid rounded --> float [0, 1]
-                    action[4] = torch.round(model_output[4]) # terminated   
+                # loop until termination/timeout already inside this function
+                self.trajectory_step(self, env, observation, sample_from_action_distributions=False)
+                preds = env.get_unpadded_segmentation().float()
+                test_loss += self.loss_function(preds, sample_y).item()
 
-                    new_observation, reward, terminated, info = env.step(action)
-                    observation = new_observation
-                    if terminated:
-                        break
-                test_loss += self.loss_function(env.get_unpadded_segmentation(), sample_y).item()
         test_loss /= len(test_loader.dataset)
         return test_loss
+    
+    def trajectory_step(self, env, observation, sample_from_action_distributions=None, memory=None):
+        """Uses model predictions to create trajectory until terminated
+
+        Args:
+            env (Environment): the environment the model shall explore
+            observation (Observation): the observation input for the model
+            sample_from_action_distributions (bool, optional): Whether to sample from the action distribution created by the model output or use model output directly. Defaults to self.sample_action_distribution.
+            memory (Memory, optional): Memory to store the trajectory during training. Defaults to None.
+        """
+        def get_beta_params(mu, sigma):
+            # returns (alpha, beta) parameters for Beta distribution, based on mu and sigma for that distribution
+            # based on https://stats.stackexchange.com/a/12239
+            alpha = ((1 - mu) / (sigma ** 2) - 1/mu) * mu ** 2
+            beta = alpha * (1 / mu - 1)
+            return alpha, beta
+        
+        eps_reward = 0.0
+
+        if sample_from_action_distributions is None:
+            sample_from_action_distributions = self.sample_from_action_distributions
+
+        for timestep_idx in range(self.max_rollout_len):  # loop until model terminates or max len reached
+            model_output = self.model(observation.unsqueeze(0))
+
+            # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate', all in [0,1]
+            # we use the output of the network as the direct prediction instead of sampling like during training
+            # we assume all outputs are in [0, 1]
+            
+            # we assume all outputs are in [0, 1]
+            # we first use the same variance for all distributions
+            
+            # action: ['delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate']
+            # define 5 distributions at once and sample from them
+            action_log_probabilities = None
+            if sample_from_action_distributions:
+                action_mus = model_output[0]  # remove batch dimension
+                alphas, betas = get_beta_params(mu=action_mus, sigma=self.std)
+                dist = torch.distributions.Beta(alphas, betas)
+                action = dist.sample()
+                action_log_probabilities = dist.log_prob(action)
+            else:
+                action = model_output[0]  # remove batch dimension
+
+            action[0] = -1 + 2 * action[0]  # delta_angle in [-1, 1] (later changed to [-pi, pi] in SegmentationEnvironment)
+            action[1] = action[1] * (env.min_patch_size / 2)  # magnitude
+            action[2] = torch.round(-1 + 2 * action[2])  # new_brush_state
+            # sigmoid stretched --> float [0, min_patch_size]
+            action[3] = action[3] * (env.min_patch_size / 2) # new_brush_radius
+            # sigmoid rounded --> float [0, 1]
+            action[4] = torch.round(action[4]) # terminated 
+
+            new_observation, reward, terminated, info = env.step(action)
+            
+            if memory is not None:
+                memory.push(observation, new_observation, model_output, action_log_probabilities, action,
+                                terminated, reward, torch.tensor(float('nan')))
+
+            observation = new_observation
+            eps_reward += reward
+            if terminated >= 0.5:
+                break
+        
+        return observation, reward, eps_reward, terminated, info, action_log_probabilities
 
     def get_F1_score_validation(self):
         return super().get_F1_score_validation()
 
     def get_precision_recall_F1_score_validation(self):
-        return super().get_precision_recall_F1_score_validation()
+        self.model.eval()
+        precisions, recalls, f1_scores = [], [], []
+        for (x, y) in self.test_loader:
+            for sample_x, sample_y in x, y:
+                sample_x, sample_y = sample_x.to(self.device, dtype=torch.float32), sample_y.to(self.device, dtype=torch.long)
+                
+                # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
+                # accordingly, sample_y must be of shape (H, W) not (1, H, W)
+                sample_y = torch.squeeze(sample_y)
+                env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size, self.test_loader.img_val_min, self.test_loader.img_val_max) # take standard reward
+                env.reset()
+
+                observation, _, _, _ = env.step(env.get_neutral_action())
+
+                # loop until termination/timeout already inside this function
+                self.trajectory_step(self, env, observation, sample_from_action_distributions=False)
+                
+                preds = env.get_unpadded_segmentation().float()
+                precision, recall, f1_score = precision_recall_f1_score_torch(preds, y)
+                precisions.append(precision.cpu().numpy())
+                recalls.append(recall.cpu().numpy())
+                f1_scores.append(f1_score.cpu().numpy())
+
+        return np.mean(precisions), np.mean(recalls), np.mean(f1_scores)
+
+    def _get_hyperparams(self):
+        return {**(super()._get_hyperparams()),
+                **({param: getattr(self, param)
+                   for param in ['history_size', 'max_rollout_len', 'std', 'reward_discount_factor', 
+                                 'num_policy_epochs', 'policy_batch_size', 'sample_from_action_distributions']
+                   if hasattr(self, param)}),
+                **({param: getattr(self.model, param)
+                   for param in ['patch_size']
+                   if hasattr(self.model, param)})}
+    
+    @staticmethod
+    def get_default_optimizer_with_lr(lr, model):
+        return optim.Adam(model.parameters(), lr=1e-4)
