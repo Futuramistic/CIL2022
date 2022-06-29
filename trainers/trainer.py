@@ -238,7 +238,7 @@ class Trainer(abc.ABC):
         if self.do_checkpoint and not os.path.exists(CHECKPOINTS_DIR):
             os.makedirs(CHECKPOINTS_DIR)
         
-        if False and self.mlflow_experiment_name is not None and self._init_mlflow():
+        if self.mlflow_experiment_name is not None and self._init_mlflow():
             with mlflow.start_run(experiment_id=self.mlflow_experiment_id, run_name=self.mlflow_run_name) as run:
                 try:
                     mlflow_logger.log_hyperparams(self._get_hyperparams())
