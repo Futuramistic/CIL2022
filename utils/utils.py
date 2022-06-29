@@ -18,7 +18,7 @@ import time
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # go one dir up from the dir this file is in
 SESSION_ID = int(time.time() * 1000)  # import time of utils.py in milliseconds will be the session ID
-IS_DEBUG = True  # getattr(sys, 'gettrace', None) is not None and getattr(sys, 'gettrace', lambda: None)() is not None
+IS_DEBUG = getattr(sys, 'gettrace', None) is not None and getattr(sys, 'gettrace', lambda: None)() is not None
 ACCEPTED_IMAGE_EXTENSIONS = [".png", ".jpeg", ".jpg", ".gif"]
 DEFAULT_SEGMENTATION_THRESHOLD = 0.5
 DEFAULT_TRAIN_FRACTION = 0.8

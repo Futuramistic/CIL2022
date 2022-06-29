@@ -130,12 +130,10 @@ def predict(segmentation_threshold, apply_sigmoid):
         for x in tqdm(test_loader):
             x = x.to(device, dtype=torch.float32)
             output = model(x)
-            torch.nn.Sigmoid()(output)
             if type(output) is tuple:
                 output = output[0]
             if apply_sigmoid:
                 output = sigmoid(output)
-            # print(torch.min(output), torch.max(output))
             pred = (output >= segmentation_threshold).cpu().detach().numpy().astype(int) * 255
             while len(pred.shape) > 3:
                 pred = pred[0]
