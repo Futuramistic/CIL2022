@@ -758,7 +758,7 @@ def U2NetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         hx6_up = UpSampling2D(size=(8,8),interpolation='bilinear')(hx6)
         hx6_up = ConvoRelu_Block(name="e6-d3",filters=256,**network_args)(hx6_up)
 
-        hx5_up = UpSampling2D(size=(4,4),interpolation='bilinear')(hx5)
+        hx5_up = UpSampling2D(size=(4,4),interpolation='bilinear')(hx5d)
         hx5_up = ConvoRelu_Block(name="e5-d3",filters=256,**network_args)(hx5_up)
 
         concat_3 =  ConvoRelu_Block(name=name+"concat-3",**conovo_relu_args)(tf.concat([hx4dup,hx3,hx2_down,hx1_down,hx6_up,hx5_up], axis=3))
@@ -773,10 +773,10 @@ def U2NetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         hx6_up = UpSampling2D(size=(16,16),interpolation='bilinear')(hx6)
         hx6_up = ConvoRelu_Block(name="e6-d2",filters=128,**network_args)(hx6_up)
 
-        hx5_up = UpSampling2D(size=(8,8),interpolation='bilinear')(hx5)
+        hx5_up = UpSampling2D(size=(8,8),interpolation='bilinear')(hx5d)
         hx5_up = ConvoRelu_Block(name="e5-d2",filters=128,**network_args)(hx5_up)
 
-        hx4_up = UpSampling2D(size=(4,4),interpolation='bilinear')(hx4)
+        hx4_up = UpSampling2D(size=(4,4),interpolation='bilinear')(hx4d)
         hx4_up = ConvoRelu_Block(name="e4-d2",filters=128,**network_args)(hx4_up)
 
         concat_2 = ConvoRelu_Block(name=name+"concat-2",**conovo_relu_args)(tf.concat([hx3dup,hx2,hx1_down,hx6_up,hx5_up,hx4_up], axis=3))
@@ -788,14 +788,14 @@ def U2NetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         hx6_up = UpSampling2D(size=(32,32),interpolation='bilinear')(hx6)
         hx6_up = ConvoRelu_Block(name="e6-d1",filters=64,**network_args)(hx6_up)
 
-        hx5_up = UpSampling2D(size=(16,16),interpolation='bilinear')(hx5)
+        hx5_up = UpSampling2D(size=(16,16),interpolation='bilinear')(hx5d)
         hx5_up = ConvoRelu_Block(name="e5-d1",filters=64,**network_args)(hx5_up)
 
-        hx4_up = UpSampling2D(size=(8,8),interpolation='bilinear')(hx4)
+        hx4_up = UpSampling2D(size=(8,8),interpolation='bilinear')(hx4d)
         hx4_up = ConvoRelu_Block(name="e4-d1",filters=64,**network_args)(hx4_up)
 
-        hx3_up = UpSampling2D(size=(4,4),interpolation='bilinear')(hx3)
-        hx3_up = ConvoRelu_Block(name="e3-d1",filters=64,**network_args)(hx4_up)
+        hx3_up = UpSampling2D(size=(4,4),interpolation='bilinear')(hx3d)
+        hx3_up = ConvoRelu_Block(name="e3-d1",filters=64,**network_args)(hx3_up)
 
         concat_1 = ConvoRelu_Block(name=name+"concat-1",**conovo_relu_args)(tf.concat([hx2dup,hx1,hx6_up,hx5_up,hx4_up,hx3_up], axis=3))
         hx1d = RSU7(mid_channels=16,out_channels=64,**network_args)(concat_1)
