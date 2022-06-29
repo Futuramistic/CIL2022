@@ -112,7 +112,7 @@ class Transpose_Block(tf.keras.layers.Layer):
         self.normalize = normalize
         self.transpose = Conv2DTranspose(filters=filters, kernel_size=(2, 2), strides=(2, 2), padding='same',kernel_initializer=kernel_init, name=name+"-convo2DTranspose",kernel_regularizer=kernel_regularizer)
         self.norm = BatchNormalization(name=name+"-batchNorm")
-        self.actv = Activation(activation='relu', name=name+"-activ")
+        self.actv = Activation(activation='leaky_relu', name=name+"-activ")
         self.drop = Dropout(rate=dropout,name=name+"-drop")
     
     # Expose training:

@@ -118,21 +118,57 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
 
         pool_fct = Down_Block_LearnablePool if use_learnable_pool else Down_Block
 
-        convo1 = Convo_Block(name=name+"-convo-block-1",filters=nb_filters[0],**down_args)(inputs)
-        pool1 = MaxPool2D(pool_size=(2, 2), strides=2, padding='same', name=name + "-max-pool-1-2")
-        convo2 = Convo_Block(name=name+"-convo-block-2",filters=nb_filters[1],**down_args)(pool1)
-        pool2 = MaxPool2D(pool_size=(2, 2), strides=2, padding='same', name=name + "-max-pool-2-3")
-        convo3 = Convo_Block(name=name+"-convo-block-3",filters=nb_filters[2],**down_args)(pool2)
-        pool3 = MaxPool2D(pool_size=(2, 2), strides=2, padding='same', name=name + "-max-pool-3-4")
-        convo4 = Convo_Block(name=name+"-convo-block-4",filters=nb_filters[3],**down_args)(pool3)
-        pool4 = MaxPool2D(pool_size=(2, 2), strides=2, padding='same', name=name + "-max-pool-4-5")
+        convo1,pool1 = pool_fct(name=name+"-down-block-1",filters=nb_filters[0],**down_args)(inputs)
+        convo2,pool2 = pool_fct(name=name+"-down-block-2",filters=nb_filters[1],**down_args)(pool1)
+        convo3,pool3 = pool_fct(name=name+"-down-block-3",filters=nb_filters[2],**down_args)(pool2)
+        convo4,pool4 = pool_fct(name=name+"-down-block-4",filters=nb_filters[3],**down_args)(pool3)
 
         convo5 = Convo_Block(name=name+"-convo-block",filters=nb_filters[4],**down_args)(pool4)
 
-        up1 = Up_Block(name=name+"-up-block-1",filters=nb_filters[3],**up_args)(x=convo5,merger=[convo4])
-        up2 = Up_Block(name=name+"-up-block-2",filters=nb_filters[2],**up_args)(x=up1,   merger=[convo3])
-        up3 = Up_Block(name=name+"-up-block-3",filters=nb_filters[1],**up_args)(x=up2,   merger=[convo2])
-        up4 = Up_Block(name=name+"-up-block-4",filters=nb_filters[0],**up_args)(x=up3,   merger=[convo1])
+        convo3_4 = MaxPool2D((2,2),2,'same')(convo3)
+        convo3_4 = Convo_Block(name=name+"-convo3_4",filters=nb_filters[3],**down_args)(convo3_4)
+
+        convo2_4 = MaxPool2D((4,4),4,'same')(convo2)
+        convo2_4 = Convo_Block(name=name+"-convo2_4",filters=nb_filters[3],**down_args)(convo2_4)
+
+        convo1_4 = MaxPool2D((8,8),8,'same')(convo1)
+        convo1_4 = Convo_Block(name=name+"-convo1_4",filters=nb_filters[3],**down_args)(convo1_4)
+
+        up1 = Up_Block(name=name+"-up-block-1",filters=nb_filters[3],**up_args)(x=convo5,merger=[convo4,convo3_4,convo2_4,convo1_4])
+
+        convo5_3 = UpSampling2D(name=name+"-up5_3",size=(4,4),interpolation='bilinear')(convo5)
+        convo5_3 = Convo_Block(name=name+"-convo5_3",filters=nb_filters[2],**down_args)(convo5_3)
+
+        convo2_3 = MaxPool2D((2,2),2,'same')(convo2)
+        convo2_3 = Convo_Block(name=name+"-convo2_3",filters=nb_filters[2],**down_args)(convo2_3)
+
+        convo1_3 = MaxPool2D((4,4),4,'same')(convo1)
+        convo1_3 = Convo_Block(name=name+"-convo1_3",filters=nb_filters[2],**down_args)(convo1_3)
+
+
+        up2 = Up_Block(name=name+"-up-block-2",filters=nb_filters[2],**up_args)(x=up1,   merger=[convo3,convo2_3,convo1_3,convo5_3])
+
+        convo5_2 = UpSampling2D(name=name+"-up5_2",size=(8,8),interpolation='bilinear')(convo5)
+        convo5_2 = Convo_Block(name=name+"-convo5_2",filters=nb_filters[1],**down_args)(convo5_2)
+
+        convo4_2 = UpSampling2D(name=name+"-up4_2",size=(4,4),interpolation='bilinear')(up1)
+        convo4_2 = Convo_Block(name=name+"-convo4_2",filters=nb_filters[1],**down_args)(convo4_2)
+
+        convo1_2 = MaxPool2D((2,2),2,'same')(convo1)
+        convo1_2 = Convo_Block(name=name+"-convo1_2",filters=nb_filters[2],**down_args)(convo1_2)
+
+        up3 = Up_Block(name=name+"-up-block-3",filters=nb_filters[1],**up_args)(x=up2,   merger=[convo2,convo1_2,convo4_2,convo5_2])
+
+        convo5_1 = UpSampling2D(name=name+"-up5_1",size=(16,16),interpolation='bilinear')(convo5)
+        convo5_1 = Convo_Block(name=name+"-convo5_1",filters=nb_filters[0],**down_args)(convo5_1)
+
+        convo4_1 = UpSampling2D(name=name+"-up4_1",size=(8,8),interpolation='bilinear')(up1)
+        convo4_1 = Convo_Block(name=name+"-convo4_1",filters=nb_filters[0],**down_args)(convo4_1)
+
+        convo3_1 = UpSampling2D(name=name+"-up3_1",size=(4,4),interpolation='bilinear')(up2)
+        convo3_1 = Convo_Block(name=name+"-convo3_1",filters=nb_filters[0],**down_args)(convo3_1)
+
+        up4 = Up_Block(name=name+"-up-block-4",filters=nb_filters[0],**up_args)(x=up3,merger=[convo1,convo5_1,convo4_1,convo3_1])
 
         return Conv2D(name=name+"-final-convo",**out_args)(up4)
     
