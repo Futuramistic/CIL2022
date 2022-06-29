@@ -50,6 +50,7 @@ class SegmentationEnvironment(Env):
         self.gt = gt
         self.img_size = img.shape
         self.rewards = rewards
+        self.device = self.img.device
         # self.padded_img_size = [dim_size + torch.ceil(dim_size / 2) * 2 for dim_size in img.shape]
         self.history_size = history_size
         self.img_val_min = img_val_min
@@ -143,7 +144,7 @@ class SegmentationEnvironment(Env):
 
             # new_seen_pixels are exclusive!
             
-            num_unseen_pixels = self.image.shape[0]*self.image.shape[1] - self.seen_pixels.sum() - new_seen_pixels.sum()
+            num_unseen_pixels = self.img.shape[0]*self.img.shape[1] - self.seen_pixels.sum() - new_seen_pixels.sum()
             reward -= self.rewards['unseen_pix_pen']*num_unseen_pixels
             return reward
         

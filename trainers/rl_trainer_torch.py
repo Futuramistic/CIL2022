@@ -59,6 +59,11 @@ class TorchRLTrainer(TorchTrainer):
         if preprocessing is None:
             preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
 
+        if optimizer_or_lr is None:
+            optimizer_or_lr = TorchRLTrainer.get_default_optimizer_with_lr(1e-4, model)
+        elif isinstance(optimizer_or_lr, int) or isinstance(optimizer_or_lr, float):
+            optimizer_or_lr = TorchRLTrainer.get_default_optimizer_with_lr(optimizer_or_lr, model)
+
         super().__init__(dataloader=dataloader, model=model, preprocessing=preprocessing,
                  experiment_name=experiment_name, run_name=run_name, split=split, num_epochs=num_epochs, batch_size=batch_size,
                  optimizer_or_lr=optimizer_or_lr, scheduler=scheduler, loss_function=loss_function, loss_function_hyperparams=loss_function_hyperparams,
@@ -125,19 +130,20 @@ class TorchRLTrainer(TorchTrainer):
 
         def push(self, *args):
             """Save a transition"""
-            self.memory.append(tuple(args))
+            self.memory.append(list(args))
 
         def sample(self, batch_size):
-            return random.sample(self.memory, batch_size)
+            return random.sample(self.memory, min(batch_size, len(self.memory)))
 
         def compute_accumulated_discounted_returns(self, gamma):
             # memory.push(observation, new_observation, model_output, action_log_probabilities, sampled_actions,
             #                   self.terminated, reward, torch.tensor(float('nan')))
             for step_idx in reversed(range(len(self.memory))):  # differs from tutorial code (but appears to be equivalent)
-                terminated = self.memory[step_idx + 1][5]
-                future_return = self.memory[step_idx + 1][-1] if step_idx < len(self.memory) else 0
-                current_reward = self.memory[step_idx + 1][-1]
-                self.memory[step_idx][-1] = future_return * gamma * (1 - terminated) + current_reward
+                terminated = self.memory[step_idx][5]
+                future_return = self.memory[step_idx + 1][-1] if step_idx < len(self.memory) - 1 else 0
+                current_reward = self.memory[step_idx][6]
+                print(current_reward, future_return, gamma, terminated)
+                self.memory[step_idx][-1] = current_reward + future_return * gamma * (1 - terminated)
 
         def __len__(self):
             return len(self.memory)
@@ -206,6 +212,7 @@ class TorchRLTrainer(TorchTrainer):
         return super()._fit_model(mlflow_run)
 
     def _train_step(self, model, device, train_loader, callback_handler):
+        torch.autograd.set_detect_anomaly(True)
         # WARNING: some models subclassing TorchTrainer overwrite this function, so make sure any changes here are
         # reflected appropriately in these models' files
         
@@ -262,6 +269,7 @@ class TorchRLTrainer(TorchTrainer):
                         opt.zero_grad()
                         loss.backward(retain_graph=False)
                         opt.step()
+                        
                         with torch.no_grad():
                             train_loss += loss.item()
                 memory.reset()
@@ -333,28 +341,30 @@ class TorchRLTrainer(TorchTrainer):
             
             # action: ['delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate']
             # define 5 distributions at once and sample from them
-            action_log_probabilities = None
+            action_mus = model_output[0]  # remove batch dimension
+            alphas, betas = get_beta_params(mu=action_mus, sigma=self.std)
+            dist = torch.distributions.Beta(alphas, betas)
             if sample_from_action_distributions:
-                action_mus = model_output[0]  # remove batch dimension
-                alphas, betas = get_beta_params(mu=action_mus, sigma=self.std)
-                dist = torch.distributions.Beta(alphas, betas)
-                action = dist.sample()
-                action_log_probabilities = dist.log_prob(action)
+                action = dist.sample()  # TODO: is this even differentiable? check!
             else:
                 action = model_output[0]  # remove batch dimension
+            action_log_probabilities = dist.log_prob(action)
 
-            action[0] = -1 + 2 * action[0]  # delta_angle in [-1, 1] (later changed to [-pi, pi] in SegmentationEnvironment)
-            action[1] = action[1] * (env.min_patch_size / 2)  # magnitude
-            action[2] = torch.round(-1 + 2 * action[2])  # new_brush_state
+            action_rounded_list = []
+            action_rounded_list.append(-1 + 2 * action[0])  # delta_angle in [-1, 1] (later changed to [-pi, pi] in SegmentationEnvironment)
+            action_rounded_list.append(action[1] * (env.min_patch_size / 2))  # magnitude
+            action_rounded_list.append(torch.round(-1 + 2 * action[2]))  # new_brush_state
             # sigmoid stretched --> float [0, min_patch_size]
-            action[3] = action[3] * (env.min_patch_size / 2) # new_brush_radius
+            action_rounded_list.append(action[3] * (env.min_patch_size / 2)) # new_brush_radius
             # sigmoid rounded --> float [0, 1]
-            action[4] = torch.round(action[4]) # terminated 
+            action_rounded_list.append(torch.round(action[4])) # terminated
+
+            action_rounded = torch.cat([tensor.unsqueeze(0) for tensor in action_rounded_list], dim=0) 
 
             new_observation, reward, terminated, info = env.step(action)
             
             if memory is not None:
-                memory.push(observation, new_observation, model_output, action_log_probabilities, action,
+                memory.push(observation, new_observation, model_output, action_log_probabilities, action_rounded,
                                 terminated, reward, torch.tensor(float('nan')))
 
             observation = new_observation
@@ -405,4 +415,4 @@ class TorchRLTrainer(TorchTrainer):
     
     @staticmethod
     def get_default_optimizer_with_lr(lr, model):
-        return optim.Adam(model.parameters(), lr=1e-4)
+        return optim.Adam(model.parameters(), lr=lr)
