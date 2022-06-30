@@ -13,6 +13,16 @@ from utils import *
 from utils.logging import pushbullet_logger
 
 
+# keep these imports here so that we can access the corresponding namespaces from the "eval" call
+
+import tensorflow as tf
+import tensorflow.keras as K
+import torch
+import torch.nn
+import torch.optim
+import torch.nn.functional as F
+
+
 def main():
     # all args that cannot be matched to the Trainer or DataLoader classes and are not in filter_args will be passed to the
     # model's constructor
@@ -33,7 +43,6 @@ def main():
     parser.add_argument('-s', '--split', type=float, default=DEFAULT_TRAIN_FRACTION, required=False)
     parser.add_argument('-e', '--num_epochs', type=int, required=False)
     parser.add_argument('-b', '--batch_size', type=int, required=False)
-    parser.add_argument('-l', '--optimizer_or_lr', type=float, required=False)
     parser.add_argument('-L', '--loss_function', type=str, required=False)
     # json.loads: substitute for dict
     parser.add_argument('-H', '--loss_function_hyperparams', type=json.loads, required=False)

@@ -12,7 +12,8 @@ def GLDenseUNet(input_shape=DEFAULT_TF_INPUT_SHAPE,
                 layers_per_block=(4, 5, 7, 10, 12),
                 conv2d_activation=tf.nn.relu,
                 num_classes=2,
-                input_resize_dim=256):
+                input_resize_dim=256,
+                l2_regularization_param=1e-5):
     # This is a function and not a tf.keras.Model subclass because we're using the Keras functional API here to
     # construct the model's non-linear topology, and the functional API is not compatible with subclassing
     # tf.keras.Model. Yet, we want to maintain the illusion of "GLDenseUNet" returning a tf.keras.Model.
@@ -22,7 +23,7 @@ def GLDenseUNet(input_shape=DEFAULT_TF_INPUT_SHAPE,
     num_blocks = len(layers_per_block)
 
     def l2_reg():
-        return K.regularizers.l2(1e-5)
+        return K.regularizers.l2(l2_regularization_param)
 
     def dense_block(x, block_idx):
         dense_block_out = []
@@ -132,5 +133,6 @@ def GLDenseUNet(input_shape=DEFAULT_TF_INPUT_SHAPE,
     model.conv2d_activation = tf.nn.relu
     model.num_classes = num_classes
     model.input_resize_dim = input_resize_dim
+    model.l2_regularization_param = l2_regularization_param
     
     return model

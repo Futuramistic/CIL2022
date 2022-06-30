@@ -25,7 +25,7 @@ class GLDenseUNetTrainer(TFTrainer):
             split = DEFAULT_TRAIN_FRACTION
 
         if batch_size is None:
-            batch_size = 2
+            batch_size = 8
 
         train_set_size, test_set_size, unlabeled_test_set_size = dataloader.get_dataset_sizes(split=split)
         steps_per_training_epoch = train_set_size // batch_size
@@ -39,8 +39,9 @@ class GLDenseUNetTrainer(TFTrainer):
             optimizer_or_lr = GLDenseUNetTrainer.get_default_optimizer_with_lr(optimizer_or_lr, model)
 
         if loss_function is None:
-            loss_function = K.losses.CategoricalCrossentropy(from_logits=False,
-                                                             reduction=K.losses.Reduction.SUM_OVER_BATCH_SIZE)
+            cat_xent = K.losses.SparseCategoricalCrossentropy(from_logits=False)
+            loss_function = lambda targets, inputs, cat_xent=cat_xent: cat_xent(tf.squeeze(targets, axis=-1), inputs)
+            self.loss_function_name = 'SparseCategoricalCrossentropy'
 
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs, num_samples_to_visualize)
@@ -59,7 +60,8 @@ class GLDenseUNetTrainer(TFTrainer):
     def _get_hyperparams(self):
         return {**(super()._get_hyperparams()),
                 **({param: getattr(self.model, param)
-                   for param in ['growth_rate', 'layers_per_block', 'conv2d_activation', 'num_classes', 'input_resize_dim']
+                   for param in ['growth_rate', 'layers_per_block', 'conv2d_activation', 'num_classes',
+                                 'input_resize_dim', 'l2_regularization_param']
                    if hasattr(self.model, param)})}
 
     @staticmethod
