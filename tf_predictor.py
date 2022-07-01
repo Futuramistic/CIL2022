@@ -37,7 +37,8 @@ test_loader = dataloader.get_unlabeled_testing_dataloader(batch_size=1, preproce
 create_or_clean_directory(OUTPUT_PRED_DIR)
 
 # Prediction
-for i, x in tqdm(enumerate(test_loader)):
+i = 0
+for x in tqdm(test_loader):
     output = model.predict(x)
     channel_dim_idx = DEFAULT_TF_DIM_LAYOUT.find('C')
     data_format = "channels_last" if channel_dim_idx == 3 else "channels_first"
@@ -51,6 +52,7 @@ for i, x in tqdm(enumerate(test_loader)):
     del x
     if i >= test_set_size - 1:
         break
+    i += 1
 
 
 
