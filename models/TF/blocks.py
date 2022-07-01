@@ -110,7 +110,7 @@ class Transpose_Block(tf.keras.layers.Layer):
     def __init__(self,name="up-convo",filters=64,dropout=0.5,kernel_init='he_normal',normalize=False,kernel_regularizer=K.regularizers.l2(),**kwargs):
         super(Transpose_Block,self).__init__(name=name,**kwargs)
         self.normalize = normalize
-        self.transpose = Conv2DTranspose(filters=filters,kernel_size=(3, 3),strides=(2, 2), padding='same',kernel_initializer=kernel_init,name=name+"-convo2DTranspose",kernel_regularizer=kernel_regularizer)
+        self.transpose = Conv2DTranspose(filters=filters,kernel_size=(2, 2),strides=(2, 2), padding='same',kernel_initializer=kernel_init,name=name+"-convo2DTranspose",kernel_regularizer=kernel_regularizer)
         self.norm = BatchNormalization(name=name+"-batchNorm",axis=3)
         self.actv = Activation(activation='leaky_relu', name=name+"-activ")
         self.drop = Dropout(rate=dropout,name=name+"-drop")
