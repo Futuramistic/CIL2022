@@ -203,10 +203,10 @@ class TFDataLoader(DataLoader):
         label = tf.image.stateless_random_flip_up_down(label,seed=seed)
 
         # Image colour changes
-        image = tf.image.stateless_random_brightness(image,max_delta=0.2,seed=seed)
-        image = tf.image.stateless_random_saturation(image,lower=0.8,upper=1.2,seed=seed)
-        image = tf.image.stateless_random_contrast(image,lower=0.8,upper=1.2,seed=seed)
-        image = tf.clip_by_value(image,0,1)
+        # image = tf.image.stateless_random_brightness(image,max_delta=0.2,seed=seed)
+        # image = tf.image.stateless_random_saturation(image,lower=0.8,upper=1.2,seed=seed)
+        # image = tf.image.stateless_random_contrast(image,lower=0.8,upper=1.2,seed=seed)
+        # image = tf.clip_by_value(image,0,1)
 
         # Rotate by 90 degrees only - if we rotate by an aribitrary -> road my disappear!
         i = randint(0,3)
