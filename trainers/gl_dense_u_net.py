@@ -34,7 +34,7 @@ class GLDenseUNetTrainer(TFTrainer):
             num_epochs = math.ceil(100000 / steps_per_training_epoch)
 
         if optimizer_or_lr is None:
-            optimizer_or_lr = GLDenseUNetTrainer.get_default_optimizer_with_lr(1e-4, model)
+            optimizer_or_lr = GLDenseUNetTrainer.get_default_optimizer_with_lr(1e-3, model)
         elif isinstance(optimizer_or_lr, int) or isinstance(optimizer_or_lr, float):
             optimizer_or_lr = GLDenseUNetTrainer.get_default_optimizer_with_lr(optimizer_or_lr, model)
 
