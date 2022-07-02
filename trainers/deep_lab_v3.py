@@ -106,7 +106,7 @@ class DeepLabV3Trainer(TorchTrainer):
     @staticmethod
     def get_default_optimizer_with_lr(lr, model):
         # return optim.RMSprop(model.parameters(), lr=1e-5, weight_decay=1e-8, momentum=0.9)
-        return optim.Adam(model.parameters(), lr=1e-4)
+        return optim.Adam(model.parameters(), lr=lr)
 
 
 # Losses used by this model
