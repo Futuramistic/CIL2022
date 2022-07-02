@@ -48,7 +48,7 @@ class SegmentationEnvironment(Env):
         self.patch_size = patch_size
         self.img = img
         self.gt = gt
-        self.img_size = img.shape
+        self.img_size = img.shape[1:]
         self.rewards = rewards
         self.device = self.img.device
         # self.padded_img_size = [dim_size + torch.ceil(dim_size / 2) * 2 for dim_size in img.shape]
@@ -86,10 +86,6 @@ class SegmentationEnvironment(Env):
              'terminate': gym.spaces.Box(low=0, high=1, shape=(1,))
         }
         self.action_space = gym.spaces.Dict(action_spaces)
-
-        self.grid_x, self.grid_y = torch.meshgrid(torch.arange(self.img_size[1]), torch.arange(self.img_size[2]),
-                                                  indexing='xy')
-
                                                   
         self.padded_img = F.pad(img, pad=flatten(self.paddings_per_dim),
                                 mode='constant', value=self.padding_value) 
@@ -99,18 +95,23 @@ class SegmentationEnvironment(Env):
     def get_neutral_action(self):
         # returns a neutral action
         # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'
-        return torch.tensor([0.0, 0.0, BRUSH_STATE_NOTHING, 0.0, 0.0], dtype=torch.float)
+        return torch.tensor([0.0, 0.0, BRUSH_STATE_NOTHING, 0.0, 0.0], dtype=torch.float, device=self.device)
 
     def reset(self):
         self.agent_pos = [int(dim_size // 2) for dim_size in self.img.shape[1:]]
         self.agent_angle = 0.0
         self.brush_width = 0
         self.brush_state = BRUSH_STATE_NOTHING
-        self.history = torch.zeros((self.history_size, *self.patch_size), dtype=torch.float)
+        self.history = torch.zeros((self.history_size, *self.patch_size), dtype=torch.float, device=self.device)
         
-        self.seg_map_padded = F.pad(torch.zeros(self.img.shape[1:]),
+        self.seg_map_padded = F.pad(torch.zeros(self.img.shape[1:], device=self.device),
                                     pad=flatten(self.paddings_per_dim),
                                     mode='constant', value=self.padding_value)  
+
+        self.padded_grid_x, self.padded_grid_y =\
+            torch.meshgrid(torch.arange(self.seg_map_padded.shape[0], device=self.device),
+                           torch.arange(self.seg_map_padded.shape[1], device=self.device),
+                           indexing='xy')
         
         # [0]
         # patch_size=5: [-1, -1, 0, -1, -1, -1]
@@ -122,8 +123,8 @@ class SegmentationEnvironment(Env):
         # patch_size = 4 (even): [dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]  (right-biased)
         
         self.padded_img_size = self.seg_map_padded.shape
-        self.minimap = torch.zeros(self.patch_size, dtype=torch.float) # global aggregation of past <history_size> predictions and current position
-        # self.curr_pred = torch.zeros(patch_size, dtype=torch.float) # directly use seg_map
+        self.minimap = torch.zeros(self.patch_size, dtype=torch.float, device=self.device) # global aggregation of past <history_size> predictions and current position
+        # self.curr_pred = torch.zeros(patch_size, dtype=torch.float, device=self.device) # directly use seg_map
         self.terminated = False
         # Create a canvas to render the environment images upon 
         # self.canvas = np.ones(self.observation_shape) * 1
@@ -152,10 +153,10 @@ class SegmentationEnvironment(Env):
         if self.brush_state != new_brush_state:
             reward -= self.rewards['changed_brush_pen']
         elif self.brush_state == BRUSH_STATE_PAINT:
-            changed_angle_pen = math.abs(delta_angle)*self.rewards['changed_angle_pen']
+            changed_angle_pen = torch.abs(delta_angle)*self.rewards['changed_angle_pen']
             reward -= changed_angle_pen
-            delta_brush_size = math.abs(new_brush_radius-self.brush_width)
-            changed_radius_pen = 1/(np.max(math.abs(delta_angle), 1e-1)) * delta_brush_size * self.rewards['changed_brush_rad_pen']
+            delta_brush_size = torch.abs(new_brush_radius-self.brush_width)
+            changed_radius_pen = 1/(torch.max(torch.abs(delta_angle), torch.tensor(1e-1))) * delta_brush_size * self.rewards['changed_brush_rad_pen']
             reward -= changed_radius_pen
         # sum errored prediction over complete segmentation state
         num_false_positives = torch.logical_and(new_seen_pixels, torch.logical_and(self.gt == 0, self.get_unpadded_segmentation() == 1)).sum()
@@ -175,11 +176,10 @@ class SegmentationEnvironment(Env):
         
         return reward
 
-    def step(self, _action):
+    def step(self, action):
         # returns: (new_observation, reward, done, new_info)
         # action is Tensor, with highest dimension containing: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'
         # unpack
-        action = _action.detach()
         delta_angle, self.magnitude, new_brush_state, new_brush_radius, self.terminated = [action[idx] for idx in range(5)]
         
         # calculate new segmentation
@@ -192,12 +192,15 @@ class SegmentationEnvironment(Env):
             # x: [0, 1, 2, 3, ...] (row vector)
             # y: [0, 1, 2, 3, ...] (column vector)
 
-            distance_map = torch.square(self.grid_x-self.agent_pos[0]) + torch.square(self.grid_y-self.agent_pos[1]) - new_brush_radius**2 # 2D
-            stroke_ball = distance_map <= 0  # boolean mask
+            distance_map = (torch.square(self.padded_grid_x - (self.agent_pos[0] + self.paddings_per_dim[0][0]))
+                            + torch.square(self.padded_grid_y - (self.agent_pos[1] + self.paddings_per_dim[1][0]) )
+                            - new_brush_radius**2) # 2D
+            unpadded_mask = self.seg_map_padded != self.padding_value
+            stroke_ball = torch.logical_and(distance_map <= 0, unpadded_mask)  # boolean mask
             # paint: OR everything within stroke_ball with 1 (set to 1)
             # erase: AND everything within stroke_ball with 0 (set to 0)
             #current_seg, new_seg_map
-            self.get_unpadded_segmentation()[stroke_ball] = 1 if new_brush_state == BRUSH_STATE_PAINT else 0 # 1 if new_brush_state = 1
+            self.seg_map_padded[stroke_ball] = 1 if new_brush_state == BRUSH_STATE_PAINT else 0 # 1 if new_brush_state = 1
 
         # calculate new_seen_pixels
         
