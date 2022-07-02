@@ -38,7 +38,7 @@ def mask_to_submission_strings(image_filename, mask_dir=None):
         im = im.convert("L")
         im_arr = np.asarray(im)
 
-    patch_size = 16
+    patch_size = 1
     mask = np.zeros_like(im_arr)
     for j in range(0, im_arr.shape[1], patch_size):
         for i in range(0, im_arr.shape[0], patch_size):
@@ -66,7 +66,7 @@ def masks_to_submission(submission_filename, mask_dir, *image_filenames):
 
 def main(_):
     image_filenames = [os.path.join(FLAGS.base_dir, name) for name in os.listdir(FLAGS.base_dir)]
-    masks_to_submission(FLAGS.submission_filename, "", *image_filenames)
+    masks_to_submission(FLAGS.submission_filename, "final_output_masks", *image_filenames)
 
 if __name__ == '__main__':
     app.run(main)
