@@ -30,7 +30,10 @@ class DataLoader(abc.ABC):
             self.test_gt_dir = test_gt_dir
 
         self.training_img_paths, self.training_gt_paths = DataLoader.get_img_gt_paths(self.training_img_dir, self.training_gt_dir)
-        self.test_img_paths, self.test_gt_paths = DataLoader.get_img_gt_paths(self.test_img_dir, self.test_gt_dir)
+        
+        # WARNING: test dataset must be ordered alphabetically by filename for tf_predictor.py to work!
+        self.test_img_paths, self.test_gt_paths = DataLoader.get_img_gt_paths(self.test_img_dir, self.test_gt_dir,
+                                                                              initial_shuffle=False)
 
         # define dataset variables for later usage
         self.training_data = None

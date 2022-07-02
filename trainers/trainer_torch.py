@@ -1,6 +1,7 @@
 import abc
 import datetime
 import functools
+import hashlib
 import math
 import numpy as np
 import pysftp
@@ -142,16 +143,20 @@ class TorchTrainer(Trainer, abc.ABC):
         print(f'\n*** WARNING: resuming training from checkpoint "{checkpoint_path}" ***\n')
         load_from_sftp = checkpoint_path.lower().startswith('sftp://')
         if load_from_sftp:
-            final_checkpoint_path = f'original_checkpoint_{SESSION_ID}.pt'
-            print(f'Downloading checkpoint from "{checkpoint_path}" to "{final_checkpoint_path}"...')
-            cnopts = pysftp.CnOpts()
-            cnopts.hostkeys = None
-            mlflow_ftp_pass = requests.get(MLFLOW_FTP_PASS_URL, auth=HTTPBasicAuth(os.environ['MLFLOW_TRACKING_USERNAME'], os.environ['MLFLOW_TRACKING_PASSWORD'])).text
-            url_components = urlparse(checkpoint_path)
-            with pysftp.Connection(host=MLFLOW_HOST, username=MLFLOW_FTP_USER, password=mlflow_ftp_pass,
-                                   cnopts=cnopts) as sftp:
-                sftp.get(url_components.path, final_checkpoint_path)
-            print(f'Download successful')
+            self.original_checkpoint_hash = hashlib.md5(str.encode(checkpoint_path)).hexdigest()
+            final_checkpoint_path = f'original_checkpoint_{self.original_checkpoint_hash}.pt'
+            if not os.path.isfile(final_checkpoint_path):
+                print(f'Downloading checkpoint from "{checkpoint_path}" to "{final_checkpoint_path}"...')
+                cnopts = pysftp.CnOpts()
+                cnopts.hostkeys = None
+                mlflow_ftp_pass = requests.get(MLFLOW_FTP_PASS_URL, auth=HTTPBasicAuth(os.environ['MLFLOW_TRACKING_USERNAME'], os.environ['MLFLOW_TRACKING_PASSWORD'])).text
+                url_components = urlparse(checkpoint_path)
+                with pysftp.Connection(host=MLFLOW_HOST, username=MLFLOW_FTP_USER, password=mlflow_ftp_pass,
+                                    cnopts=cnopts) as sftp:
+                    sftp.get(url_components.path, final_checkpoint_path)
+                print(f'Download successful')
+            else:
+                print(f'Checkpoint "{checkpoint_path}", to be downloaded to "{final_checkpoint_path}", found on disk')
         else:
             final_checkpoint_path = checkpoint_path
 
@@ -160,7 +165,8 @@ class TorchTrainer(Trainer, abc.ABC):
         self.model.load_state_dict(checkpoint['model'])
         self.optimizer_or_lr.load_state_dict(checkpoint['optimizer'])
         print('Checkpoint loaded\n')
-        os.remove(final_checkpoint_path)
+        # os.remove(final_checkpoint_path)
+
 
     def _fit_model(self, mlflow_run):
         print('\nTraining started at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
@@ -171,7 +177,7 @@ class TorchTrainer(Trainer, abc.ABC):
 
         self.train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                                     preprocessing=self.preprocessing)
-        self.test_loader = self.dataloader.get_testing_dataloader(batch_size=1,
+        self.test_loader = self.dataloader.get_testing_dataloader(split=self.split, batch_size=1,
                                                                   preprocessing=self.preprocessing)
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         print(f'Using device: {self.device}\n')

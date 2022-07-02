@@ -1,5 +1,6 @@
 import abc
 import datetime
+import hashlib
 # from typing import final
 import numpy as np
 import os
@@ -89,8 +90,8 @@ class TFTrainer(Trainer, abc.ABC):
 
             # it seems we can only safely delete the original checkpoint dir after having trained for at least one
             # iteration
-            if os.path.isdir(f'original_checkpoint_{SESSION_ID}.ckpt'):
-                shutil.rmtree(f'original_checkpoint_{SESSION_ID}.ckpt')
+            # if self.original_checkpoint_hash is not None and os.path.isdir(f'original_checkpoint_{self.original_checkpoint_hash}.ckpt'):
+            #     shutil.rmtree(f'original_checkpoint_{self.original_checkpoint_hash}.ckpt')
 
 
         def on_train_batch_begin(self, batch, logs=None):
@@ -182,21 +183,25 @@ class TFTrainer(Trainer, abc.ABC):
         print(f'\n*** WARNING: resuming training from checkpoint "{checkpoint_path}" ***\n')
         load_from_sftp = checkpoint_path.lower().startswith('sftp://')
         if load_from_sftp:
+            self.original_checkpoint_hash = hashlib.md5(str.encode(checkpoint_path)).hexdigest()
             # in TF, even though the checkpoint names all end in ".ckpt", they are actually directories
             # hence we have to use sftp_download_dir_portable to download them
-            final_checkpoint_path = f'original_checkpoint_{SESSION_ID}.ckpt'
-            os.makedirs(final_checkpoint_path, exist_ok=True)
-            print(f'Downloading checkpoint from "{checkpoint_path}" to "{final_checkpoint_path}"...')
-            cnopts = pysftp.CnOpts()
-            cnopts.hostkeys = None
-            mlflow_ftp_pass = requests.get(MLFLOW_FTP_PASS_URL,
-                                           auth=HTTPBasicAuth(os.environ['MLFLOW_TRACKING_USERNAME'],
-                                                              os.environ['MLFLOW_TRACKING_PASSWORD'])).text
-            url_components = urlparse(checkpoint_path)
-            with pysftp.Connection(host=MLFLOW_HOST, username=MLFLOW_FTP_USER, password=mlflow_ftp_pass,
-                                   cnopts=cnopts) as sftp:
-                sftp_download_dir_portable(sftp, remote_dir=url_components.path, local_dir=final_checkpoint_path)
-            print(f'Download successful')
+            final_checkpoint_path = f'original_checkpoint_{self.original_checkpoint_hash}.ckpt'
+            if not os.path.isdir(final_checkpoint_path):
+                os.makedirs(final_checkpoint_path, exist_ok=True)
+                print(f'Downloading checkpoint from "{checkpoint_path}" to "{final_checkpoint_path}"...')
+                cnopts = pysftp.CnOpts()
+                cnopts.hostkeys = None
+                mlflow_ftp_pass = requests.get(MLFLOW_FTP_PASS_URL,
+                                            auth=HTTPBasicAuth(os.environ['MLFLOW_TRACKING_USERNAME'],
+                                                                os.environ['MLFLOW_TRACKING_PASSWORD'])).text
+                url_components = urlparse(checkpoint_path)
+                with pysftp.Connection(host=MLFLOW_HOST, username=MLFLOW_FTP_USER, password=mlflow_ftp_pass,
+                                    cnopts=cnopts) as sftp:
+                    sftp_download_dir_portable(sftp, remote_dir=url_components.path, local_dir=final_checkpoint_path)
+                print(f'Download successful')
+            else:
+                print(f'Checkpoint "{checkpoint_path}", to be downloaded to "{final_checkpoint_path}", found on disk')
         else:
             final_checkpoint_path = checkpoint_path
 

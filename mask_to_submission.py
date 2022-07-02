@@ -38,7 +38,7 @@ def mask_to_submission_strings(image_filename, mask_dir=None):
         im = im.convert("L")
         im_arr = np.asarray(im)
 
-    patch_size = 1
+    patch_size = 16
     mask = np.zeros_like(im_arr)
     for j in range(0, im_arr.shape[1], patch_size):
         for i in range(0, im_arr.shape[0], patch_size):
