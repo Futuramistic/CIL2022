@@ -39,6 +39,7 @@
   - terminal should now have venv name as prefix
 - installing requirements
   - make sure correct venv is installed and activated
+  - for reinforcement learning load the openmpi module before pip installing the library baselines: ```module load openmpi```
   - ```cd``` into the ```CIL2022``` directory (where ```requirements.txt``` is located)
   - run ```pip install -r requirements.txt```
     - there may be errors related to ```pywin32``` because we're on a Linux machine
