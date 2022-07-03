@@ -29,13 +29,12 @@ import torch.distributions
 
 import imageio
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 
 # TODO: try letting the policy network output sigma parameters of distributions as well!
 
-EPSILON = 0.01/2
-MULTIPLIER = 0.99
+EPSILON = 1e-5
 
 class TorchRLTrainer(TorchTrainer):
     def __init__(self, dataloader, model, preprocessing=None,
@@ -44,7 +43,8 @@ class TorchRLTrainer(TorchTrainer):
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, history_size=5,
                  max_rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), std=1e-3, reward_discount_factor=0.99,
-                 num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20):
+                 num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20,
+                 min_steps=20):
         """
         Trainer for RL-based models.
         Args:
@@ -62,6 +62,7 @@ class TorchRLTrainer(TorchTrainer):
             policy_batch_size (int): size of batches to sample from the replay memory of the policy per policy training epoch
             sample_from_action_distributions (bool): controls whether to sample from the action distributions or to always use the mean
             visualization_interval (int): logs the predicted trajectory as a gif every <visualization_interval> steps.
+            min_steps (int): minimum number of steps agent has to perform before it is allowed to terminate a trajectory
         """
         if loss_function is not None:
             raise RuntimeError('Custom losses not supported by TorchRLTrainer')
@@ -91,6 +92,7 @@ class TorchRLTrainer(TorchTrainer):
         self.sample_from_action_distributions = bool(sample_from_action_distributions)
         self.policy_batch_size = int(policy_batch_size)
         self.visualization_interval = int(visualization_interval)
+        self.min_steps = int(min_steps)
 
         # self.scheduler set by TorchTrainer superclass
 
@@ -218,13 +220,12 @@ class TorchRLTrainer(TorchTrainer):
                 env = SegmentationEnvironment(sample_x, sample_y_gpu, self.model.patch_size, self.history_size,
                                               self.test_loader.img_val_min, self.test_loader.img_val_max)
                 env.reset()
-                observation, _, _, _ = env.step(env.get_neutral_action())
                 
                 # in https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html,
                 # they loop for "rollouts.rollout_size" iterations, but here, we loop until network tells us to terminate
                 # loop until termination/timeout already inside this function
                 predictions_nstepwise, positions_nstepwise =\
-                    self.trajectory_step(env, observation, sample_from_action_distributions=self.sample_from_action_distributions, visualization_interval=self.visualization_interval)
+                    self.trajectory_step(env, sample_from_action_distributions=self.sample_from_action_distributions, visualization_interval=self.visualization_interval)
                 predictions_nstepwise_np = np.stack(predictions_nstepwise)  # stack all animation frames, dim(nsteps, height, width)
                 
                 sample_y_np = sample_y.numpy()
@@ -292,7 +293,7 @@ class TorchRLTrainer(TorchTrainer):
                     # prediction[:, timestep_idx]*255): shape(rgb, height, width)
 
 
-                    agent_pos = positions_nstepwise_test_set[prediction_idx][timestep_idx] # x, y
+                    agent_pos = positions_nstepwise_test_set[prediction_idx][min(timestep_idx, prediction_len-1)] # x, y
                     agent_pos_patch_size = 3
                     agent_pos_patch_start_x = max(0, agent_pos[0] - agent_pos_patch_size)
                     agent_pos_patch_start_y = max(0, agent_pos[1] - agent_pos_patch_size)
@@ -305,13 +306,18 @@ class TorchRLTrainer(TorchTrainer):
 
                     # take either the prediction for the current timestep or the last prediction (the latter if the current timestep exceeds the sample length)
                     uber_img[:, start_y:end_y, start_x:end_x] = (curr_pred*255).astype(np.uint8)
-                    if timestep_idx >= prediction_len:  # signalize that current sample has no more frames
+                    if timestep_idx >= prediction_len - 5:  # signalize that current sample has no more frames
                         uber_img[:, (end_y - 2 * agent_pos_patch_size):end_y, (end_x - 2 * agent_pos_patch_size):end_x] = np.array([[[255]], [[0]], [[0]]], dtype=np.uint8)
                         
-                    if timestep_idx >= longest_animation_length-5: # signalize end of gif with a red mark on the bottom right
+                    if timestep_idx >= longest_animation_length - 5: # signalize end of gif with a red mark on the bottom right
                         uber_img[:, -agent_pos_patch_size*4:, -agent_pos_patch_size*4:] = np.array([[[255]], [[0]], [[0]]], dtype=np.uint8)
-                
-                gif_frames.append(Image.fromarray(uber_img.transpose((1, 2, 0)))) # height, width, rgb
+
+                    
+                gif_frame = Image.fromarray(uber_img.transpose((1, 2, 0)))
+                draw = ImageDraw.Draw(gif_frame)
+                draw.text((10, 10), str(timestep_idx), fill=(137, 207, 240))  # baby blue
+
+                gif_frames.append(gif_frame) # height, width, rgb
                         
             
             gif_frames[0].save(gif_path, save_all=True, append_images=gif_frames[1:], duration=100, loop=0) # duration is milliseconds between frames, loop=0 means loop infinite times
@@ -346,13 +352,12 @@ class TorchRLTrainer(TorchTrainer):
                 # could e.g. empirically approximate expected trajectory length and use that instead
                 memory = self.ReplayMemory(capacity=int(self.replay_memory_capacity),
                                            balancing_trajectory_length=int(self.replay_memory_capacity))
-                env.reset()
+                
                 # "state" is input to model
                 # observation in init state: RGB (3), history (5 by default), brush state (1)
-                # use neutral action that does not affect anything to get initial state
+                
                 # env.step returns: (new_observation, reward, done, new_info)
                 # "state" in tutorial is "observation" here
-                observation, _, _, _ = env.step(env.get_neutral_action())
                 
                 # in https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html,
                 # they loop for "rollouts.rollout_size" iterations, but here, we loop until network tells us to terminate
@@ -362,7 +367,7 @@ class TorchRLTrainer(TorchTrainer):
                 # if we exit this function and "terminated" is false, we timed out
                 # (more than self.max_rollout_len iterations)
                 # loop until termination/timeout already inside this function
-                self.trajectory_step(env, observation,
+                self.trajectory_step(env,
                                     sample_from_action_distributions=self.sample_from_action_distributions,
                                     memory=memory)
 
@@ -387,9 +392,13 @@ class TorchRLTrainer(TorchTrainer):
 
                         # mean = alpha / (alpha + beta)
 
-                        alphas, betas = TorchRLTrainer.get_beta_params(mu=model_output[0]*MULTIPLIER+EPSILON, sigma=self.std)  # remove batch dimension, multiply and add to avoid extreme points
-                        dist = torch.distributions.Beta(alphas, betas)
-                        action_log_probabilities_sample = dist.log_prob(model_output_sample*MULTIPLIER+EPSILON)
+                        # alphas, betas = TorchRLTrainer.get_beta_params(mu=model_output[0], sigma=self.std)  # remove batch dimension, multiply and add to avoid extreme points
+                        # print(f'alphas, betas: {(alphas, betas)}')
+                        
+                        # dist = torch.distributions.Beta(alphas, betas)
+                        
+                        dist = torch.distributions.Normal(loc=model_output[0], scale=self.std)
+                        action_log_probabilities_sample = dist.log_prob(model_output_sample)
 
                         policy_loss = -(action_log_probabilities_sample * returns_sample).mean()
                         # TODO: add entropy loss and see if it helps
@@ -427,18 +436,16 @@ class TorchRLTrainer(TorchTrainer):
                 # accordingly, sample_y must be of shape (H, W) not (1, H, W)
                 sample_y = torch.squeeze(sample_y)
                 env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size, test_loader.img_val_min, test_loader.img_val_max) # take standard reward
-                env.reset()
+
                 # "state" is input to model
                 # observation in init state: RGB (3), history (5 by default), brush state (1)
-                # use neutral action that does not affect anything to get initial state
                 # env.step returns: (new_observation, reward, done, new_info)
                 # "state" in tutorial is "observation" here
-                observation, _, _, _ = env.step(env.get_neutral_action())
                 
                 # in https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html,
                 # they loop for "rollouts.rollout_size" iterations, but here, we loop until network tells us to terminate
                 # loop until termination/timeout already inside this function
-                self.trajectory_step(env, observation, sample_from_action_distributions=False)
+                self.trajectory_step(env, sample_from_action_distributions=False)
                 preds = env.get_unpadded_segmentation().float()
                 test_loss += self.loss_function(preds, sample_y).item()
 
@@ -447,13 +454,25 @@ class TorchRLTrainer(TorchTrainer):
 
     @staticmethod
     def get_beta_params(mu, sigma):
+        # must ensure that sigma**2.0 <= mu * (1 - mu)
+        if not hasattr(sigma, 'shape') and hasattr(mu, 'shape'):  # mu is tensor, sigma is scalar
+            sigma = sigma * torch.ones_like(mu)
+        elif not hasattr(mu, 'shape'):  # mu and sigma are scalars
+            mu = torch.tensor(mu)
+            sigma = torch.tensor(sigma)
+        
+        # mu = torch.clamp(mu, EPSILON/2, 1-EPSILON/2)
+
+        mu = torch.clamp(mu, EPSILON/2, 1 - EPSILON/2)
+        sigma = torch.clamp(sigma, torch.zeros_like(sigma) + 1e-8, torch.sqrt(mu * (1.0 - mu)))
+        
         # returns (alpha, beta) parameters for Beta distribution, based on mu and sigma for that distribution
         # based on https://stats.stackexchange.com/a/12239
         alpha = ((1 - mu) / (sigma ** 2) - 1/mu) * mu ** 2
         beta = alpha * (1 / mu - 1)
         return alpha, beta
 
-    def trajectory_step(self, env, observation, sample_from_action_distributions=None, memory=None, visualization_interval=-1):
+    def trajectory_step(self, env, sample_from_action_distributions=None, memory=None, visualization_interval=-1):
         """Uses model predictions to create trajectory until terminated
         Args:
             env (Environment): the environment the model shall explore
@@ -464,10 +483,16 @@ class TorchRLTrainer(TorchTrainer):
         Returns:
             list of observations that can be used to generate animations of the agent's trajectory, or [] if visualization_interval <= 0 (List of torch.Tensor)
         """
-        
-        eps_reward = 0.0
-        predictions_nsteps = [env.get_unpadded_segmentation()]
+
+        env.reset()
+        predictions_nsteps = [env.get_unpadded_segmentation().float().detach().cpu().numpy()]
         positions_nsteps = [env.agent_pos]
+
+        observation, _, _, _ = env.step(env.get_neutral_action())    
+        predictions_nsteps.append(env.get_unpadded_segmentation().float().detach().cpu().numpy())
+        positions_nsteps.append(env.agent_pos)
+
+        eps_reward = 0.0
 
         if sample_from_action_distributions is None:
             sample_from_action_distributions = self.sample_from_action_distributions
@@ -485,10 +510,14 @@ class TorchRLTrainer(TorchTrainer):
             # action: ['delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate']
             # define 5 distributions at once and sample from them
     
-            alphas, betas = TorchRLTrainer.get_beta_params(mu=model_output[0]*MULTIPLIER + EPSILON, sigma=self.std)  # remove batch dimension
-            dist = torch.distributions.Beta(alphas, betas)
+            # alphas, betas = TorchRLTrainer.get_beta_params(mu=model_output[0], sigma=self.std)  # remove batch dimension
+            # dist = torch.distributions.Beta(alphas, betas)
+            
+            dist = torch.distributions.Normal(loc=model_output[0], scale=self.std)
+            
             if sample_from_action_distributions:
                 action = dist.sample()  # TODO: is this even differentiable? check!
+                action = torch.clamp(action, EPSILON/2, 1-EPSILON/2)
             else:
                 action = model_output[0]  # remove batch dimension
 
@@ -515,7 +544,7 @@ class TorchRLTrainer(TorchTrainer):
                 predictions_nsteps.append((env.get_unpadded_segmentation().float().detach().cpu().numpy()).astype(int))
                 positions_nsteps.append(env.agent_pos)
             
-            if terminated >= 0.5:
+            if terminated >= 0.5 and timestep_idx >= self.min_steps:
                 break
         
         return predictions_nsteps, positions_nsteps
@@ -532,12 +561,9 @@ class TorchRLTrainer(TorchTrainer):
                 # accordingly, sample_y must be of shape (H, W) not (1, H, W)
                 sample_y = torch.squeeze(sample_y)
                 env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size, self.test_loader.img_val_min, self.test_loader.img_val_max) # take standard reward
-                env.reset()
-
-                observation, _, _, _ = env.step(env.get_neutral_action())
 
                 # loop until termination/timeout already inside this function
-                self.trajectory_step(env, observation, sample_from_action_distributions=False)
+                self.trajectory_step(env, sample_from_action_distributions=False)
                 
                 preds = env.get_unpadded_segmentation().float()
                 precision, recall, f1_score = precision_recall_f1_score_torch(preds, sample_y)
@@ -552,7 +578,7 @@ class TorchRLTrainer(TorchTrainer):
                 **({param: getattr(self, param)
                    for param in ['history_size', 'max_rollout_len', 'std', 'reward_discount_factor',
                                  'num_policy_epochs', 'policy_batch_size', 'sample_from_action_distributions',
-                                 'visualization_interval']
+                                 'visualization_interval', 'min_steps']
                    if hasattr(self, param)}),
                 **({param: getattr(self.model, param)
                    for param in ['patch_size']
