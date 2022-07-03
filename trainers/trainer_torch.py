@@ -67,7 +67,7 @@ class TorchTrainer(Trainer, abc.ABC):
                 if mlflow_logger.logging_to_mlflow_enabled():
                     mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=self.iteration_idx)
                     if self.do_visualize:
-                        mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
+                        mlflow_logger.log_visualizations(self.trainer, self.iteration_idx, self.epoch_idx, self.epoch_iteration_idx)
                 
                 if self.trainer.do_checkpoint\
                    and self.iteration_idx % self.trainer.checkpoint_interval == 0\
@@ -87,7 +87,7 @@ class TorchTrainer(Trainer, abc.ABC):
     # and the "create_visualizations" functions of the Trainer subclasses (containing ML framework-specific code)
     # Specifically, the Trainer calls mlflow_logger's "log_visualizations" (e.g. in "on_train_batch_end" of the
     # tensorflow.keras.callbacks.Callback subclass), which in turn uses the Trainer's "create_visualizations".
-    def create_visualizations(self, file_path):
+    def create_visualizations(self, file_path, iteration_index, epoch_idx, epoch_iteration_idx):
         # sample image indices to visualize
         # fix half of the samples, randomize other half
         # the first, fixed half of samples serves for comparison purposes across models/runs
@@ -183,7 +183,8 @@ class TorchTrainer(Trainer, abc.ABC):
         if self.load_checkpoint_path is not None:
             self._load_checkpoint(self.load_checkpoint_path)
 
-        callback_handler = TorchTrainer.Callback(self, mlflow_run, self.model)
+        # use self.Callback instead of TorchTrainer.Callback, to allow subclasses to overwrite the callback handler
+        callback_handler = self.Callback(self, mlflow_run, self.model)
         for epoch in range(self.num_epochs):
             last_train_loss = self._train_step(self.model, self.device, self.train_loader, callback_handler=callback_handler)
             last_test_loss = self._eval_step(self.model, self.device, self.test_loader)

@@ -104,7 +104,7 @@ class TFTrainer(Trainer, abc.ABC):
                 if mlflow_logger.logging_to_mlflow_enabled():
                     mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=self.iteration_idx)
                     if self.do_visualize:
-                        mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
+                        mlflow_logger.log_visualizations(self.trainer, self.iteration_idx, self.epoch_idx, self.epoch_iteration_idx)
             
             if self.trainer.do_checkpoint\
                 and self.iteration_idx % self.trainer.checkpoint_interval == 0\
@@ -121,7 +121,7 @@ class TFTrainer(Trainer, abc.ABC):
     # and the "create_visualizations" functions of the Trainer subclasses (containing ML framework-specific code)
     # Specifically, the Trainer calls mlflow_logger's "log_visualizations" (e.g. in "on_train_batch_end" of the
     # tensorflow.keras.callbacks.Callback subclass), which in turn uses the Trainer's "create_visualizations".
-    def create_visualizations(self, file_path):
+    def create_visualizations(self, file_path, iteration_index, epoch_idx, epoch_iteration_idx):
         # for batch_xs, batch_ys in self.test_loader.shuffle(10 * num_samples).batch(num_samples):
 
         # fix half of the samples, randomize other half

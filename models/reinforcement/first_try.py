@@ -47,7 +47,7 @@ class RefinementQ(nn.Module):
         linear_in = conv_out.flatten(start_dim=1)
         linear_out = self.final_prediction(linear_in)
         vel_angle = F.tanh(linear_out[:,0:1]) # normalize velocity, angle
-        brush = torch.round(F.sigmoid(linear_out))
+        brush = torch.round(torch.sigmoid(linear_out))
         return torch.concat((vel_angle, brush), dim=1)
 
 class SimpleRLCNN(nn.Module):
@@ -77,7 +77,7 @@ class SimpleRLCNN(nn.Module):
     def forward(self, x):
         conv_out = self.convs(x)
         head_in = torch.flatten(conv_out, start_dim=1)
-        return F.sigmoid(self.head(head_in))
+        return torch.sigmoid(self.head(head_in))
 
 # adapted from https://github.com/DCurro/CannyEdgePytorch to process batches
 class Canny(nn.Module):

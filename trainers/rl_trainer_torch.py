@@ -27,6 +27,10 @@ from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 
 import torch.distributions
 
+import imageio
+
+from PIL import Image
+
 
 # TODO: try letting the policy network output sigma parameters of distributions as well!
 
@@ -39,9 +43,8 @@ class TorchRLTrainer(TorchTrainer):
                  optimizer_or_lr=None, scheduler=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, history_size=5,
-                 max_rollout_len=int(1e6), replay_memory_capacity=int(1e4), std=1e-3, reward_discount_factor=0.99,
-                 num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False):
-        
+                 max_rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), std=1e-3, reward_discount_factor=0.99,
+                 num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20):
         """
         Trainer for RL-based models.
         Args:
@@ -51,12 +54,14 @@ class TorchRLTrainer(TorchTrainer):
             patch_size (int, int): the size of the observations for the actor
             history_size (int): how many steps the actor can look back (become part of the observation)
             max_rollout_len (int): how large each rollout can get on maximum
+                                   default value: 2 * 160000 (image size: 400*400; give agent chance to visit each pixel twice)
             replay_memory_capacity (int): capacity of the replay memory
             std (float): standard deviation assumed on the prediction of the actor network to use on a beta distribution as a policy to compute the next action
             reward_discount_factor (float): factor by which to discount the reward per timestep into the future, when calculating the accumulated future return
             num_policy_epochs (int): number of epochs for which to train the policy network during a single iteration (for a single sample)
             policy_batch_size (int): size of batches to sample from the replay memory of the policy per policy training epoch
             sample_from_action_distributions (bool): controls whether to sample from the action distributions or to always use the mean
+            visualization_interval (int): logs the predicted trajectory as a gif every <visualization_interval> steps.
         """
         if loss_function is not None:
             raise RuntimeError('Custom losses not supported by TorchRLTrainer')
@@ -85,6 +90,7 @@ class TorchRLTrainer(TorchTrainer):
         self.num_policy_epochs = int(num_policy_epochs)
         self.sample_from_action_distributions = bool(sample_from_action_distributions)
         self.policy_batch_size = int(policy_batch_size)
+        self.visualization_interval = int(visualization_interval)
 
         # self.scheduler set by TorchTrainer superclass
 
@@ -116,7 +122,7 @@ class TorchRLTrainer(TorchTrainer):
                 if mlflow_logger.logging_to_mlflow_enabled():
                     mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=self.iteration_idx)
                     if self.do_visualize:
-                        mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
+                        mlflow_logger.log_visualizations(self.trainer, self.iteration_idx, self.epoch_idx, self.epoch_iteration_idx)
                 
                 if self.trainer.do_checkpoint\
                    and self.iteration_idx % self.trainer.checkpoint_interval == 0\
@@ -172,7 +178,7 @@ class TorchRLTrainer(TorchTrainer):
     # and the "create_visualizations" functions of the Trainer subclasses (containing ML framework-specific code)
     # Specifically, the Trainer calls mlflow_logger's "log_visualizations" (e.g. in "on_train_batch_end" of the
     # tensorflow.keras.callbacks.Callback subclass), which in turn uses the Trainer's "create_visualizations".
-    def create_visualizations(self, file_path):
+    def create_visualizations(self, file_path, iteration_index, epoch_idx, epoch_iteration_idx):
         num_to_visualize = self.num_samples_to_visualize
         num_fixed_samples = num_to_visualize // 2
         num_random_samples = num_to_visualize - num_fixed_samples
@@ -184,12 +190,14 @@ class TorchRLTrainer(TorchTrainer):
         else:
             indices = np.array(list(range(num_fixed_samples)) +\
                             random.sample(range(num_fixed_samples + 1, len(self.test_loader)), num_random_samples))
-        images = []
         # never exceed the given training batch size, else we might face memory problems
         vis_batch_size = min(num_to_visualize, self.batch_size)
         subset_ds = Subset(self.test_loader.dataset, indices)
         subset_dl = DataLoader(subset_ds, batch_size=vis_batch_size, shuffle=False)
         
+        predictions_nstepwise_rgb_test_set = []
+        positions_nstepwise_test_set = []
+
         for (batch_xs, batch_ys) in subset_dl:
             # batch_xs, batch_ys = batch_xs.to(self.device), batch_ys.numpy()
             # output = self.model(batch_xs)
@@ -197,14 +205,17 @@ class TorchRLTrainer(TorchTrainer):
             #     output = output[0]
             # preds = (output >= self.segmentation_threshold).float().cpu().detach().numpy()
 
+            preds_batch = []
+            longest_animation_length = 0
+            
             for idx, sample_x in enumerate(batch_xs):
                 sample_y = batch_ys[idx]
-                sample_x, sample_y =\
+                sample_x, sample_y_gpu =\
                     sample_x.to(self.device, dtype=torch.float32), sample_y.to(self.device, dtype=torch.long)
                 # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
                 # accordingly, sample_y must be of shape (H, W) not (1, H, W)
-                sample_y = torch.squeeze(sample_y)
-                env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size,
+                sample_y_gpu = torch.squeeze(sample_y_gpu)
+                env = SegmentationEnvironment(sample_x, sample_y_gpu, self.model.patch_size, self.history_size,
                                               self.test_loader.img_val_min, self.test_loader.img_val_max)
                 env.reset()
                 observation, _, _, _ = env.step(env.get_neutral_action())
@@ -212,24 +223,105 @@ class TorchRLTrainer(TorchTrainer):
                 # in https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html,
                 # they loop for "rollouts.rollout_size" iterations, but here, we loop until network tells us to terminate
                 # loop until termination/timeout already inside this function
-                self.trajectory_step(env, observation, sample_from_action_distributions=self.sample_from_action_distributions)
+                predictions_nstepwise, positions_nstepwise =\
+                    self.trajectory_step(env, observation, sample_from_action_distributions=self.sample_from_action_distributions, visualization_interval=self.visualization_interval)
+                predictions_nstepwise_np = np.stack(predictions_nstepwise)  # stack all animation frames, dim(nsteps, height, width)
+                
+                sample_y_np = sample_y.numpy()
+                
+                merged = np.expand_dims(2 * predictions_nstepwise_np + sample_y_np, axis=0)
+                green_channel = merged == 3  # true positives
+                red_channel = merged == 2  # false positive
+                blue_channel = merged == 1  # false negative
+                rgb = np.concatenate((red_channel, green_channel, blue_channel), axis=0) # shape(rgb, nsteps, height, width)
+
+                predictions_nstepwise_rgb_test_set.append(rgb)
+                positions_nstepwise_test_set.append(positions_nstepwise)
+                
+                if len(predictions_nstepwise) > longest_animation_length:
+                    longest_animation_length = len(predictions_nstepwise)
+
                 preds = env.get_unpadded_segmentation().float().detach().cpu()
+                preds_batch.append(preds)
 
-                # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
-                self._fill_images_array(preds.unsqueeze(0), sample_y.unsqueeze(0).cpu(), images)
+        # calculate grid size
+        
+        n = len(predictions_nstepwise_rgb_test_set)  # test_set_size
+        if is_perfect_square(n):
+            nb_cols = math.sqrt(n)
+        else:
+            nb_cols = math.sqrt(next_perfect_square(n))
+        nb_cols = int(nb_cols)  # Need it to be an integer
+        nb_rows = math.ceil(float(n) / float(nb_cols))  # Number of rows in final image
+        
+        # dimensions of predictions_nstepwise_rgb_test_set:
+        # [test_set_size (list), RGB (np.ndarray), timesteps (np.ndarray), image height (np.ndarray), image width (np.ndarray)]
 
-        self._save_image_array(images, file_path)
+        # generate GIF
+        if len(predictions_nstepwise_rgb_test_set) > 0:
+            _, _, img_height, img_width = predictions_nstepwise_rgb_test_set[0].shape # shape(rgb, nsteps, height, width)
+            
+            gif_filename = f"globaliter_{iteration_index}_epoch_{epoch_idx}_epochiter_{epoch_iteration_idx}.gif"
+            gif_path = os.path.join(os.path.dirname(file_path), gif_filename)
+
+            # 1, 10, 10, 10
+
+            gif_frames = []
+            for timestep_idx in range(longest_animation_length):
+                # fill with zeros to ensure background is black
+                uber_img = np.zeros((3, nb_rows * img_height, nb_cols * img_width), dtype=np.uint8) # shape(3, 3*img_height, 3*img_width)
+                for prediction_idx, prediction in enumerate(predictions_nstepwise_rgb_test_set):
+                    # prediction has shape(rgb, nsteps, height, width)
+                    prediction_len = prediction.shape[1]  # time dimension
+
+                    row_idx = prediction_idx // nb_cols
+                    col_idx = int(prediction_idx % nb_cols)
+                    
+                    start_y = row_idx * img_height
+                    end_y = start_y + img_height
+                    start_x = col_idx * img_width
+                    end_x = start_x + img_width
+
+                    # sample's frame counts (prediction_len of each sample): [2, 10]
+                    # timestep_idx = 0: [0, 0]  << if prediction_len > timestep_idx
+                    # timestep_idx = 1: [1, 1]  << if prediction_len > timestep_idx
+                    # timestep_idx = 2: [1, 2]  << else
+                    # timestep_idx = 3: [1, 3]  << else
+                    # ...
+
+                    # prediction[:, timestep_idx]*255): shape(rgb, height, width)
+
+
+                    agent_pos = positions_nstepwise_test_set[prediction_idx][timestep_idx] # x, y
+                    agent_pos_patch_size = 3
+                    agent_pos_patch_start_x = max(0, agent_pos[0] - agent_pos_patch_size)
+                    agent_pos_patch_start_y = max(0, agent_pos[1] - agent_pos_patch_size)
+                    agent_pos_patch_end_x = min(img_width - 1, agent_pos[0] + agent_pos_patch_size)
+                    agent_pos_patch_end_y = min(img_height - 1, agent_pos[1] + agent_pos_patch_size)
+                    
+                    curr_pred = prediction[:, min(timestep_idx, prediction_len-1)]  # collapse time dimension
+                    curr_pred[:, agent_pos_patch_start_x:agent_pos_patch_end_x, agent_pos_patch_start_y:agent_pos_patch_end_y] =\
+                        np.array([[[255]], [[255]], [[51]]], dtype=np.uint8) # signalize agent position
+
+                    # take either the prediction for the current timestep or the last prediction (the latter if the current timestep exceeds the sample length)
+                    uber_img[:, start_y:end_y, start_x:end_x] = (curr_pred*255).astype(np.uint8)
+                    if timestep_idx >= prediction_len:  # signalize that current sample has no more frames
+                        uber_img[:, (end_y - 2 * agent_pos_patch_size):end_y, (end_x - 2 * agent_pos_patch_size):end_x] = np.array([[[255]], [[0]], [[0]]], dtype=np.uint8)
+                        
+                    if timestep_idx >= longest_animation_length-5: # signalize end of gif with a red mark on the bottom right
+                        uber_img[:, -agent_pos_patch_size*4:, -agent_pos_patch_size*4:] = np.array([[[255]], [[0]], [[0]]], dtype=np.uint8)
+                
+                gif_frames.append(Image.fromarray(uber_img.transpose((1, 2, 0)))) # height, width, rgb
+                        
+            
+            gif_frames[0].save(gif_path, save_all=True, append_images=gif_frames[1:], duration=100, loop=0) # duration is milliseconds between frames, loop=0 means loop infinite times
+            # if not working, convert via: imageio.core.util.Array(numpy_array)
+
+            # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
+            # self._fill_images_array(torch.stack(preds_batch, dim=0).unsqueeze(1).float().detach().cpu().numpy(), batch_ys.numpy(), images)
 
         # return super().create_visualizations(file_path)
-
-    def _save_checkpoint(self, model, epoch, epoch_iteration, total_iteration):
-        return super()._save_checkpoint(model, epoch, epoch_iteration, total_iteration)
-
-    def _load_checkpoint(self, checkpoint_path):
-        return super()._load_checkpoint(checkpoint_path)
-
-    def _fit_model(self, mlflow_run):
-        return super()._fit_model(mlflow_run)
+        return gif_path
 
     def _train_step(self, model, device, train_loader, callback_handler):
         # WARNING: some models subclassing TorchTrainer overwrite this function, so make sure any changes here are
@@ -361,16 +453,21 @@ class TorchRLTrainer(TorchTrainer):
         beta = alpha * (1 / mu - 1)
         return alpha, beta
 
-    def trajectory_step(self, env, observation, sample_from_action_distributions=None, memory=None):
+    def trajectory_step(self, env, observation, sample_from_action_distributions=None, memory=None, visualization_interval=-1):
         """Uses model predictions to create trajectory until terminated
         Args:
             env (Environment): the environment the model shall explore
             observation (Observation): the observation input for the model
             sample_from_action_distributions (bool, optional): Whether to sample from the action distribution created by the model output or use model output directly. Defaults to self.sample_action_distribution.
             memory (Memory, optional): Memory to store the trajectory during training. Defaults to None.
+            visualization_interval (int, optional): number of timesteps between frames of the returned list of observations
+        Returns:
+            list of observations that can be used to generate animations of the agent's trajectory, or [] if visualization_interval <= 0 (List of torch.Tensor)
         """
         
         eps_reward = 0.0
+        predictions_nsteps = [env.get_unpadded_segmentation()]
+        positions_nsteps = [env.agent_pos]
 
         if sample_from_action_distributions is None:
             sample_from_action_distributions = self.sample_from_action_distributions
@@ -413,13 +510,15 @@ class TorchRLTrainer(TorchTrainer):
 
             observation = new_observation
             eps_reward += reward
+            
+            if visualization_interval > 0 and timestep_idx % visualization_interval == 0:
+                predictions_nsteps.append((env.get_unpadded_segmentation().float().detach().cpu().numpy()).astype(int))
+                positions_nsteps.append(env.agent_pos)
+            
             if terminated >= 0.5:
                 break
         
-        return observation, reward, eps_reward, terminated, info
-
-    def get_F1_score_validation(self):
-        return super().get_F1_score_validation()
+        return predictions_nsteps, positions_nsteps
 
     def get_precision_recall_F1_score_validation(self):
         self.model.eval()
@@ -451,8 +550,9 @@ class TorchRLTrainer(TorchTrainer):
     def _get_hyperparams(self):
         return {**(super()._get_hyperparams()),
                 **({param: getattr(self, param)
-                   for param in ['history_size', 'max_rollout_len', 'std', 'reward_discount_factor', 
-                                 'num_policy_epochs', 'policy_batch_size', 'sample_from_action_distributions']
+                   for param in ['history_size', 'max_rollout_len', 'std', 'reward_discount_factor',
+                                 'num_policy_epochs', 'policy_batch_size', 'sample_from_action_distributions',
+                                 'visualization_interval']
                    if hasattr(self, param)}),
                 **({param: getattr(self.model, param)
                    for param in ['patch_size']
