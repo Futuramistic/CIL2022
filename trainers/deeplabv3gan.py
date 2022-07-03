@@ -22,9 +22,12 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
                  batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None,
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
-                 checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None):
+                 checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
+                 adv_lambda=0.1):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
+
+        self.adv_lambda = adv_lambda
 
         if split is None:
             split = DEFAULT_TRAIN_FRACTION
@@ -94,7 +97,7 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
                 continue  # drop if the last batch has size of 1 (otherwise the deeplabv3 model crashes)
             gen_imgs = model(x)
             loss = self.loss_function(gen_imgs, y)
-            loss += 0.1 * self.adversarial_loss(self.D(gen_imgs), valid)  # parametrize the 0.1
+            loss += self.adv_lambda * self.adversarial_loss(self.D(gen_imgs), valid)
             with torch.no_grad():
                 train_loss += loss.item()
             opt.zero_grad()
