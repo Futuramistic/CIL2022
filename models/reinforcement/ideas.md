@@ -1,3 +1,4 @@
+
 # Reinforcement Learning
 ## Basic ideas
 - how to use RL to segment image?
@@ -202,3 +203,14 @@
         - introduces some basic concepts and shows how to create a wrapper around an existing OpenAI Gym environment, but we want to create an entirely new environment
     - https://blog.paperspace.com/creating-custom-environments-openai-gym/ (pt. 2)
         - `ChopperScape` class describes environment; create something similar (see "structure of own `Environment` class" above)
+
+## New Ideas (July 3rd)
+
+- log how often which reward was received & log total reward for each reward subtype
+    - could put into report
+- inspect change of parameters over time (distribution of model outputs?)
+- increase epsilon-greediness (painting!)
+    - maybe barrier for getting to nonzero value is too big? 
+- increase barrier for termination (instead of usual rounding: only if value > threshold)
+    - opposite effect of drawing barrier
+- magnitudes of deltas?
