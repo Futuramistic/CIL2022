@@ -256,7 +256,6 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         pool0_1 = Convo_Block(name=name+"maxpool0_1", filters=nb_filters[1], **down_args)(pool0_1)
 
         pool2 = Concatenate(axis=3)([pool2,pool0_1])
-        pool2 = Convo_Block(name=name+"pool2", filters=nb_filters[1], **down_args)(pool2)
 
         convo3,pool3 = pool_fct(name=name+"-down-block-3",filters=nb_filters[2],**down_args)(pool2)
 
@@ -266,7 +265,6 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         pool1_2 = Convo_Block(name=name+"maxpool1_2", filters=nb_filters[2], **down_args)(pool1_2)
 
         pool3 = Concatenate(axis=3)([pool3,pool0_2,pool1_2])
-        pool3 = Convo_Block(name=name+"pool3", filters=nb_filters[2], **down_args)(pool3)
 
         convo4,pool4 = pool_fct(name=name+"-down-block-4",filters=nb_filters[3],**down_args)(pool3)
 
@@ -278,7 +276,6 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         pool2_3 = Convo_Block(name=name+"maxpool2_3", filters=nb_filters[3], **down_args)(pool2_3)
 
         pool4 = Concatenate(axis=3)([pool4,pool0_3,pool1_3,pool2_3])
-        pool4 = Convo_Block(name=name+"pool4", filters=nb_filters[3], **down_args)(pool4)
 
         convo5 = Convo_Block(name=name+"-convo-block",filters=nb_filters[4],**down_args)(pool4)
 
