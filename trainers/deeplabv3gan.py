@@ -23,11 +23,12 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
                  batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None,
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
-                 adv_lambda=0.1):
+                 adv_lambda=0.1, adv_lr=1e-4):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
         self.adv_lambda = adv_lambda
+        self.adv_lr = adv_lr
 
         if split is None:
             split = DEFAULT_TRAIN_FRACTION
@@ -45,7 +46,7 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
 
         self.D = model.get_discriminator()
         # Discriminator optimizer
-        self.optimizer_D = torch.optim.Adam(self.D.parameters(), lr=1e-4, betas=(0.9, 0.999))
+        self.optimizer_D = torch.optim.Adam(self.D.parameters(), lr=self.adv_lr, betas=(0.9, 0.999))
 
         if scheduler is None:
             scheduler = ReduceLROnPlateau(optimizer_or_lr, mode="min", patience=15, factor=0.5)
@@ -79,9 +80,9 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
 
     def _train_step(self, model, device, train_loader, callback_handler):
 
-        # Train generator
-
         model.train()
+        self.D.train()
+
         opt = self.optimizer_or_lr
         train_loss = 0
         for (x, y) in train_loader:
@@ -92,6 +93,9 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
             fake = Variable(Tensor(x.size(0), 1).fill_(0.0), requires_grad=False)
             # Configure input
             real_imgs = Variable(y.type(Tensor))  # original uses x, but we probably need y for our purposes
+
+            # ================
+            # Train generator
 
             if x.shape[0] == 1:
                 continue  # drop if the last batch has size of 1 (otherwise the deeplabv3 model crashes)
@@ -128,6 +132,8 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
 
     def _eval_step(self, model, device, test_loader):
         model.eval()
+        self.D.eval()
+
         test_loss = 0
         with torch.no_grad():
             for (x, y) in test_loader:
