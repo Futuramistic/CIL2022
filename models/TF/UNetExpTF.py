@@ -1,6 +1,7 @@
 from keras.layers import *
 import tensorflow as tf
 import tensorflow.keras as K
+import numpy as np
 from tensorflow.keras.layers import *
 
 from .blocks import *
@@ -80,17 +81,15 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
            dropout=0.5,
            kernel_init='he_normal',
            normalize=True,
-           up_transpose=True,
            kernel_regularizer=K.regularizers.l2(),
            use_learnable_pool=False,
+           deep_supervision=False,
+           cgm = False,
+            cgm_dropout = 0.1,
            **kwargs):
 
     def __build_model(inputs):
         nb_filters = [32,64,128,256,512]
-        if up_transpose:
-            up_block = Transpose_Block
-        else:
-            up_block = UpSampleConvo_Block
 
         down_args = {
             'dropout': dropout,
@@ -99,19 +98,10 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_regularizer': kernel_regularizer
         }
 
-        up_args = {
-            'dropout': dropout,
-            'kernel_init': kernel_init,
-            'normalize': normalize,
-            'up_convo': up_block,
-            'kernel_regularizer': kernel_regularizer
-        }
-
         out_args = {
             'filters': 1,
             'kernel_size':(1,1),
             'padding':'same',
-            'activation':'sigmoid',
             'kernel_initializer':kernel_init,
             'kernel_regularizer': kernel_regularizer
         }
@@ -141,9 +131,11 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
 
         convo1_4 = MaxPool2D((8,8),8,'same')(convo1)
         convo1_4 = Convo_Block(name=name+"-convo1_4",filters=nb_filters[3],**down_args)(convo1_4)
-
+        
+        convo4_4 = Convo_Block(name=name+"-convo4_4",filters=nb_filters[3],**down_args)(convo4)
+        
         up_convo5 = Conv2DTranspose(name=name+"-up_convo5",filters=nb_filters[3],**convo_trans_args)(convo5)
-        up1 = Concatenate(axis=3)([up_convo5,convo4,convo3_4,convo2_4,convo1_4])
+        up1 = Concatenate(axis=3)([up_convo5,convo4_4,convo3_4,convo2_4,convo1_4])
         up1 = Convo_Block(name=name+"-up-1",filters=nb_filters[3],**down_args)(up1)
 
         convo5_3 = UpSampling2D(name=name+"-up5_3",size=(4,4),interpolation='bilinear')(convo5)
@@ -155,9 +147,10 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo1_3 = MaxPool2D((4,4),4,'same')(convo1)
         convo1_3 = Convo_Block(name=name+"-convo1_3",filters=nb_filters[2],**down_args)(convo1_3)
 
+        convo3_3 = Convo_Block(name=name+"-convo3_3",filters=nb_filters[2],**down_args)(convo3)
 
         up_convo4 = Conv2DTranspose(name=name+"-up_convo4",filters=nb_filters[2],**convo_trans_args)(up1)
-        up2 = Concatenate(axis=3)([up_convo4,convo3,convo2_3,convo1_3,convo5_3])
+        up2 = Concatenate(axis=3)([up_convo4,convo3_3,convo2_3,convo1_3,convo5_3])
         up2 = Convo_Block(name=name+"-up-2",filters=nb_filters[2],**down_args)(up2)
 
         convo5_2 = UpSampling2D(name=name+"-up5_2",size=(8,8),interpolation='bilinear')(convo5)
@@ -169,7 +162,11 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo1_2 = MaxPool2D((2,2),2,'same')(convo1)
         convo1_2 = Convo_Block(name=name+"-convo1_2",filters=nb_filters[1],**down_args)(convo1_2)
 
-        up3 = Up_Block(name=name+"-up-block-3",filters=nb_filters[1],**up_args)(x=up2,   merger=[convo2,convo1_2,convo4_2,convo5_2])
+        convo2_2 = Convo_Block(name=name+"-convo2_2",filters=nb_filters[1],**down_args)(convo2)
+
+        up_convo3 = Conv2DTranspose(name=name+"-up_convo3",filters=nb_filters[1],**convo_trans_args)(up2)
+        up3 = Concatenate(axis=3)([up_convo3,convo2_2,convo1_2,convo4_2,convo5_2])
+        up3 =  Convo_Block(name=name+"-up-3",filters=nb_filters[1],**down_args)(up3)
 
         convo5_1 = UpSampling2D(name=name+"-up5_1",size=(16,16),interpolation='bilinear')(convo5)
         convo5_1 = Convo_Block(name=name+"-convo5_1",filters=nb_filters[0],**down_args)(convo5_1)
@@ -180,9 +177,43 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo3_1 = UpSampling2D(name=name+"-up3_1",size=(4,4),interpolation='bilinear')(up2)
         convo3_1 = Convo_Block(name=name+"-convo3_1",filters=nb_filters[0],**down_args)(convo3_1)
 
-        up4 = Up_Block(name=name+"-up-block-4",filters=nb_filters[0],**up_args)(x=up3,  merger=[convo1,convo5_1,convo4_1,convo3_1])
+        convo1_1 = Convo_Block(name=name+"-convo1_1",filters=nb_filters[0],**down_args)(convo1)
 
-        return Conv2D(name=name+"-final-convo",**out_args)(up4)
+        up_convo2 = Conv2DTranspose(name=name+"-up_convo2",filters=nb_filters[0],**convo_trans_args)(up3)
+        up4 = Concatenate(axis=3)([up_convo2,convo1_1,convo5_1,convo4_1,convo3_1])
+        up4 = Convo_Block(name=name+"-up-4",filters=nb_filters[0],**down_args)(up4)
+
+        outconvo = Conv2D(name=name+"-final-convo",**out_args)(up4)
+        sigmoid = K.activations.sigmoid
+        if deep_supervision:
+            side1 = UpSampling2D(name=name+"up-side1",size=(16,16),interpolation='bilinear')(convo5)
+            side1 = Conv2D(name=name+'-side1',**out_args)(side1)
+
+            side2 = UpSampling2D(name=name+"up-side2",size=(8,8),interpolation='bilinear')(up1)
+            side2 = Conv2D(name=name+'-side2',**out_args)(side2)
+
+            side3 = UpSampling2D(name=name+"up-side3",size=(4,4),interpolation='bilinear')(up2)
+            side3 = Conv2D(name=name+'-side3',**out_args)(side3)
+
+            side4 = UpSampling2D(name=name+"up-side4",size=(2,2),interpolation='bilinear')(up3)
+            side4 = Conv2D(name=name+'-side4',**out_args)(side4)
+
+            if cgm:
+                cls = Dropout(rate=cgm_dropout)(convo5)
+                cls = Conv2D(filters=2,kernel_size=(1,1),padding='same',kernel_initializer=kernel_init)(cls)
+                cls = GlobalMaxPool2D()(cls)
+                cls = sigmoid(cls)
+                cls = K.backend.max(cls, axis=-1)
+                
+                outconvo = multiply([outconvo,cls])
+                side1 = multiply([side1,cls])
+                side2 = multiply([side2,cls])
+                side3 = multiply([side3,cls])
+                side4 = multiply([side4,cls])
+                return tf.stack([sigmoid(outconvo),sigmoid(side1),sigmoid(side2),sigmoid(side3),sigmoid(side4)])
+
+            return tf.stack([sigmoid(outconvo),sigmoid(side1),sigmoid(side2),sigmoid(side3),sigmoid(side4)])
+        return sigmoid(outconvo)
     
     inputs = K.Input(input_shape)
     outputs = __build_model(inputs)
@@ -191,8 +222,11 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
     model.dropout = dropout
     model.kernel_init = kernel_init
     model.normalize = normalize
-    model.up_transpose = up_transpose
     model.kernel_regularizer = kernel_regularizer
+    model.deep_supervision = deep_supervision
+    model.classification_guided_module = cgm
+    model.cgm_dropout = cgm_dropout
+    model.num_params = np.sum([np.prod(v.get_shape().as_list()) for v in tf.trainable_variables()])
     return model
 
 
@@ -203,17 +237,15 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
            dropout=0.5,
            kernel_init='he_normal',
            normalize=True,
-           up_transpose=True,
            kernel_regularizer=K.regularizers.l2(),
            use_learnable_pool=False,
+           deep_supervision=False,
+           cgm=False,
+           cgm_dropout = 0.1,
            **kwargs):
 
     def __build_model(inputs):
         nb_filters = [32,64,128,256,512]
-        if up_transpose:
-            up_block = Transpose_Block
-        else:
-            up_block = UpSampleConvo_Block
 
         down_args = {
             'dropout': dropout,
@@ -222,19 +254,10 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_regularizer': kernel_regularizer
         }
 
-        up_args = {
-            'dropout': dropout,
-            'kernel_init': kernel_init,
-            'normalize': normalize,
-            'up_convo': up_block,
-            'kernel_regularizer': kernel_regularizer
-        }
-
         out_args = {
             'filters': 1,
             'kernel_size':(1,1),
             'padding':'same',
-            'activation':'sigmoid',
             'kernel_initializer':kernel_init,
             'kernel_regularizer': kernel_regularizer
         }
@@ -291,8 +314,10 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo1_4 = MaxPool2D((8,8),8,'same')(convo1)
         convo1_4 = Convo_Block(name=name+"-convo1_4",filters=nb_filters[3],**down_args)(convo1_4)
 
+        convo4_4 = Convo_Block(name=name+"-convo4_4",filters=nb_filters[3],**down_args)(convo4)
+
         up_convo5 = Conv2DTranspose(name=name+"-up_convo5",filters=nb_filters[3],**convo_trans_args)(convo5)
-        up1 = Concatenate(axis=3)([up_convo5,convo4,convo3_4,convo2_4,convo1_4])
+        up1 = Concatenate(axis=3)([up_convo5,convo4_4,convo3_4,convo2_4,convo1_4])
         up1 = Convo_Block(name=name+"-up-1",filters=nb_filters[3],**down_args)(up1)
 
         convo5_3 = UpSampling2D(name=name+"-up5_3",size=(4,4),interpolation='bilinear')(convo5)
@@ -304,9 +329,10 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo1_3 = MaxPool2D((4,4),4,'same')(convo1)
         convo1_3 = Convo_Block(name=name+"-convo1_3",filters=nb_filters[2],**down_args)(convo1_3)
 
+        convo3_3 = Convo_Block(name=name+"-convo3_3",filters=nb_filters[2],**down_args)(convo3)
 
         up_convo4 = Conv2DTranspose(name=name+"-up_convo4",filters=nb_filters[2],**convo_trans_args)(up1)
-        up2 = Concatenate(axis=3)([up_convo4,convo3,convo2_3,convo1_3,convo5_3])
+        up2 = Concatenate(axis=3)([up_convo4,convo3_3,convo2_3,convo1_3,convo5_3])
         up2 = Convo_Block(name=name+"-up-2",filters=nb_filters[2],**down_args)(up2)
 
         convo5_2 = UpSampling2D(name=name+"-up5_2",size=(8,8),interpolation='bilinear')(convo5)
@@ -318,7 +344,11 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo1_2 = MaxPool2D((2,2),2,'same')(convo1)
         convo1_2 = Convo_Block(name=name+"-convo1_2",filters=nb_filters[1],**down_args)(convo1_2)
 
-        up3 = Up_Block(name=name+"-up-block-3",filters=nb_filters[1],**up_args)(x=up2,   merger=[convo2,convo1_2,convo4_2,convo5_2])
+        convo2_2 = Convo_Block(name=name+"-convo2_2",filters=nb_filters[1],**down_args)(convo2)
+
+        up_convo3 = Conv2DTranspose(name=name+"-up_convo3",filters=nb_filters[1],**convo_trans_args)(up2)
+        up3 = Concatenate(axis=3)([up_convo3,convo2_2,convo1_2,convo4_2,convo5_2])
+        up3 =  Convo_Block(name=name+"-up-3",filters=nb_filters[1],**down_args)(up3)
 
         convo5_1 = UpSampling2D(name=name+"-up5_1",size=(16,16),interpolation='bilinear')(convo5)
         convo5_1 = Convo_Block(name=name+"-convo5_1",filters=nb_filters[0],**down_args)(convo5_1)
@@ -329,9 +359,43 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo3_1 = UpSampling2D(name=name+"-up3_1",size=(4,4),interpolation='bilinear')(up2)
         convo3_1 = Convo_Block(name=name+"-convo3_1",filters=nb_filters[0],**down_args)(convo3_1)
 
-        up4 = Up_Block(name=name+"-up-block-4",filters=nb_filters[0],**up_args)(x=up3,  merger=[convo1,convo5_1,convo4_1,convo3_1])
+        convo1_1 = Convo_Block(name=name+"-convo1_1",filters=nb_filters[0],**down_args)(convo1)
 
-        return Conv2D(name=name+"-final-convo",**out_args)(up4)
+        up_convo2 = Conv2DTranspose(name=name+"-up_convo2",filters=nb_filters[0],**convo_trans_args)(up3)
+        up4 = Concatenate(axis=3)([up_convo2,convo1_1,convo5_1,convo4_1,convo3_1])
+        up4 = Convo_Block(name=name+"-up-4",filters=nb_filters[0],**down_args)(up4)
+
+        outconvo = Conv2D(name=name+"-final-convo",**out_args)(up4)
+        sigmoid = K.activations.sigmoid
+        if deep_supervision:
+            side1 = UpSampling2D(name=name+"up-side1",size=(16,16),interpolation='bilinear')(convo5)
+            side1 = Conv2D(name=name+'-side1',**out_args)(side1)
+
+            side2 = UpSampling2D(name=name+"up-side2",size=(8,8),interpolation='bilinear')(up1)
+            side2 = Conv2D(name=name+'-side2',**out_args)(side2)
+
+            side3 = UpSampling2D(name=name+"up-side3",size=(4,4),interpolation='bilinear')(up2)
+            side3 = Conv2D(name=name+'-side3',**out_args)(side3)
+
+            side4 = UpSampling2D(name=name+"up-side4",size=(2,2),interpolation='bilinear')(up3)
+            side4 = Conv2D(name=name+'-side4',**out_args)(side4)
+
+            if cgm:
+                cls = Dropout(rate=cgm_dropout)(convo5)
+                cls = Conv2D(filters=2,kernel_size=(1,1),padding='same',kernel_initializer=kernel_init)(cls)
+                cls = GlobalMaxPool2D()(cls)
+                cls = sigmoid(cls)
+                cls = K.backend.max(cls, axis=-1)
+
+                outconvo = multiply([outconvo,cls])
+                side1 = multiply([side1,cls])
+                side2 = multiply([side2,cls])
+                side3 = multiply([side3,cls])
+                side4 = multiply([side4,cls])
+                return tf.stack([sigmoid(outconvo),sigmoid(side1),sigmoid(side2),sigmoid(side3),sigmoid(side4)])
+
+            return tf.stack([sigmoid(outconvo),sigmoid(side1),sigmoid(side2),sigmoid(side3),sigmoid(side4)])
+        return sigmoid(outconvo)
     
     inputs = K.Input(input_shape)
     outputs = __build_model(inputs)
@@ -340,6 +404,9 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
     model.dropout = dropout
     model.kernel_init = kernel_init
     model.normalize = normalize
-    model.up_transpose = up_transpose
     model.kernel_regularizer = kernel_regularizer
+    model.deep_supervision = deep_supervision
+    model.classification_guided_module = cgm
+    model.cgm_dropout = cgm_dropout
+    model.num_params = np.sum([np.prod(v.get_shape().as_list()) for v in tf.trainable_variables()])
     return model
