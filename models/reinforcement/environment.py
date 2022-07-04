@@ -137,7 +137,7 @@ class SegmentationEnvironment(Env):
         # this may lead to loopholes (agent turning right for a short time just to change the brush width,
         # then turning )
         
-        reward_decomp_quantities = {k: 0.0 for k in self.rewards.keys()}
+        reward_decomp_quantities = {k: 0 for k in self.rewards.keys()}
         reward_decomp_sums = {k: 0.0 for k in self.rewards.keys()}
 
         reward = 0.0
@@ -150,7 +150,7 @@ class SegmentationEnvironment(Env):
 
             # new_seen_pixels are exclusive!
             
-            num_unseen_pixels = self.img.shape[0]*self.img.shape[1] - self.seen_pixels.sum() - new_seen_pixels.sum()
+            num_unseen_pixels = self.img.shape[1]*self.img.shape[2] - self.seen_pixels.sum() - new_seen_pixels.sum()
             reward_delta = self.rewards['unseen_pix_pen'] * num_unseen_pixels
             reward -= reward_delta
             reward_decomp_quantities['unseen_pix_pen'] += normalize_tensor(num_unseen_pixels)

@@ -407,8 +407,10 @@ class TorchRLTrainer(TorchTrainer):
                         # print(f'alphas, betas: {(alphas, betas)}')
                         
                         # dist = torch.distributions.Beta(alphas, betas)
+                        
                         covariance_matrix = torch.diag(self.std)
                         dist = torch.distributions.MultivariateNormal(loc=model_output[0], covariance_matrix=covariance_matrix)
+                        
                         action_log_probabilities_sample = dist.log_prob(model_output_sample)
 
                         policy_loss = -(action_log_probabilities_sample * returns_sample).mean()
@@ -568,8 +570,9 @@ class TorchRLTrainer(TorchTrainer):
                 break
         
         info_avg = {'reward_decomp_quantities': {}, 'reward_decomp_sums': {}}
-        info_avg['reward_decomp_quantities'] = {k: v / (timestep_idx + 1) for k, v in info_sum['reward_decomp_quantities'].items()}
-        info_avg['reward_decomp_sums'] = {k: v / (timestep_idx + 1) for k, v in info_sum['reward_decomp_sums'].items()}
+        # timestep_idx + 1 due to zero-based indexing; add another 1 due to initial timestep 
+        info_avg['reward_decomp_quantities'] = {k: v / (timestep_idx + 2) for k, v in info_sum['reward_decomp_quantities'].items()}
+        info_avg['reward_decomp_sums'] = {k: v / (timestep_idx + 2) for k, v in info_sum['reward_decomp_sums'].items()}
 
         return predictions_nsteps, positions_nsteps, reward, {'info_timestep_sum': info_sum, 'info_timestep_avg': info_avg}
 
