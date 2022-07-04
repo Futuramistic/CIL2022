@@ -8,7 +8,7 @@
 # also install onnx to convert between torch and tensorfow:
 ## git clone https://github.com/onnx/onnx-tensorflow.git && cd onnx-tensorflow && pip install -e
 
-cloudpickle==2.0.0
+cloudpickle==1.2.2 # old version needed by baselines
 google-auth==2.3.3
 google-auth-oauthlib==0.4.6
 google-pasta==0.2.0
@@ -55,8 +55,7 @@ wget==3.2.0
 mlflow==1.24.0
 pexpect==4.8.0
 wexpect==4.0.0
-baselines==0.1.6 
-cloudpickle==1.2.2 
+baselines==0.1.5
 gym==0.15.7 
 pyglet==1.5.0
 imageio==2.19.3
