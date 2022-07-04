@@ -130,8 +130,7 @@ class SegmentationEnvironment(Env):
         # self.canvas = np.ones(self.observation_shape) * 1
         self.seen_pixels = torch.zeros_like(self.img[0], dtype=torch.int8)
 
-    def calculate_reward(self, delta_angle, new_brush_state, new_brush_radius,
-                         new_seen_pixels):
+    def calculate_reward(self, delta_angle, new_brush_state, new_brush_radius, new_seen_pixels):
         # we penalize "brush radius changes performed at the same time as angle changes" less
         # than "brush size changes performed when the agent does not "$
         # this may lead to loopholes (agent turning right for a short time just to change the brush width,

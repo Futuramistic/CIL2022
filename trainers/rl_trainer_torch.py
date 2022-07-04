@@ -424,7 +424,10 @@ class TorchRLTrainer(TorchTrainer):
             
             train_loss /= (len(train_loader.dataset) * self.policy_batch_size * self.num_policy_epochs)
             callback_handler.on_epoch_end()
-            self.scheduler.step()
+            try:
+                self.scheduler.step()
+            except:
+                self.scheduler.step(train_loss)  # TODO: perform step in _eval_step and use validation loss instead of train loss
         return train_loss
 
     def _eval_step(self, model, device, test_loader):
@@ -499,8 +502,8 @@ class TorchRLTrainer(TorchTrainer):
         info_sum = {'reward_decomp_quantities': {}, 'reward_decomp_sums': {}}
 
         observation, _, _, info = env.step(env.get_neutral_action())
-        info_sum['reward_decomp_quantities'] = {k: info_sum.get(k, 0.0) + v for k, v in info['reward_decomp_quantities'].items()}
-        info_sum['reward_decomp_sums'] = {k: info_sum.get(k, 0.0) + v for k, v in info['reward_decomp_sums'].items()}
+        info_sum['reward_decomp_quantities'] = {k: info_sum['reward_decomp_quantities'].get(k, 0.0) + v for k, v in info['reward_decomp_quantities'].items()}
+        info_sum['reward_decomp_sums'] = {k: info_sum['reward_decomp_sums'].get(k, 0.0) + v for k, v in info['reward_decomp_sums'].items()}
 
 
         predictions_nsteps.append(env.get_unpadded_segmentation().float().detach().cpu().numpy())
@@ -546,8 +549,8 @@ class TorchRLTrainer(TorchTrainer):
             action_rounded = torch.cat([tensor.unsqueeze(0) for tensor in action_rounded_list], dim=0)
 
             new_observation, reward, terminated, info = env.step(action_rounded)
-            info_sum['reward_decomp_quantities'] = {k: info_sum.get(k, 0.0) + v for k, v in info['reward_decomp_quantities'].items()}
-            info_sum['reward_decomp_sums'] = {k: info_sum.get(k, 0.0) + v for k, v in info['reward_decomp_sums'].items()}
+            info_sum['reward_decomp_quantities'] = {k: info_sum['reward_decomp_quantities'].get(k, 0.0) + v for k, v in info['reward_decomp_quantities'].items()}
+            info_sum['reward_decomp_sums'] = {k: info_sum['reward_decomp_sums'].get(k, 0.0) + v for k, v in info['reward_decomp_sums'].items()}
             
             if memory is not None:
                 memory.push(observation, model_output, action_rounded, terminated, reward, torch.tensor(float('nan')))

@@ -104,7 +104,7 @@ simple_cnn_2 = {
             'scheduler_args': hp.choice('scheduler', [
                 {'scheduler_name': 'lambdalr',
                 'kwargs':{
-                    'lr_lambda': lambda epoch: epoch
+                    'lr_lambda': lambda epoch: 1.0
                     }
                 },
                 {'scheduler_name':'plateau',
