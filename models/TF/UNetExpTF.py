@@ -83,6 +83,7 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
            up_transpose=True,
            kernel_regularizer=K.regularizers.l2(),
            use_learnable_pool=False,
+           deep_supervision=False,
            **kwargs):
 
     def __build_model(inputs):
@@ -182,7 +183,22 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
 
         up4 = Up_Block(name=name+"-up-block-4",filters=nb_filters[0],**up_args)(x=up3,  merger=[convo1,convo5_1,convo4_1,convo3_1])
 
-        return Conv2D(name=name+"-final-convo",**out_args)(up4)
+        outconvo = Conv2D(name=name+"-final-convo",**out_args)(up4)
+        if deep_supervision:
+            side1 = UpSampling2D(name=name+"up-side1",size=(16,16),interpolation='bilinear')(convo5)
+            side1 = Conv2D(name=name+'-side1',**out_args)(side1)
+
+            side2 = UpSampling2D(name=name+"up-side2",size=(8,8),interpolation='bilinear')(up1)
+            side2 = Conv2D(name=name+'-side2',**out_args)(side2)
+
+            side3 = UpSampling2D(name=name+"up-side3",size=(4,4),interpolation='bilinear')(up2)
+            side3 = Conv2D(name=name+'-side3',**out_args)(side3)
+
+            side4 = UpSampling2D(name=name+"up-side4",size=(2,2),interpolation='bilinear')(up3)
+            side4 = Conv2D(name=name+'-side4',**out_args)(side4)
+
+            return tf.stack([outconvo,side1,side2,side3,side4])
+        return outconvo
     
     inputs = K.Input(input_shape)
     outputs = __build_model(inputs)
@@ -206,6 +222,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
            up_transpose=True,
            kernel_regularizer=K.regularizers.l2(),
            use_learnable_pool=False,
+           deep_supervision=False,
            **kwargs):
 
     def __build_model(inputs):
@@ -331,7 +348,22 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
 
         up4 = Up_Block(name=name+"-up-block-4",filters=nb_filters[0],**up_args)(x=up3,  merger=[convo1,convo5_1,convo4_1,convo3_1])
 
-        return Conv2D(name=name+"-final-convo",**out_args)(up4)
+        outconvo = Conv2D(name=name+"-final-convo",**out_args)(up4)
+        if deep_supervision:
+            side1 = UpSampling2D(name=name+"up-side1",size=(16,16),interpolation='bilinear')(convo5)
+            side1 = Conv2D(name=name+'-side1',**out_args)(side1)
+
+            side2 = UpSampling2D(name=name+"up-side2",size=(8,8),interpolation='bilinear')(up1)
+            side2 = Conv2D(name=name+'-side2',**out_args)(side2)
+
+            side3 = UpSampling2D(name=name+"up-side3",size=(4,4),interpolation='bilinear')(up2)
+            side3 = Conv2D(name=name+'-side3',**out_args)(side3)
+
+            side4 = UpSampling2D(name=name+"up-side4",size=(2,2),interpolation='bilinear')(up3)
+            side4 = Conv2D(name=name+'-side4',**out_args)(side4)
+            
+            return tf.stack([outconvo,side1,side2,side3,side4])
+        return outconvo
     
     inputs = K.Input(input_shape)
     outputs = __build_model(inputs)
