@@ -315,7 +315,7 @@ class TorchRLTrainer(TorchTrainer):
                     
                 gif_frame = Image.fromarray(uber_img.transpose((1, 2, 0)))
                 draw = ImageDraw.Draw(gif_frame)
-                draw.text((10, 10), str(timestep_idx), fill=(137, 207, 240))  # baby blue
+                draw.text((10, 10), str(timestep_idx * self.visualization_interval), fill=(137, 207, 240))  # baby blue
 
                 gif_frames.append(gif_frame) # height, width, rgb
                         
