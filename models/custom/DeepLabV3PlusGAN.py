@@ -5,11 +5,17 @@ import numpy as np
 
 
 class DeepLabV3PlusGAN(nn.Module):
-    def __init__(self):
+    def __init__(self, cnn_discriminator=True):
         super().__init__()
         self.model = deeplabv3(pretrained=True, progress=True)
         self.model.classifier = DeepLabHead(2048, 1)
-        self.discriminator = Discriminator()
+        self.discriminator = CNN_Discriminator() if cnn_discriminator else FC_Discriminator()
+        nb_model_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        nb_model_classifier_params = sum(p.numel() for p in self.model.classifier.parameters() if p.requires_grad)
+        nb_discriminator_params = sum(p.numel() for p in self.discriminator.parameters() if p.requires_grad)
+        print(f'# MODEL PARAMS: {nb_model_params}')
+        print(f'# MODEL CLASSIFIER PARAMS: {nb_model_classifier_params}')
+        print(f'# DISCRIMINATOR PARAMS: {nb_discriminator_params}')
 
     def get_discriminator(self):
         return self.discriminator
@@ -19,9 +25,41 @@ class DeepLabV3PlusGAN(nn.Module):
         return o1
 
 
-class Discriminator(nn.Module):
+class CNN_Discriminator(nn.Module):
     def __init__(self):
-        super(Discriminator, self).__init__()
+        super(CNN_Discriminator, self).__init__()
+
+        def discriminator_block(in_filters, out_filters, bn=True):
+            block = [nn.Conv2d(in_filters, out_filters, 3, 2, 1), nn.LeakyReLU(0.2, inplace=True), nn.Dropout2d(0.25)]
+            if bn:
+                block.append(nn.BatchNorm2d(out_filters, 0.8))
+            return block
+
+        channels = 1
+        img_size = 400  # TODO parametrize this
+
+        self.model = nn.Sequential(
+            *discriminator_block(channels, 16, bn=False),
+            *discriminator_block(16, 32),
+            *discriminator_block(32, 64),
+            *discriminator_block(64, 128),
+        )
+
+        # The height and width of downsampled image
+        ds_size = img_size // 2 ** 4
+        self.adv_layer = nn.Sequential(nn.Linear(128 * ds_size ** 2, 1), nn.Sigmoid())
+
+    def forward(self, img):
+        out = self.model(img)
+        out = out.view(out.shape[0], -1)
+        validity = self.adv_layer(out)
+
+        return validity
+
+
+class FC_Discriminator(nn.Module):
+    def __init__(self):
+        super(FC_Discriminator, self).__init__()
 
         img_shape = (400, 400)  # TODO parametrize this
         self.model = nn.Sequential(
