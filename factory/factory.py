@@ -45,6 +45,8 @@ class Factory(abc.ABC):
             return CRANetFactory()
         elif model_name_lower_no_sep in ["2shotnet", "twoshotnet"]:
             return TwoShotNetFactory()
+        elif model_name_lower_no_sep in ["deeplabv3gan", "deeplabv3plusgan"]:
+            return DeepLabV3PlusGANFactory()
         else:
             print(f"The factory for the model {model_name} doesn't exist. Check if you wrote the model name "
                   f"correctly and implemented a corresponding factory in factory.py.")
@@ -143,6 +145,16 @@ class TwoShotNetFactory(Factory):
 
     def get_model_class(self):
         return TwoShotNet
+
+    def get_dataloader_class(self):
+        return TorchDataLoader
+
+class DeepLabV3PlusGANFactory(Factory):
+    def get_trainer_class(self):
+        return DeepLabV3PlusGANTrainer
+
+    def get_model_class(self):
+        return DeepLabV3PlusGAN
 
     def get_dataloader_class(self):
         return TorchDataLoader

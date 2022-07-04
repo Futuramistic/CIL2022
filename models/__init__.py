@@ -9,5 +9,6 @@ from .TF.AttUNetPlusPlusTF import AttUNetPlusPlusTF
 from .TF.UNetPlusPlusTF import UNetPlusPlusTF
 from .cascade_residual_attention.CRA_Net import OurDinkNet50
 from .custom.TwoShotNet import TwoShotNet
+from .custom.DeepLabV3PlusGAN import DeepLabV3PlusGAN
 
 from .TF import blocks as tf_blocks
