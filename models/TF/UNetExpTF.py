@@ -130,9 +130,11 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
 
         convo1_4 = MaxPool2D((8,8),8,'same')(convo1)
         convo1_4 = Convo_Block(name=name+"-convo1_4",filters=nb_filters[3],**down_args)(convo1_4)
-
+        
+        convo4_4 = Convo_Block(name=name+"-convo4_4",filters=nb_filters[3],**down_args)(convo4)
+        
         up_convo5 = Conv2DTranspose(name=name+"-up_convo5",filters=nb_filters[3],**convo_trans_args)(convo5)
-        up1 = Concatenate(axis=3)([up_convo5,convo4,convo3_4,convo2_4,convo1_4])
+        up1 = Concatenate(axis=3)([up_convo5,convo4_4,convo3_4,convo2_4,convo1_4])
         up1 = Convo_Block(name=name+"-up-1",filters=nb_filters[3],**down_args)(up1)
 
         convo5_3 = UpSampling2D(name=name+"-up5_3",size=(4,4),interpolation='bilinear')(convo5)
@@ -144,9 +146,10 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo1_3 = MaxPool2D((4,4),4,'same')(convo1)
         convo1_3 = Convo_Block(name=name+"-convo1_3",filters=nb_filters[2],**down_args)(convo1_3)
 
+        convo3_3 = Convo_Block(name=name+"-convo3_3",filters=nb_filters[2],**down_args)(convo3)
 
         up_convo4 = Conv2DTranspose(name=name+"-up_convo4",filters=nb_filters[2],**convo_trans_args)(up1)
-        up2 = Concatenate(axis=3)([up_convo4,convo3,convo2_3,convo1_3,convo5_3])
+        up2 = Concatenate(axis=3)([up_convo4,convo3_3,convo2_3,convo1_3,convo5_3])
         up2 = Convo_Block(name=name+"-up-2",filters=nb_filters[2],**down_args)(up2)
 
         convo5_2 = UpSampling2D(name=name+"-up5_2",size=(8,8),interpolation='bilinear')(convo5)
@@ -158,8 +161,10 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo1_2 = MaxPool2D((2,2),2,'same')(convo1)
         convo1_2 = Convo_Block(name=name+"-convo1_2",filters=nb_filters[1],**down_args)(convo1_2)
 
+        convo2_2 = Convo_Block(name=name+"-convo2_2",filters=nb_filters[1],**down_args)(convo2)
+
         up_convo3 = Conv2DTranspose(name=name+"-up_convo3",filters=nb_filters[1],**convo_trans_args)(up2)
-        up3 = Concatenate(axis=3)([up_convo3,convo2,convo1_2,convo4_2,convo5_2])
+        up3 = Concatenate(axis=3)([up_convo3,convo2_2,convo1_2,convo4_2,convo5_2])
         up3 =  Convo_Block(name=name+"-up-3",filters=nb_filters[1],**down_args)(up3)
 
         convo5_1 = UpSampling2D(name=name+"-up5_1",size=(16,16),interpolation='bilinear')(convo5)
@@ -171,8 +176,10 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo3_1 = UpSampling2D(name=name+"-up3_1",size=(4,4),interpolation='bilinear')(up2)
         convo3_1 = Convo_Block(name=name+"-convo3_1",filters=nb_filters[0],**down_args)(convo3_1)
 
+        convo1_1 = Convo_Block(name=name+"-convo1_1",filters=nb_filters[0],**down_args)(convo1)
+
         up_convo2 = Conv2DTranspose(name=name+"-up_convo2",filters=nb_filters[0],**convo_trans_args)(up3)
-        up4 = Concatenate(axis=3)([up_convo2,convo1,convo5_1,convo4_1,convo3_1])
+        up4 = Concatenate(axis=3)([up_convo2,convo1_1,convo5_1,convo4_1,convo3_1])
         up4 = Convo_Block(name=name+"-up-4",filters=nb_filters[0],**down_args)(up4)
 
         outconvo = Conv2D(name=name+"-final-convo",**out_args)(up4)
@@ -305,8 +312,10 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo1_4 = MaxPool2D((8,8),8,'same')(convo1)
         convo1_4 = Convo_Block(name=name+"-convo1_4",filters=nb_filters[3],**down_args)(convo1_4)
 
+        convo4_4 = Convo_Block(name=name+"-convo4_4",filters=nb_filters[3],**down_args)(convo4)
+
         up_convo5 = Conv2DTranspose(name=name+"-up_convo5",filters=nb_filters[3],**convo_trans_args)(convo5)
-        up1 = Concatenate(axis=3)([up_convo5,convo4,convo3_4,convo2_4,convo1_4])
+        up1 = Concatenate(axis=3)([up_convo5,convo4_4,convo3_4,convo2_4,convo1_4])
         up1 = Convo_Block(name=name+"-up-1",filters=nb_filters[3],**down_args)(up1)
 
         convo5_3 = UpSampling2D(name=name+"-up5_3",size=(4,4),interpolation='bilinear')(convo5)
@@ -318,9 +327,10 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo1_3 = MaxPool2D((4,4),4,'same')(convo1)
         convo1_3 = Convo_Block(name=name+"-convo1_3",filters=nb_filters[2],**down_args)(convo1_3)
 
+        convo3_3 = Convo_Block(name=name+"-convo3_3",filters=nb_filters[2],**down_args)(convo3)
 
         up_convo4 = Conv2DTranspose(name=name+"-up_convo4",filters=nb_filters[2],**convo_trans_args)(up1)
-        up2 = Concatenate(axis=3)([up_convo4,convo3,convo2_3,convo1_3,convo5_3])
+        up2 = Concatenate(axis=3)([up_convo4,convo3_3,convo2_3,convo1_3,convo5_3])
         up2 = Convo_Block(name=name+"-up-2",filters=nb_filters[2],**down_args)(up2)
 
         convo5_2 = UpSampling2D(name=name+"-up5_2",size=(8,8),interpolation='bilinear')(convo5)
@@ -332,8 +342,10 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo1_2 = MaxPool2D((2,2),2,'same')(convo1)
         convo1_2 = Convo_Block(name=name+"-convo1_2",filters=nb_filters[1],**down_args)(convo1_2)
 
+        convo2_2 = Convo_Block(name=name+"-convo2_2",filters=nb_filters[1],**down_args)(convo2)
+
         up_convo3 = Conv2DTranspose(name=name+"-up_convo3",filters=nb_filters[1],**convo_trans_args)(up2)
-        up3 = Concatenate(axis=3)([up_convo3,convo2,convo1_2,convo4_2,convo5_2])
+        up3 = Concatenate(axis=3)([up_convo3,convo2_2,convo1_2,convo4_2,convo5_2])
         up3 =  Convo_Block(name=name+"-up-3",filters=nb_filters[1],**down_args)(up3)
 
         convo5_1 = UpSampling2D(name=name+"-up5_1",size=(16,16),interpolation='bilinear')(convo5)
@@ -345,8 +357,10 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo3_1 = UpSampling2D(name=name+"-up3_1",size=(4,4),interpolation='bilinear')(up2)
         convo3_1 = Convo_Block(name=name+"-convo3_1",filters=nb_filters[0],**down_args)(convo3_1)
 
+        convo1_1 = Convo_Block(name=name+"-convo1_1",filters=nb_filters[0],**down_args)(convo1)
+
         up_convo2 = Conv2DTranspose(name=name+"-up_convo2",filters=nb_filters[0],**convo_trans_args)(up3)
-        up4 = Concatenate(axis=3)([up_convo2,convo1,convo5_1,convo4_1,convo3_1])
+        up4 = Concatenate(axis=3)([up_convo2,convo1_1,convo5_1,convo4_1,convo3_1])
         up4 = Convo_Block(name=name+"-up-4",filters=nb_filters[0],**down_args)(up4)
 
         outconvo = Conv2D(name=name+"-final-convo",**out_args)(up4)
