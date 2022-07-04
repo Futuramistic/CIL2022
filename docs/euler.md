@@ -109,6 +109,6 @@
 
 ## Summary for quick start of a Run after Initialization is finished:
 - `cd CIL2022`
-- `source activate/bin`
+- `source bin/activate`
 - `module load gcc/8.2.0 && module load python_gpu/3.9.9 && module load openmpi && module load eth_proxy`
 - 
