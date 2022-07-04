@@ -42,7 +42,7 @@ class TorchRLTrainer(TorchTrainer):
                  optimizer_or_lr=None, scheduler=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, history_size=5,
-                 max_rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), std=1e-3, reward_discount_factor=0.99,
+                 max_rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), std=[1e-3, 1e-3, 1e-3, 1e-3, 1e-2], reward_discount_factor=0.99,
                  num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20,
                  min_steps=20):
         """
@@ -56,7 +56,7 @@ class TorchRLTrainer(TorchTrainer):
             max_rollout_len (int): how large each rollout can get on maximum
                                    default value: 2 * 160000 (image size: 400*400; give agent chance to visit each pixel twice)
             replay_memory_capacity (int): capacity of the replay memory
-            std (float): standard deviation assumed on the prediction of the actor network to use on a beta distribution as a policy to compute the next action
+            std ([float, float, float, float, float]): standard deviation assumed on the predictions 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate' of the actor network to use on a Normal distribution as a policy to compute the next action
             reward_discount_factor (float): factor by which to discount the reward per timestep into the future, when calculating the accumulated future return
             num_policy_epochs (int): number of epochs for which to train the policy network during a single iteration (for a single sample)
             policy_batch_size (int): size of batches to sample from the replay memory of the policy per policy training epoch
@@ -77,6 +77,9 @@ class TorchRLTrainer(TorchTrainer):
 
         if scheduler is None:
             scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer_or_lr, lr_lambda=lambda epoch: 1.0)
+        
+        if not isinstance(std, list):
+            std = [std]*5
 
         super().__init__(dataloader=dataloader, model=model, preprocessing=preprocessing,
                  experiment_name=experiment_name, run_name=run_name, split=split, num_epochs=num_epochs, batch_size=batch_size,
@@ -396,8 +399,8 @@ class TorchRLTrainer(TorchTrainer):
                         # print(f'alphas, betas: {(alphas, betas)}')
                         
                         # dist = torch.distributions.Beta(alphas, betas)
-                        
-                        dist = torch.distributions.Normal(loc=model_output[0], scale=self.std)
+                        covariance_matrix = torch.diag(self.std)
+                        dist = torch.distributions.MultivariateNormal(loc=model_output[0], covariance_matrix=covariance_matrix)
                         action_log_probabilities_sample = dist.log_prob(model_output_sample)
 
                         policy_loss = -(action_log_probabilities_sample * returns_sample).mean()
@@ -513,13 +516,12 @@ class TorchRLTrainer(TorchTrainer):
             # alphas, betas = TorchRLTrainer.get_beta_params(mu=model_output[0], sigma=self.std)  # remove batch dimension
             # dist = torch.distributions.Beta(alphas, betas)
             
-            dist = torch.distributions.Normal(loc=model_output[0], scale=self.std)
-            
             if sample_from_action_distributions:
-                action = dist.sample()  # TODO: is this even differentiable? check!
+                action = torch.normal(mean=model_output, std=self.std)[0]
                 action = torch.clamp(action, EPSILON/2, 1-EPSILON/2)
             else:
                 action = model_output[0]  # remove batch dimension
+            print(action)
 
             action_rounded_list = []
             action_rounded_list.append(-1 + 2 * action[0])  # delta_angle in [-1, 1] (later changed to [-pi, pi] in SegmentationEnvironment)
@@ -528,7 +530,7 @@ class TorchRLTrainer(TorchTrainer):
             # sigmoid stretched --> float [0, min_patch_size]
             action_rounded_list.append(action[3] * (env.min_patch_size / 2)) # new_brush_radius
             # sigmoid rounded --> float [0, 1]
-            action_rounded_list.append(torch.round(action[4])) # terminated
+            action_rounded_list.append(torch.gt(action[4], 0.9).float()) # terminated only if output bigger than 0.9
 
             action_rounded = torch.cat([tensor.unsqueeze(0) for tensor in action_rounded_list], dim=0) 
 
@@ -576,10 +578,11 @@ class TorchRLTrainer(TorchTrainer):
     def _get_hyperparams(self):
         return {**(super()._get_hyperparams()),
                 **({param: getattr(self, param)
-                   for param in ['history_size', 'max_rollout_len', 'std', 'reward_discount_factor',
+                   for param in ['history_size', 'max_rollout_len', 'reward_discount_factor',
                                  'num_policy_epochs', 'policy_batch_size', 'sample_from_action_distributions',
                                  'visualization_interval', 'min_steps']
                    if hasattr(self, param)}),
+                **({k:v.item() for k,v in zip(['std_delta_angle', 'std_magnitude', 'std_brush_state', 'std_brush_radius', 'std_terminate'], self.std)}),
                 **({param: getattr(self.model, param)
                    for param in ['patch_size']
                    if hasattr(self.model, param)})}
