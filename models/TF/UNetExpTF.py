@@ -255,7 +255,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
 
         out_args = {
             'filters': 1,
-            'kernel_size':(1,1),
+            'kernel_size':(3,3),
             'padding':'same',
             'kernel_initializer':kernel_init,
             'kernel_regularizer': kernel_regularizer
