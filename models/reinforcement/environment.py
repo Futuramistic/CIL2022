@@ -137,8 +137,13 @@ class SegmentationEnvironment(Env):
         # this may lead to loopholes (agent turning right for a short time just to change the brush width,
         # then turning )
         
+        reward_decomp_quantities = {k: 0.0 for k in self.rewards.keys()}
+        reward_decomp_sums = {k: 0.0 for k in self.rewards.keys()}
+
         reward = 0.0
         
+        normalize_tensor = lambda x: x.detach().cpu().numpy().item()
+
         if self.terminated:
             # get huge penalty for unseen pixels
             # also get penalty for false negatives? (NO)
@@ -146,35 +151,67 @@ class SegmentationEnvironment(Env):
             # new_seen_pixels are exclusive!
             
             num_unseen_pixels = self.img.shape[0]*self.img.shape[1] - self.seen_pixels.sum() - new_seen_pixels.sum()
-            reward -= self.rewards['unseen_pix_pen']*num_unseen_pixels
-            return reward
+            reward_delta = self.rewards['unseen_pix_pen'] * num_unseen_pixels
+            reward -= reward_delta
+            reward_decomp_quantities['unseen_pix_pen'] += normalize_tensor(num_unseen_pixels)
+            reward_decomp_sums['unseen_pix_pen'] -= normalize_tensor(reward_delta)
+
+            return reward, reward_decomp_quantities, reward_decomp_sums
         
         # changing brush state, angle and radius
         if self.brush_state != new_brush_state:
             reward -= self.rewards['changed_brush_pen']
+            reward_decomp_quantities['changed_brush_pen'] += 1
+            reward_decomp_sums['changed_brush_pen'] -= normalize_tensor(self.rewards['changed_brush_pen'])
         elif self.brush_state == BRUSH_STATE_PAINT:
-            changed_angle_pen = torch.abs(delta_angle)*self.rewards['changed_angle_pen']
+            changed_angle_pen = torch.abs(delta_angle) * self.rewards['changed_angle_pen']
             reward -= changed_angle_pen
+            reward_decomp_quantities['changed_angle_pen'] += 1
+            reward_decomp_sums['changed_angle_pen'] -= normalize_tensor(changed_angle_pen)
+
             delta_brush_size = torch.abs(new_brush_radius-self.brush_width)
             changed_radius_pen = 1/(torch.max(torch.abs(delta_angle), torch.tensor(1e-1))) * delta_brush_size * self.rewards['changed_brush_rad_pen']
             reward -= changed_radius_pen
+            reward_decomp_quantities['changed_brush_rad_pen'] += 1
+            reward_decomp_sums['changed_brush_rad_pen'] -= normalize_tensor(changed_radius_pen)
+        
         # sum errored prediction over complete segmentation state
         num_false_positives = torch.logical_and(new_seen_pixels, torch.logical_and(self.gt == 0, self.get_unpadded_segmentation() == 1)).sum()
         num_false_negatives = torch.logical_and(new_seen_pixels, torch.logical_and(self.gt == 1, self.get_unpadded_segmentation() == 0)).sum()
-        reward -= num_false_positives * self.rewards['false_pos_seg_pen']
-        reward -= num_false_negatives * self.rewards['false_neg_seg_pen']
+        
+        false_pos_seg_pen = num_false_positives * self.rewards['false_pos_seg_pen']
+        reward -= false_pos_seg_pen
+        reward_decomp_quantities['false_pos_seg_pen'] += normalize_tensor(num_false_positives)
+        reward_decomp_sums['false_pos_seg_pen'] -= normalize_tensor(false_pos_seg_pen)
+
+        false_neg_seg_pen = num_false_negatives * self.rewards['false_neg_seg_pen']
+        reward -= false_neg_seg_pen
+        reward_decomp_quantities['false_neg_seg_pen'] += normalize_tensor(num_false_negatives)
+        reward_decomp_sums['false_pos_seg_pen'] -= normalize_tensor(false_neg_seg_pen)
         
         # reward currently correctly predicted pixels
         num_new_true_pos = torch.logical_and(new_seen_pixels, torch.logical_and(self.gt == 1, self.get_unpadded_segmentation() == 1)).sum()
         num_new_true_neg = torch.logical_and(new_seen_pixels, torch.logical_and(self.gt == 0, self.get_unpadded_segmentation() == 0)).sum()
-        reward += num_new_true_pos * self.rewards['true_pos_seg_rew']
-        reward += num_new_true_neg * self.rewards['true_neg_seg_rew']
+        
+        true_pos_seg_rew = num_new_true_pos * self.rewards['true_pos_seg_rew']
+        reward += true_pos_seg_rew
+        reward_decomp_quantities['true_pos_seg_rew'] += normalize_tensor(num_new_true_pos)
+        reward_decomp_sums['true_pos_seg_rew'] += normalize_tensor(true_pos_seg_rew)
+
+        true_neg_seg_rew = num_new_true_neg * self.rewards['true_neg_seg_rew']
+        reward += true_neg_seg_rew
+        reward_decomp_quantities['true_neg_seg_rew'] += normalize_tensor(num_new_true_neg)
+        reward_decomp_sums['true_neg_seg_rew'] += normalize_tensor(true_neg_seg_rew)
         
         # reward newly seen pixels
         num_newly_seen_pixels = torch.sum(new_seen_pixels)
-        reward += num_newly_seen_pixels * self.rewards['unseen_pix_rew']
         
-        return reward
+        unseen_pix_rew = num_newly_seen_pixels * self.rewards['unseen_pix_rew']
+        reward += unseen_pix_rew
+        reward_decomp_quantities['unseen_pix_rew'] += normalize_tensor(num_newly_seen_pixels)
+        reward_decomp_sums['unseen_pix_rew'] += normalize_tensor(unseen_pix_rew)
+        
+        return reward, reward_decomp_quantities, reward_decomp_sums
 
     def step(self, action):
         # returns: (new_observation, reward, done, new_info)
@@ -202,6 +239,7 @@ class SegmentationEnvironment(Env):
             #current_seg, new_seg_map
             self.seg_map_padded[stroke_ball] = 1 if new_brush_state == BRUSH_STATE_PAINT else 0 # 1 if new_brush_state = 1
 
+            
         # calculate new_seen_pixels
         
         # unnormed_patch_coord_list: may exceed bounding box (be negative or >= width or >= height)
@@ -221,7 +259,8 @@ class SegmentationEnvironment(Env):
         new_seen_pixels = torch.max(new_seen_pixels - self.seen_pixels, torch.zeros_like(new_seen_pixels, dtype=new_seen_pixels.dtype)) > 0
         
         # calculate reward
-        reward = self.calculate_reward(delta_angle, new_brush_state, new_brush_radius, new_seen_pixels)
+        reward, reward_decomp_quantities, reward_decomp_sums =\
+            self.calculate_reward(delta_angle, new_brush_state, new_brush_radius, new_seen_pixels)
         
         # update class values
         # current position is marked separately, and mark is added right before the minimap is forwarded to
@@ -257,7 +296,8 @@ class SegmentationEnvironment(Env):
         global_information[get_minimap_pixel_coords(self.agent_pos)] = 0.5
         brush_state = torch.ones_like(self.minimap) * self.brush_state
         new_observation = torch.cat([new_rgb_patch, self.history, self.minimap.unsqueeze(0), brush_state.unsqueeze(0)], dim=0)
-        new_info = {} # TODO if needed, e.g. for visualization
+        new_info = {'reward_decomp_quantities': reward_decomp_quantities,
+                    'reward_decomp_sums': reward_decomp_sums}
         return new_observation, reward, self.terminated, new_info
     
     def get_unpadded_segmentation(self): # for trainer to calculate loss during testing

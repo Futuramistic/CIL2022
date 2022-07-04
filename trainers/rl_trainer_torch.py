@@ -117,8 +117,18 @@ class TorchRLTrainer(TorchTrainer):
 
         def on_train_batch_end(self):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                precision, recall, self.f1_score = self.trainer.get_precision_recall_F1_score_validation()
-                metrics = {'precision': precision, 'recall': recall, 'f1_score': self.f1_score}
+                precision, recall, self.f1_score, reward_info = self.trainer.get_precision_recall_F1_score_validation()
+
+                # {'reward_stats_first_quantities': reward_stats_first_quantities,
+                #       'reward_stats_first_sums': reward_stats_first_sums,
+                #       'reward_stats_sum_quantities': reward_stats_sum_quantities,
+                #       'reward_stats_sum_sums': reward_stats_sum_sums,
+                #       'reward_stats_avg_quantities': reward_stats_avg_quantities,
+                #       'reward_stats_avg_sums': reward_stats_avg_sums}
+
+                reward_info_flattened = {'rl_' + reward_type + '_' + key: reward_info[reward_type][key] for key in reward_info[list(reward_info.keys())[0]].keys() for reward_type in reward_info.keys()}
+
+                metrics = {'precision': precision, 'recall': recall, 'f1_score': self.f1_score, **reward_info_flattened}
                 print('Metrics at aggregate iteration %i (ep. %i, ep.-it. %i): %s'
                       % (self.iteration_idx, self.epoch_idx, self.epoch_iteration_idx, str(metrics)))
                 if mlflow_logger.logging_to_mlflow_enabled():
@@ -224,7 +234,7 @@ class TorchRLTrainer(TorchTrainer):
                 # in https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html,
                 # they loop for "rollouts.rollout_size" iterations, but here, we loop until network tells us to terminate
                 # loop until termination/timeout already inside this function
-                predictions_nstepwise, positions_nstepwise =\
+                predictions_nstepwise, positions_nstepwise, reward, info =\
                     self.trajectory_step(env, sample_from_action_distributions=self.sample_from_action_distributions, visualization_interval=self.visualization_interval)
                 predictions_nstepwise_np = np.stack(predictions_nstepwise)  # stack all animation frames, dim(nsteps, height, width)
                 
@@ -367,9 +377,7 @@ class TorchRLTrainer(TorchTrainer):
                 # if we exit this function and "terminated" is false, we timed out
                 # (more than self.max_rollout_len iterations)
                 # loop until termination/timeout already inside this function
-                self.trajectory_step(env,
-                                    sample_from_action_distributions=self.sample_from_action_distributions,
-                                    memory=memory)
+                self.trajectory_step(env, sample_from_action_distributions=self.sample_from_action_distributions, memory=memory)
 
                 memory.compute_accumulated_discounted_returns(gamma=self.reward_discount_factor)
 
@@ -445,7 +453,7 @@ class TorchRLTrainer(TorchTrainer):
                 # in https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html,
                 # they loop for "rollouts.rollout_size" iterations, but here, we loop until network tells us to terminate
                 # loop until termination/timeout already inside this function
-                self.trajectory_step(env, sample_from_action_distributions=False)
+                predictions_nsteps, positions_nsteps, reward, info = self.trajectory_step(env, sample_from_action_distributions=False)
                 preds = env.get_unpadded_segmentation().float()
                 test_loss += self.loss_function(preds, sample_y).item()
 
@@ -473,7 +481,7 @@ class TorchRLTrainer(TorchTrainer):
         return alpha, beta
 
     def trajectory_step(self, env, sample_from_action_distributions=None, memory=None, visualization_interval=-1):
-        """Uses model predictions to create trajectory until terminated
+        """Uses modle predictions to create trajectory until terminated
         Args:
             env (Environment): the environment the model shall explore
             observation (Observation): the observation input for the model
@@ -484,13 +492,22 @@ class TorchRLTrainer(TorchTrainer):
             list of observations that can be used to generate animations of the agent's trajectory, or [] if visualization_interval <= 0 (List of torch.Tensor)
         """
 
+        # here, the reward information is aggregated over the *timesteps* (sum and average)
+
         env.reset()
         predictions_nsteps = [env.get_unpadded_segmentation().float().detach().cpu().numpy()]
         positions_nsteps = [env.agent_pos]
 
-        observation, _, _, _ = env.step(env.get_neutral_action())    
+        info_sum = {'reward_decomp_quantities': {}, 'reward_decomp_sums': {}}
+
+        observation, _, _, info = env.step(env.get_neutral_action())
+        info_sum['reward_decomp_quantities'] = {k: info_sum.get(k, 0.0) + v for k, v in info['reward_decomp_quantities'].items()}
+        info_sum['reward_decomp_sums'] = {k: info_sum.get(k, 0.0) + v for k, v in info['reward_decomp_sums'].items()}
+
+
         predictions_nsteps.append(env.get_unpadded_segmentation().float().detach().cpu().numpy())
         positions_nsteps.append(env.agent_pos)
+
 
         eps_reward = 0.0
 
@@ -533,6 +550,8 @@ class TorchRLTrainer(TorchTrainer):
             action_rounded = torch.cat([tensor.unsqueeze(0) for tensor in action_rounded_list], dim=0) 
 
             new_observation, reward, terminated, info = env.step(action)
+            info_sum['reward_decomp_quantities'] = {k: info_sum.get(k, 0.0) + v for k, v in info['reward_decomp_quantities'].items()}
+            info_sum['reward_decomp_sums'] = {k: info_sum.get(k, 0.0) + v for k, v in info['reward_decomp_sums'].items()}
             
             if memory is not None:
                 memory.push(observation, model_output, action_rounded, terminated, reward, torch.tensor(float('nan')))
@@ -547,13 +566,34 @@ class TorchRLTrainer(TorchTrainer):
             if terminated >= 0.5 and timestep_idx >= self.min_steps:
                 break
         
-        return predictions_nsteps, positions_nsteps
+        info_avg = {'reward_decomp_quantities': {}, 'reward_decomp_sums': {}}
+        info_avg['reward_decomp_quantities'] = {k: v / (timestep_idx + 1) for k, v in info_sum['reward_decomp_quantities'].items()}
+        info_avg['reward_decomp_sums'] = {k: v / (timestep_idx + 1) for k, v in info_sum['reward_decomp_sums'].items()}
+
+        return predictions_nsteps, positions_nsteps, reward, {'info_timestep_sum': info_sum, 'info_timestep_avg': info_avg}
 
     def get_precision_recall_F1_score_validation(self):
+        # this function also returns reward statistics (averaged, summed, and for the first sample)
+
+        reward_stats__first_sample__timestep_sum__reward_quantities = {}
+        reward_stats__first_sample__timestep_sum__reward_sums = {}
+        
+        reward_stats__first_sample__timestep_avg__reward_quantities = {}
+        reward_stats__first_sample__timestep_avg__reward_sums = {}
+
+        reward_stats__sample_sum__timestep_sum__reward_quantities = {}
+        reward_stats__sample_sum__timestep_sum__reward_sums = {}
+        
+        reward_stats__sample_sum__timestep_avg__reward_quantities = {}
+        reward_stats__sample_sum__timestep_avg__reward_sums = {}
+
         self.model.eval()
         precisions, recalls, f1_scores = [], [], []
+        num_samples = 0
         for (xs, ys) in self.test_loader:
             for idx, sample_x in enumerate(xs):
+                num_samples += 1
+
                 sample_y = ys[idx]
                 sample_x, sample_y = sample_x.to(self.device, dtype=torch.float32), sample_y.to(self.device, dtype=torch.long)
                 
@@ -563,15 +603,66 @@ class TorchRLTrainer(TorchTrainer):
                 env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size, self.test_loader.img_val_min, self.test_loader.img_val_max) # take standard reward
 
                 # loop until termination/timeout already inside this function
-                self.trajectory_step(env, sample_from_action_distributions=False)
+                _, _, reward, trajectory_info = self.trajectory_step(env, sample_from_action_distributions=False)
                 
+                info_timestep_sum = trajectory_info.get('info_timestep_sum', {})
+                info_timestep_avg = trajectory_info.get('info_timestep_avg', {})
+
+                if 'reward_decomp_quantities' in info_timestep_sum:
+                    for key in info_timestep_sum['reward_decomp_quantities'].keys():
+                        reward_stats__sample_sum__timestep_sum__reward_quantities[key] = reward_stats__sample_sum__timestep_sum__reward_quantities.get(key, 0.0) + info_timestep_sum['reward_decomp_quantities'][key]
+                        if idx == 0:
+                            reward_stats__first_sample__timestep_sum__reward_quantities[key] = reward_stats__first_sample__timestep_sum__reward_quantities.get(key, 0.0) + info_timestep_sum['reward_decomp_quantities'][key]
+                        
+                if 'reward_decomp_sums' in info_timestep_sum:
+                    for key in info_timestep_sum['reward_decomp_sums'].keys():
+                        reward_stats__sample_sum__timestep_sum__reward_sums[key] = reward_stats__sample_sum__timestep_sum__reward_sums.get(key, 0.0) + info_timestep_sum['reward_decomp_sums'][key]
+                        if idx == 0:
+                            reward_stats__first_sample__timestep_sum__reward_sums[key] = reward_stats__first_sample__timestep_sum__reward_sums.get(key, 0.0) + info_timestep_sum['reward_decomp_sums'][key]
+
+                if 'reward_decomp_quantities' in info_timestep_avg:
+                    for key in info_timestep_avg['reward_decomp_quantities'].keys():
+                        reward_stats__sample_sum__timestep_avg__reward_quantities[key] = reward_stats__sample_sum__timestep_avg__reward_quantities.get(key, 0.0) + info_timestep_avg['reward_decomp_quantities'][key]
+                        if idx == 0:
+                            reward_stats__first_sample__timestep_avg__reward_quantities[key] = reward_stats__first_sample__timestep_avg__reward_quantities.get(key, 0.0) + info_timestep_avg['reward_decomp_quantities'][key]
+                        
+                if 'reward_decomp_sums' in info_timestep_avg:
+                    for key in info_timestep_avg['reward_decomp_sums'].keys():
+                        reward_stats__sample_sum__timestep_avg__reward_sums[key] = reward_stats__sample_sum__timestep_avg__reward_sums.get(key, 0.0) + info_timestep_avg['reward_decomp_sums'][key]
+                        if idx == 0:
+                            reward_stats__first_sample__timestep_avg__reward_sums[key] = reward_stats__first_sample__timestep_avg__reward_sums.get(key, 0.0) + info_timestep_avg['reward_decomp_sums'][key]
+
                 preds = env.get_unpadded_segmentation().float()
                 precision, recall, f1_score = precision_recall_f1_score_torch(preds, sample_y)
                 precisions.append(precision.cpu().numpy())
                 recalls.append(recall.cpu().numpy())
                 f1_scores.append(f1_score.cpu().numpy())
 
-        return np.mean(precisions), np.mean(recalls), np.mean(f1_scores)
+                # print(f'Reward information for sample {idx}: {info}')
+
+        reward_stats__sample_avg__timestep_sum__reward_quantities = {k: v / num_samples for k, v in reward_stats__sample_sum__timestep_sum__reward_quantities.items()}
+        reward_stats__sample_avg__timestep_sum__reward_sums = {k: v / num_samples for k, v in reward_stats__sample_sum__timestep_sum__reward_sums.items()}
+        
+        reward_stats__sample_avg__timestep_avg__reward_quantities = {k: v / num_samples for k, v in reward_stats__sample_sum__timestep_avg__reward_quantities.items()}
+        reward_stats__sample_avg__timestep_avg__reward_sums = {k: v / num_samples for k, v in reward_stats__sample_sum__timestep_avg__reward_sums.items()}
+
+        reward_info = {'reward_stats__first_sample__timestep_sum__reward_quantities': reward_stats__first_sample__timestep_sum__reward_quantities,
+                       'reward_stats__first_sample__timestep_sum__reward_sums': reward_stats__first_sample__timestep_sum__reward_sums,
+                       'reward_stats__first_sample__timestep_avg__reward_quantities': reward_stats__first_sample__timestep_avg__reward_quantities,
+                       'reward_stats__first_sample__timestep_avg__reward_sums': reward_stats__first_sample__timestep_avg__reward_sums,
+                       'reward_stats__sample_sum__timestep_sum__reward_quantities': reward_stats__sample_sum__timestep_sum__reward_quantities,
+                       'reward_stats__sample_sum__timestep_sum__reward_sums': reward_stats__sample_sum__timestep_sum__reward_sums,
+                       'reward_stats__sample_sum__timestep_avg__reward_quantities': reward_stats__sample_sum__timestep_avg__reward_quantities,
+                       'reward_stats__sample_sum__timestep_avg__reward_sums': reward_stats__sample_sum__timestep_avg__reward_sums,
+                       'reward_stats__sample_avg__timestep_sum__reward_quantities': reward_stats__sample_avg__timestep_sum__reward_quantities,
+                       'reward_stats__sample_avg__timestep_sum__reward_sums': reward_stats__sample_avg__timestep_sum__reward_sums,
+                       'reward_stats__sample_avg__timestep_avg__reward_quantities': reward_stats__sample_avg__timestep_avg__reward_quantities,
+                       'reward_stats__sample_avg__timestep_avg__reward_sums': reward_stats__sample_avg__timestep_avg__reward_sums}
+
+        # aggregated reward information printed by evaluation logic calling this function
+        # print(f'Aggregated reward information: {reward_info}')
+
+        return np.mean(precisions), np.mean(recalls), np.mean(f1_scores), reward_info
 
     def _get_hyperparams(self):
         return {**(super()._get_hyperparams()),
