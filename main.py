@@ -22,7 +22,7 @@ def main():
                     'evaluation_interval', 'i', 'num_samples_to_visualize', 'v', 'checkpoint_interval', 'c',
                     'load_checkpoint_path', 'C', 'segmentation_threshold', 't', 'history_size',
                     'max_rollout_len', 'std', 'reward_discount_factor', 'num_policy_epochs', 'policy_batch_size',
-                    'sample_from_action_distributions', 'visualization_interval']
+                    'sample_from_action_distributions', 'visualization_interval', 'min_steps']
     dataloader_args = ['dataset', 'd']
 
     # list of other arguments to avoid passing to constructor of model class

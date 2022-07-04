@@ -13,7 +13,7 @@ class RefinementQ(nn.Module):
         super(RefinementQ, self).__init__()
         self.transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
         layers = []
-        in_channels = 7 # RGB, Binary, 3 for canny (gradient magnitude, orientation, thin edges)
+        in_channels = 7 # RGB, Binary, 3 for canny (gradient magnitude, orientation, thin edges) TODO: make in_channels dynamic to history size
         curr_output_dim = patch_size
         kernel_size = 3
         stride=2
