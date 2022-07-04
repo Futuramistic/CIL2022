@@ -545,7 +545,7 @@ class TorchRLTrainer(TorchTrainer):
                 predictions_nsteps.append((env.get_unpadded_segmentation().float().detach().cpu().numpy()).astype(int))
                 positions_nsteps.append(env.agent_pos)
             
-            if terminated >= 0.5 and timestep_idx >= self.min_steps:
+            if terminated and timestep_idx >= self.min_steps:
                 break
         
         return predictions_nsteps, positions_nsteps
