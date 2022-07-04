@@ -171,7 +171,9 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo1_2 = MaxPool2D((2,2),2,'same')(convo1)
         convo1_2 = Convo_Block(name=name+"-convo1_2",filters=nb_filters[1],**down_args)(convo1_2)
 
-        up3 = Up_Block(name=name+"-up-block-3",filters=nb_filters[1],**up_args)(x=up2,   merger=[convo2,convo1_2,convo4_2,convo5_2])
+        up_convo3 = Conv2DTranspose(name=name+"-up_convo3",filters=nb_filters[1],**convo_trans_args)(up2)
+        up3 = Concatenate(axis=3)([up_convo3,convo2,convo1_2,convo4_2,convo5_2])
+        up3 =  Convo_Block(name=name+"-up-3",filters=nb_filters[1],**down_args)(up3)
 
         convo5_1 = UpSampling2D(name=name+"-up5_1",size=(16,16),interpolation='bilinear')(convo5)
         convo5_1 = Convo_Block(name=name+"-convo5_1",filters=nb_filters[0],**down_args)(convo5_1)
@@ -182,7 +184,9 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo3_1 = UpSampling2D(name=name+"-up3_1",size=(4,4),interpolation='bilinear')(up2)
         convo3_1 = Convo_Block(name=name+"-convo3_1",filters=nb_filters[0],**down_args)(convo3_1)
 
-        up4 = Up_Block(name=name+"-up-block-4",filters=nb_filters[0],**up_args)(x=up3,  merger=[convo1,convo5_1,convo4_1,convo3_1])
+        up_convo2 = Conv2DTranspose(name=name+"-up_convo2",filters=nb_filters[0],**convo_trans_args)(up3)
+        up4 = Concatenate(axis=3)([up_convo2,convo1,convo5_1,convo4_1,convo3_1])
+        up4 = Convo_Block(name=name+"-up-4",filters=nb_filters[0],**down_args)(up4)
 
         outconvo = Conv2D(name=name+"-final-convo",**out_args)(up4)
         sigmoid = K.activations.sigmoid
@@ -355,7 +359,9 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo1_2 = MaxPool2D((2,2),2,'same')(convo1)
         convo1_2 = Convo_Block(name=name+"-convo1_2",filters=nb_filters[1],**down_args)(convo1_2)
 
-        up3 = Up_Block(name=name+"-up-block-3",filters=nb_filters[1],**up_args)(x=up2,   merger=[convo2,convo1_2,convo4_2,convo5_2])
+        up_convo3 = Conv2DTranspose(name=name+"-up_convo3",filters=nb_filters[1],**convo_trans_args)(up2)
+        up3 = Concatenate(axis=3)([up_convo3,convo2,convo1_2,convo4_2,convo5_2])
+        up3 =  Convo_Block(name=name+"-up-3",filters=nb_filters[1],**down_args)(up3)
 
         convo5_1 = UpSampling2D(name=name+"-up5_1",size=(16,16),interpolation='bilinear')(convo5)
         convo5_1 = Convo_Block(name=name+"-convo5_1",filters=nb_filters[0],**down_args)(convo5_1)
@@ -366,7 +372,9 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         convo3_1 = UpSampling2D(name=name+"-up3_1",size=(4,4),interpolation='bilinear')(up2)
         convo3_1 = Convo_Block(name=name+"-convo3_1",filters=nb_filters[0],**down_args)(convo3_1)
 
-        up4 = Up_Block(name=name+"-up-block-4",filters=nb_filters[0],**up_args)(x=up3,  merger=[convo1,convo5_1,convo4_1,convo3_1])
+        up_convo2 = Conv2DTranspose(name=name+"-up_convo2",filters=nb_filters[0],**convo_trans_args)(up3)
+        up4 = Concatenate(axis=3)([up_convo2,convo1,convo5_1,convo4_1,convo3_1])
+        up4 = Convo_Block(name=name+"-up-4",filters=nb_filters[0],**down_args)(up4)
 
         outconvo = Conv2D(name=name+"-final-convo",**out_args)(up4)
         sigmoid = K.activations.sigmoid
