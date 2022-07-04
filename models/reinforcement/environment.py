@@ -142,7 +142,7 @@ class SegmentationEnvironment(Env):
 
         reward = 0.0
         
-        normalize_tensor = lambda x: x.detach().cpu().numpy().item()
+        normalize_tensor = lambda x: x.detach().cpu().numpy().item() if isinstance(x, torch.Tensor) else x
 
         if self.terminated:
             # get huge penalty for unseen pixels
@@ -229,15 +229,15 @@ class SegmentationEnvironment(Env):
             # x: [0, 1, 2, 3, ...] (row vector)
             # y: [0, 1, 2, 3, ...] (column vector)
 
-            distance_map = (torch.square(self.padded_grid_x - (self.agent_pos[0] + self.paddings_per_dim[0][0]))
-                            + torch.square(self.padded_grid_y - (self.agent_pos[1] + self.paddings_per_dim[1][0]) )
+            distance_map = (torch.square(self.padded_grid_y - (self.agent_pos[0] + self.paddings_per_dim[0][0]))
+                            + torch.square(self.padded_grid_x - (self.agent_pos[1] + self.paddings_per_dim[1][0]) )
                             - new_brush_radius**2) # 2D
             unpadded_mask = self.seg_map_padded != self.padding_value
             stroke_ball = torch.logical_and(distance_map <= 0, unpadded_mask)  # boolean mask
             # paint: OR everything within stroke_ball with 1 (set to 1)
             # erase: AND everything within stroke_ball with 0 (set to 0)
             #current_seg, new_seg_map
-            self.seg_map_padded[stroke_ball] = 1 if new_brush_state == BRUSH_STATE_PAINT else 0 # 1 if new_brush_state = 1
+            self.seg_map_padded[stroke_ball] = 1 if new_brush_state == BRUSH_STATE_PAINT else 0
 
             
         # calculate new_seen_pixels
@@ -266,7 +266,7 @@ class SegmentationEnvironment(Env):
         # current position is marked separately, and mark is added right before the minimap is forwarded to
 
         def get_minimap_pixel_coords(original_coords):
-            return tuple([int(pos // (self.img.shape[dim_idx+1] / self.patch_size[dim_idx])) for dim_idx, pos in enumerate(self.agent_pos)])
+            return tuple([int(pos // (self.img.shape[dim_idx+1] / self.patch_size[dim_idx])) for dim_idx, pos in enumerate(original_coords)])
 
         self.minimap[get_minimap_pixel_coords(self.agent_pos)] = 1
 
@@ -275,8 +275,8 @@ class SegmentationEnvironment(Env):
         delta_x = math.cos(self.angle) * self.magnitude
         delta_y = math.sin(self.angle) * self.magnitude
         # project to bounding box
-        self.agent_pos = [max(0, min(int(self.agent_pos[0] + delta_x), self.img_size[0] - 1)),
-                          max(0, min(int(self.agent_pos[1] + delta_y), self.img_size[1] - 1))]
+        self.agent_pos = [max(0, min(int(self.agent_pos[0] + delta_y), self.img_size[0] - 1)),
+                          max(0, min(int(self.agent_pos[1] + delta_x), self.img_size[1] - 1))]
         self.brush_state = new_brush_state
         self.brush_width = new_brush_radius
         self.seen_pixels[new_seen_pixels] = 1

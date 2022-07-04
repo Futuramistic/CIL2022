@@ -530,7 +530,7 @@ class TorchRLTrainer(TorchTrainer):
             
             if sample_from_action_distributions:
                 action = torch.normal(mean=model_output, std=self.std)[0]
-                action = torch.clamp(action, EPSILON/2, 1-EPSILON/2)
+                action = torch.clamp(action, 0.0, 1.0)
             else:
                 action = model_output[0]  # remove batch dimension
 
@@ -545,7 +545,7 @@ class TorchRLTrainer(TorchTrainer):
 
             action_rounded = torch.cat([tensor.unsqueeze(0) for tensor in action_rounded_list], dim=0)
 
-            new_observation, reward, terminated, info = env.step(action)
+            new_observation, reward, terminated, info = env.step(action_rounded)
             info_sum['reward_decomp_quantities'] = {k: info_sum.get(k, 0.0) + v for k, v in info['reward_decomp_quantities'].items()}
             info_sum['reward_decomp_sums'] = {k: info_sum.get(k, 0.0) + v for k, v in info['reward_decomp_sums'].items()}
             
