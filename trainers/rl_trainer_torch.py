@@ -521,7 +521,6 @@ class TorchRLTrainer(TorchTrainer):
                 action = torch.clamp(action, EPSILON/2, 1-EPSILON/2)
             else:
                 action = model_output[0]  # remove batch dimension
-            print(action)
 
             action_rounded_list = []
             action_rounded_list.append(-1 + 2 * action[0])  # delta_angle in [-1, 1] (later changed to [-pi, pi] in SegmentationEnvironment)
@@ -532,7 +531,7 @@ class TorchRLTrainer(TorchTrainer):
             # sigmoid rounded --> float [0, 1]
             action_rounded_list.append(torch.gt(action[4], 0.9).float()) # terminated only if output bigger than 0.9
 
-            action_rounded = torch.cat([tensor.unsqueeze(0) for tensor in action_rounded_list], dim=0) 
+            action_rounded = torch.cat([tensor.unsqueeze(0) for tensor in action_rounded_list], dim=0)
 
             new_observation, reward, terminated, info = env.step(action)
             
