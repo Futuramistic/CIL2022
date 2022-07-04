@@ -8,10 +8,8 @@ import time
 import warnings
 
 from data_handling import *
-from factory import Factory
+from factory import Factory, get_torch_scheduler
 from utils.logging import pushbullet_logger
-from trainers.trainer_tf import TFTrainer
-from trainers.trainer_torch import TorchTrainer
 
 
 class HyperParamOptimizer:
@@ -91,13 +89,30 @@ class HyperParamOptimizer:
         output (Dictionary[loss, status, and other things])
         """
         # for mlflow logger
-        run_name = f"Hyperopt{'_' + self.run_name if self.run_name is not None else ''}" + "_{:%Y_%m_%d_%H_%M}".format(datetime.datetime.now())
+        run_name_initial = self.run_name if self.run_name is not None else ''
+        run_name = f"Hyperopt_{run_name_initial}" + "_{:%Y_%m_%d_%H_%M}".format(datetime.datetime.now())
         with open(self.trials_path, 'wb') as handle:
             pickle.dump(self.trials, handle)
         try:
+            # for RL Learning:
+            training_params = hyperparams['training']['trainer_params']
+            if 'history_size' in training_params:
+                hyperparams['model']['kwargs']['in_channels'] = int(training_params['history_size'] + 5)    
+                # penalty for false negative should not be smaller than reward for true positive,   
+                training_params['rewards']['false_neg_seg_pen'] = training_params['rewards']['false_pos_seg_pen'] if training_params['rewards']['false_neg_seg_pen'] < training_params['rewards']['false_pos_seg_pen'] else training_params['rewards']['false_neg_seg_pen']
             model = self.model_class(**hyperparams['model']['kwargs'])
-            trainer = self.trainer_class(**hyperparams['training']['trainer_params'], dataloader = self.dataloader, model=model, experiment_name=self.exp_name, run_name=run_name)
-            test_loss = trainer.train()
+            
+            # get scheduler from string
+            if 'optimizer_params' in hyperparams['training']:
+                optimizer = self.trainer_class.get_default_optimizer_with_lr(hyperparams['training']['optimizer_params']['optimizer_lr'], model)
+                scheduler_args = hyperparams['training']['optimizer_params']['scheduler_args']
+                scheduler_name = scheduler_args['scheduler_name']
+                scheduler_kwargs = scheduler_args['kwargs']
+                scheduler = get_torch_scheduler(optimizer, scheduler_name, scheduler_kwargs)
+                hyperparams['training']['trainer_params']['scheduler'] = scheduler
+            
+            trainer = self.trainer_class(**training_params, dataloader = self.dataloader, model=model, experiment_name=self.exp_name, run_name=run_name)
+            trainer.train()
             average_f1_score = trainer.get_F1_score_validation()
         except RuntimeError as r:
             err_msg = f"Hyperopt failed.\nCurrent hyperparams that lead to error:\n{hyperparams}" +\
