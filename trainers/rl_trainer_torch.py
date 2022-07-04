@@ -1,23 +1,13 @@
-import abc
-import datetime
-import functools
-import itertools
 import math
 import numpy as np
-import pysftp
 import random
-import requests
-from requests.auth import HTTPBasicAuth
-from sklearn.utils import shuffle
 import torch
 import torch.cuda
 import torch.optim as optim
 from torch.utils.data import DataLoader, Subset
-from urllib.parse import urlparse
-from collections import namedtuple
 
 from losses.precision_recall_f1 import *
-from models.reinforcement.environment import SegmentationEnvironment, TERMINATE_NO, TERMINATE_YES
+from models.reinforcement.environment import SegmentationEnvironment, DEFAULT_REWARDS
 from utils.logging import mlflow_logger
 from .trainer_torch import TorchTrainer
 from utils import *
@@ -44,7 +34,7 @@ class TorchRLTrainer(TorchTrainer):
                  load_checkpoint_path=None, segmentation_threshold=None, history_size=5,
                  max_rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), std=[1e-3, 1e-3, 1e-3, 1e-3, 1e-2], reward_discount_factor=0.99,
                  num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20,
-                 min_steps=20):
+                 min_steps=20, rewards = None):
         """
         Trainer for RL-based models.
         Args:
@@ -63,6 +53,7 @@ class TorchRLTrainer(TorchTrainer):
             sample_from_action_distributions (bool): controls whether to sample from the action distributions or to always use the mean
             visualization_interval (int): logs the predicted trajectory as a gif every <visualization_interval> steps.
             min_steps (int): minimum number of steps agent has to perform before it is allowed to terminate a trajectory
+            rewards (dict): Dictionary of rewards, see type of rewards in models/reinforcement/environment.py under DEFAULT_REWARDS
         """
         if loss_function is not None:
             raise RuntimeError('Custom losses not supported by TorchRLTrainer')
@@ -78,7 +69,7 @@ class TorchRLTrainer(TorchTrainer):
         if scheduler is None:
             scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer_or_lr, lr_lambda=lambda epoch: 1.0)
         
-        if not isinstance(std, list):
+        if isinstance(std, int) or isinstance(std, float):
             std = [std]*5
 
         super().__init__(dataloader=dataloader, model=model, preprocessing=preprocessing,
@@ -96,6 +87,8 @@ class TorchRLTrainer(TorchTrainer):
         self.policy_batch_size = int(policy_batch_size)
         self.visualization_interval = int(visualization_interval)
         self.min_steps = int(min_steps)
+        self.rewards = DEFAULT_REWARDS if rewards is None else rewards
+        print(self.std)
 
         # self.scheduler set by TorchTrainer superclass
 
@@ -231,7 +224,7 @@ class TorchRLTrainer(TorchTrainer):
                 # accordingly, sample_y must be of shape (H, W) not (1, H, W)
                 sample_y_gpu = torch.squeeze(sample_y_gpu)
                 env = SegmentationEnvironment(sample_x, sample_y_gpu, self.model.patch_size, self.history_size,
-                                              self.test_loader.img_val_min, self.test_loader.img_val_max)
+                                              self.test_loader.img_val_min, self.test_loader.img_val_max, rewards = self.rewards)
                 env.reset()
                 
                 # in https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html,

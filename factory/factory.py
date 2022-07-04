@@ -146,3 +146,15 @@ class SimpleRLCNNFactory(Factory):
 
     def get_dataloader_class(self):
         return TorchDataLoader
+
+
+def get_torch_scheduler(optimizer, scheduler_name, kwargs):
+    if scheduler_name == "steplr":
+        return torch.optim.lr_scheduler.StepLR(optimizer=optimizer, **kwargs)
+    elif scheduler_name == 'lambdalr':
+        return torch.optim.lr_scheduler.LambdaLR(optimizer=optimizer, **kwargs)
+    elif scheduler_name == 'plateau':
+        return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, **kwargs)
+    else:
+        # standard configuration
+        return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: 1.0)
