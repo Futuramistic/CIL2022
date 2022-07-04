@@ -10,9 +10,7 @@ from torchvision import transforms
 from torch.autograd import Variable
 # from torch import Tensor
 
-# Tensor = torch.cuda.FloatTensor  # if cuda
-Tensor = torch.FloatTensor  # else
-
+Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
 
 class DeepLabV3PlusGANTrainer(TorchTrainer):
     """
