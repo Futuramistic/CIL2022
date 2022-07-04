@@ -226,7 +226,6 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
     model.deep_supervision = deep_supervision
     model.classification_guided_module = cgm
     model.cgm_dropout = cgm_dropout
-    model.num_params = np.sum([np.prod(v.get_shape().as_list()) for v in tf.trainable_variables()])
     return model
 
 
@@ -408,5 +407,4 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
     model.deep_supervision = deep_supervision
     model.classification_guided_module = cgm
     model.cgm_dropout = cgm_dropout
-    model.num_params = np.sum([np.prod(v.get_shape().as_list()) for v in tf.trainable_variables()])
     return model
