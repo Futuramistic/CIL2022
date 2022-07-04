@@ -80,7 +80,6 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
            dropout=0.5,
            kernel_init='he_normal',
            normalize=True,
-           up_transpose=True,
            kernel_regularizer=K.regularizers.l2(),
            use_learnable_pool=False,
            deep_supervision=False,
@@ -90,23 +89,11 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
 
     def __build_model(inputs):
         nb_filters = [32,64,128,256,512]
-        if up_transpose:
-            up_block = Transpose_Block
-        else:
-            up_block = UpSampleConvo_Block
 
         down_args = {
             'dropout': dropout,
             'kernel_init':kernel_init,
             'normalize':normalize,
-            'kernel_regularizer': kernel_regularizer
-        }
-
-        up_args = {
-            'dropout': dropout,
-            'kernel_init': kernel_init,
-            'normalize': normalize,
-            'up_convo': up_block,
             'kernel_regularizer': kernel_regularizer
         }
 
@@ -227,7 +214,6 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
     model.dropout = dropout
     model.kernel_init = kernel_init
     model.normalize = normalize
-    model.up_transpose = up_transpose
     model.kernel_regularizer = kernel_regularizer
     model.deep_supervision = deep_supervision
     model.classification_guided_module = cgm
@@ -242,7 +228,6 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
            dropout=0.5,
            kernel_init='he_normal',
            normalize=True,
-           up_transpose=True,
            kernel_regularizer=K.regularizers.l2(),
            use_learnable_pool=False,
            deep_supervision=False,
@@ -252,23 +237,11 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
 
     def __build_model(inputs):
         nb_filters = [32,64,128,256,512]
-        if up_transpose:
-            up_block = Transpose_Block
-        else:
-            up_block = UpSampleConvo_Block
 
         down_args = {
             'dropout': dropout,
             'kernel_init':kernel_init,
             'normalize':normalize,
-            'kernel_regularizer': kernel_regularizer
-        }
-
-        up_args = {
-            'dropout': dropout,
-            'kernel_init': kernel_init,
-            'normalize': normalize,
-            'up_convo': up_block,
             'kernel_regularizer': kernel_regularizer
         }
 
@@ -415,7 +388,6 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
     model.dropout = dropout
     model.kernel_init = kernel_init
     model.normalize = normalize
-    model.up_transpose = up_transpose
     model.kernel_regularizer = kernel_regularizer
     model.deep_supervision = deep_supervision
     model.classification_guided_module = cgm
