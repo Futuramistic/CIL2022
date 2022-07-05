@@ -210,8 +210,6 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
                 side2 = multiply([side2,cls])
                 side3 = multiply([side3,cls])
                 side4 = multiply([side4,cls])
-                return tf.stack([sigmoid(outconvo),sigmoid(side1),sigmoid(side2),sigmoid(side3),sigmoid(side4)])
-
             return tf.stack([sigmoid(outconvo),sigmoid(side1),sigmoid(side2),sigmoid(side3),sigmoid(side4)])
         return sigmoid(outconvo)
     
@@ -391,7 +389,6 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
                 side2 = multiply([side2,cls])
                 side3 = multiply([side3,cls])
                 side4 = multiply([side4,cls])
-                return tf.stack([sigmoid(outconvo),sigmoid(side1),sigmoid(side2),sigmoid(side3),sigmoid(side4)])
 
             return tf.stack([sigmoid(outconvo),sigmoid(side1),sigmoid(side2),sigmoid(side3),sigmoid(side4)])
         return sigmoid(outconvo)
