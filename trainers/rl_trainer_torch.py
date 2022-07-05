@@ -572,6 +572,10 @@ class TorchRLTrainer(TorchTrainer):
 
         return predictions_nsteps, positions_nsteps, reward, {'info_timestep_sum': info_sum, 'info_timestep_avg': info_avg}
 
+    def get_F1_score_validation(self):
+        _, _, f1_score, _ = self.get_precision_recall_F1_score_validation()
+        return f1_score
+
     def get_precision_recall_F1_score_validation(self):
         # this function also returns reward statistics (averaged, summed, and for the first sample)
 
