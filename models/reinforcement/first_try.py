@@ -54,6 +54,7 @@ class SimpleRLCNN(nn.Module):
     def __init__(self, patch_size, in_channels=10):
         super(SimpleRLCNN, self).__init__()
         self.patch_size = patch_size
+        self.in_channels = in_channels
         
         layers = []
         curr_output_dims = patch_size

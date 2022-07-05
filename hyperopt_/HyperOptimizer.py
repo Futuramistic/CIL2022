@@ -97,7 +97,7 @@ class HyperParamOptimizer:
             # for RL Learning:
             training_params = hyperparams['training']['trainer_params']
             if 'history_size' in training_params:
-                hyperparams['model']['kwargs']['in_channels'] = int(training_params['history_size'] + 5)    
+                hyperparams['model']['kwargs']['in_channels'] = int(training_params['history_size'] + 2 + (1 if hyperparams['dataset']['name'] == 'original_gt' else 3))
                 # penalty for false negative should not be smaller than reward for true positive,   
                 training_params['rewards']['false_neg_seg_pen'] = training_params['rewards']['false_pos_seg_pen'] if training_params['rewards']['false_neg_seg_pen'] < training_params['rewards']['false_pos_seg_pen'] else training_params['rewards']['false_neg_seg_pen']
             model = self.model_class(**hyperparams['model']['kwargs'])
