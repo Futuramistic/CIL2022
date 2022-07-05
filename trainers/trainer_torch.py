@@ -185,6 +185,7 @@ class TorchTrainer(Trainer, abc.ABC):
 
         # use self.Callback instead of TorchTrainer.Callback, to allow subclasses to overwrite the callback handler
         callback_handler = self.Callback(self, mlflow_run, self.model)
+        print(self.num_epochs)
         for epoch in range(self.num_epochs):
             last_train_loss = self._train_step(self.model, self.device, self.train_loader, callback_handler=callback_handler)
             last_test_loss = self._eval_step(self.model, self.device, self.test_loader)

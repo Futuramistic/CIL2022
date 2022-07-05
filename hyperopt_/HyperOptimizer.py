@@ -92,7 +92,7 @@ class HyperParamOptimizer:
         run_name_initial = self.run_name if self.run_name is not None else ''
         run_name = f"Hyperopt_{run_name_initial}" + "_{:%Y_%m_%d_%H_%M}".format(datetime.datetime.now())
         with open(self.trials_path, 'wb') as handle:
-            pickle.dump(self.trials, handle)
+            pickle.dump(self.trials, handle, protocol=4)
         try:
             # for RL Learning:
             training_params = hyperparams['training']['trainer_params']
@@ -126,7 +126,7 @@ class HyperParamOptimizer:
         
         # save (overwrite) updated trials after each trainig
         with open(self.trials_path, 'wb') as handle:
-            pickle.dump(self.trials, handle)
+            pickle.dump(self.trials, handle, protocol=4)
         return {
             'loss': 1-average_f1_score, 
             'status': STATUS_OK,

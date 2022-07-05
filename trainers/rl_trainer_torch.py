@@ -88,7 +88,6 @@ class TorchRLTrainer(TorchTrainer):
         self.visualization_interval = int(visualization_interval)
         self.min_steps = int(min_steps)
         self.rewards = DEFAULT_REWARDS if rewards is None else rewards
-        print(self.std)
 
         # self.scheduler set by TorchTrainer superclass
 
