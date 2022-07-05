@@ -3,7 +3,7 @@ from functools import partial
 from hyperopt import STATUS_OK, fmin, tpe, Trials, STATUS_FAIL
 import numpy as np
 import os
-import pickle
+import cloudpickle
 import time
 import warnings
 
@@ -46,7 +46,7 @@ class HyperParamOptimizer:
             os.makedirs("archive/models")
         if os.path.isdir(self.trials_path):
             with open(self.trials_path, 'rb') as file:
-                self.trials = pickle.load(file)
+                self.trials = cloudpickle.load(file)
         else:
             open(self.trials_path, 'w')
             self.trials = Trials()
@@ -92,7 +92,7 @@ class HyperParamOptimizer:
         run_name_initial = self.run_name if self.run_name is not None else ''
         run_name = f"Hyperopt_{run_name_initial}" + "_{:%Y_%m_%d_%H_%M}".format(datetime.datetime.now())
         with open(self.trials_path, 'wb') as handle:
-            pickle.dump(self.trials, handle, protocol=4)
+            cloudpickle.dump(self.trials, handle)
         try:
             # for RL Learning:
             training_params = hyperparams['training']['trainer_params']
@@ -126,7 +126,7 @@ class HyperParamOptimizer:
         
         # save (overwrite) updated trials after each trainig
         with open(self.trials_path, 'wb') as handle:
-            pickle.dump(self.trials, handle, protocol=4)
+            cloudpickle.dump(self.trials, handle)
         return {
             'loss': 1-average_f1_score, 
             'status': STATUS_OK,
@@ -140,7 +140,7 @@ class HyperParamOptimizer:
         Returns the optimal model trained in previous trials under the trials_path (use ROOT_DIR)
         """
         with open(trials_path, 'rb') as file:
-            trials = pickle.load(file)
+            trials = cloudpickle.load(file)
         best_trial = HyperParamOptimizer.get_best_trial(trials)
         print(best_trial)
         return best_trial['result']['trained_model']

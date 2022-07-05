@@ -153,6 +153,9 @@ def get_torch_scheduler(optimizer, scheduler_name, kwargs):
         return torch.optim.lr_scheduler.StepLR(optimizer=optimizer, **kwargs)
     elif scheduler_name == 'lambdalr':
         return torch.optim.lr_scheduler.LambdaLR(optimizer=optimizer, **kwargs)
+    elif scheduler_name == 'lambdaevallr':
+        return torch.optim.lr_scheduler.LambdaLR(optimizer=optimizer, lr_lambda=eval(kwargs['lr_lambda']),
+                                                 **{k: v for k, v in kwargs.items() if k != 'lr_lambda'})
     elif scheduler_name == 'plateau':
         return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, **kwargs)
     else:
