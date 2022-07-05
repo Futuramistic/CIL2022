@@ -25,7 +25,7 @@ class TFTrainer(Trainer, abc.ABC):
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None, evaluation_interval=None,
                  num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
-                 segmentation_threshold=None, loss_weights=None):
+                 segmentation_threshold=None):
         """
         Abstract class for TensorFlow-based model trainers.
         Args:
@@ -38,7 +38,6 @@ class TFTrainer(Trainer, abc.ABC):
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
-        self.loss_weights = loss_weights
     # Subclassing tensorflow.keras.callbacks.Callback (here: KC.Callback) allows us to override various functions to be
     # called when specific events occur while fitting a model using TF's model.fit(...). An instance of the subclass
     # needs to be passed in the "callbacks" parameter (which, if specified, can either be a single instance, or a list
@@ -176,7 +175,7 @@ class TFTrainer(Trainer, abc.ABC):
         self._save_image_array(images, file_path)
 
     def _compile_model(self):
-        self.model.compile(loss=self.loss_function, optimizer=self.optimizer_or_lr,loss_weights=self.loss_weights)
+        self.model.compile(loss=self.loss_function, optimizer=self.optimizer_or_lr)
 
     def _load_checkpoint(self, checkpoint_path):
         print(f'\n*** WARNING: resuming training from checkpoint "{checkpoint_path}" ***\n')

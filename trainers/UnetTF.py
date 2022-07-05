@@ -19,7 +19,7 @@ class UNetTFTrainer(TFTrainer):
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
                  batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
-                 load_checkpoint_path=None, segmentation_threshold=None, loss_weights=None):
+                 load_checkpoint_path=None, segmentation_threshold=None):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
@@ -64,7 +64,7 @@ class UNetTFTrainer(TFTrainer):
         super().__init__(dataloader, model, preprocessing, steps_per_training_epoch, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
-                         segmentation_threshold,loss_weights)
+                         segmentation_threshold)
 
     def _get_hyperparams(self):
         return {**(super()._get_hyperparams()),
