@@ -1,4 +1,4 @@
-from diceLoss import DiceLoss
+from losses import *
 import tensorflow as tf
 import keras.backend as K
 
