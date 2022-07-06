@@ -12,3 +12,4 @@ from .custom.TwoShotNet import TwoShotNet
 from .custom.DeepLabV3PlusGAN import DeepLabV3PlusGAN
 
 from .TF import blocks as tf_blocks
+from .TF.UNetExpTF import UNet3PlusTF, UNetExpTF

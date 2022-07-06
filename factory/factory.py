@@ -47,6 +47,10 @@ class Factory(abc.ABC):
             return TwoShotNetFactory()
         elif model_name_lower_no_sep in ["deeplabv3gan", "deeplabv3plusgan"]:
             return DeepLabV3PlusGANFactory()
+        elif model_name_lower_no_sep in ['unetexptf','unetexp']:
+            return UNetExpFactory()
+        elif model_name_lower_no_sep in ['unet3plus','unet3+']:
+            return UNet3PlusFactory()
         else:
             print(f"The factory for the model {model_name} doesn't exist. Check if you wrote the model name "
                   f"correctly and implemented a corresponding factory in factory.py.")
@@ -158,3 +162,23 @@ class DeepLabV3PlusGANFactory(Factory):
 
     def get_dataloader_class(self):
         return TorchDataLoader
+
+class UNetExpFactory(Factory):
+    def get_trainer_class(self):
+        return UNetTrainer
+
+    def get_model_class(self):
+        return UNetExpTF
+
+    def get_dataloader_class(self):
+        return TFDataLoader
+
+class UNet3PlusFactory(Factory):
+    def get_trainer_class(self):
+        return UNetTrainer
+
+    def get_model_class(self):
+        return UNet3PlusTF
+
+    def get_dataloader_class(self):
+        return TFDataLoader
