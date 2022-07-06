@@ -670,11 +670,12 @@ class TorchRLTrainer(TorchTrainer):
     def _get_hyperparams(self):
         return {**(super()._get_hyperparams()),
                 **({param: getattr(self, param)
-                   for param in ['history_size', 'max_rollout_len', 'reward_discount_factor',
+                   for param in ['history_size', 'max_rollout_len', 'replay_memory_capacity', 'reward_discount_factor',
                                  'num_policy_epochs', 'policy_batch_size', 'sample_from_action_distributions',
                                  'visualization_interval', 'min_steps']
                    if hasattr(self, param)}),
-                **({k:v.item() for k,v in zip(['std_delta_angle', 'std_magnitude', 'std_brush_state', 'std_brush_radius', 'std_terminate'], self.std)}),
+                **({k: v.item() for k, v in zip(['std_delta_angle', 'std_magnitude', 'std_brush_state', 'std_brush_radius', 'std_terminate'], self.std)}),
+                **({'rl_' + k: v for k, v in self.rewards.items()}),
                 **({param: getattr(self.model, param)
                    for param in ['patch_size']
                    if hasattr(self.model, param)})}
