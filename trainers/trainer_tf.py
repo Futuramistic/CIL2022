@@ -82,6 +82,11 @@ class TFTrainer(Trainer, abc.ABC):
             # since we don't have a way of getting notified when KC.ModelCheckpoint has finished creating the checkpoint,
             # we simply check at the end of each epoch whether there are any checkpoints to upload and upload them
             # if necessary
+            
+            if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']:
+                self.best_val_loss = logs['val_loss']
+                keras.models.save_model(model=self.model,filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"))
+
             mlflow_logger.log_checkpoints()
             
             self.epoch_idx += 1
@@ -91,10 +96,6 @@ class TFTrainer(Trainer, abc.ABC):
             # iteration
             if os.path.isdir(f'original_checkpoint_{SESSION_ID}.ckpt'):
                 shutil.rmtree(f'original_checkpoint_{SESSION_ID}.ckpt')
-
-            if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']:
-                self.best_val_loss = logs['val_loss']
-                keras.models.save_model(model=self.model,filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"))
 
 
         def on_train_batch_begin(self, batch, logs=None):
