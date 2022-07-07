@@ -492,7 +492,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
         env.reset()
         predictions_nsteps = [env.get_unpadded_segmentation().float().detach().cpu().numpy()]
-        positions_nsteps = [env.agent_pos]
+        positions_nsteps = [env.get_rounded_agent_pos()]
 
         info_sum = {'reward_decomp_quantities': {}, 'reward_decomp_sums': {}}
 
@@ -502,7 +502,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
 
         predictions_nsteps.append(env.get_unpadded_segmentation().float().detach().cpu().numpy())
-        positions_nsteps.append(env.agent_pos)
+        positions_nsteps.append(env.get_rounded_agent_pos())
 
 
         eps_reward = 0.0
@@ -551,7 +551,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
             
             if visualization_interval > 0 and timestep_idx % visualization_interval == 0:
                 predictions_nsteps.append((env.get_unpadded_segmentation().float().detach().cpu().numpy()).astype(int))
-                positions_nsteps.append(env.agent_pos)
+                positions_nsteps.append(env.get_rounded_agent_pos())
         
         info_avg = {'reward_decomp_quantities': {}, 'reward_decomp_sums': {}}
         # timestep_idx + 1 due to zero-based indexing; add another 1 due to initial timestep 

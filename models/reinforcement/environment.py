@@ -233,8 +233,8 @@ class SegmentationEnvironment(Env):
             # x: [0, 1, 2, 3, ...] (row vector)
             # y: [0, 1, 2, 3, ...] (column vector)
 
-            distance_map = (torch.square(self.padded_grid_y - (self.agent_pos[0] + self.paddings_per_dim[0][0]))
-                            + torch.square(self.padded_grid_x - (self.agent_pos[1] + self.paddings_per_dim[1][0]) )
+            distance_map = (torch.square(self.padded_grid_y - (int(self.agent_pos[0]) + self.paddings_per_dim[0][0]))
+                            + torch.square(self.padded_grid_x - (int(self.agent_pos[1]) + self.paddings_per_dim[1][0]) )
                             - new_brush_radius**2) # 2D
             unpadded_mask = self.seg_map_padded != self.padding_value
             stroke_ball = torch.logical_and(distance_map <= 0, unpadded_mask)  # boolean mask
@@ -247,7 +247,7 @@ class SegmentationEnvironment(Env):
         # calculate new_seen_pixels
         
         # unnormed_patch_coord_list: may exceed bounding box (be negative or >= width or >= height)
-        unnormed_patch_coord_list = [[(dim_pos - ((self.patch_size[dim_idx]+1)//2)) + 1, dim_pos + ((self.patch_size[dim_idx]+2)//2)] for dim_idx, dim_pos in enumerate(self.agent_pos)]
+        unnormed_patch_coord_list = [[(int(dim_pos) - ((self.patch_size[dim_idx]+1)//2)) + 1, int(dim_pos) + ((self.patch_size[dim_idx]+2)//2)] for dim_idx, dim_pos in enumerate(self.agent_pos)]
         # reason for + 2:
         # patch_size = 5 (odd) : [dim_size - 2, dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]
         # patch_size = 4 (even): [dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]  (right-biased)
@@ -279,8 +279,9 @@ class SegmentationEnvironment(Env):
         delta_x = math.cos(self.angle) * self.magnitude
         delta_y = math.sin(self.angle) * self.magnitude
         # project to bounding box
-        self.agent_pos = [max(0, min(int(self.agent_pos[0] + delta_y), self.img_size[0] - 1)),
-                          max(0, min(int(self.agent_pos[1] + delta_x), self.img_size[1] - 1))]
+        # do not round here, since if the changes are too small, the position may never get updated
+        self.agent_pos = [max(0, min(self.agent_pos[0] + delta_y, self.img_size[0] - 1)),
+                          max(0, min(self.agent_pos[1] + delta_x, self.img_size[1] - 1))]
         self.brush_state = new_brush_state
         self.brush_width = new_brush_radius
         self.seen_pixels[new_seen_pixels] = 1
@@ -309,6 +310,10 @@ class SegmentationEnvironment(Env):
         i, j = paddings_dim_0
         k, l = paddings_dim_1
         return self.seg_map_padded[i:-j, k:-l]
+
+    def get_rounded_agent_pos(self):
+        return [int(self.agent_pos[0]), int(self.agent_pos[1])]
+
 
 class SegmentationEnvironmentMinimal(Env):
     def __init__(self, gt, patch_size, rewards=DEFAULT_REWARDS_MINIMAL):
@@ -340,7 +345,7 @@ class SegmentationEnvironmentMinimal(Env):
         
         # delta_angle, magnitude brush_state, brush_radius, terminate?
         self.min_patch_size = min(list(self.patch_size))
-        self.magnitude = 1/self.min_patch_size # magnitude is always one pixel per step
+        self.magnitude = 1.0 # 1/self.min_patch_size # magnitude is always one pixel per step
         self.brush_width = 1 # paint one pixel per
 
         action_spaces = {
@@ -457,13 +462,13 @@ class SegmentationEnvironmentMinimal(Env):
 
         # x: [0, 1, 2, 3, ...] (row vector)
         # y: [0, 1, 2, 3, ...] (column vector)
-        distance_map = (torch.square(self.padded_grid_y - (self.agent_pos[0] + self.paddings_per_dim[0][0]))
-                        + torch.square(self.padded_grid_x - (self.agent_pos[1] + self.paddings_per_dim[0][1]) )
+        distance_map = (torch.square(self.padded_grid_y - (int(self.agent_pos[0]) + self.paddings_per_dim[0][0]))
+                        + torch.square(self.padded_grid_x - (int(self.agent_pos[1]) + self.paddings_per_dim[0][1]) )
                         - self.brush_width**2) # 2D
         unpadded_mask = self.seg_map_padded != self.padding_value
         stroke_ball = torch.logical_and(distance_map <= 0, unpadded_mask)  # boolean mask
-        distance_map_unpadded = (torch.square(self.grid_y - max(0,min(len(self.grid_y)-1, self.agent_pos[0])))
-                        + torch.square(self.grid_x - max(0,min(len(self.grid_x)-1, self.agent_pos[1])))
+        distance_map_unpadded = (torch.square(self.grid_y - max(0,min(len(self.grid_y)-1, int(self.agent_pos[0]))))
+                        + torch.square(self.grid_x - max(0,min(len(self.grid_x)-1, int(self.agent_pos[1]))))
                         - self.brush_width**2) # 2D
         stroke_ball_unpadded = distance_map_unpadded <= 0
         # paint: OR everything within stroke_ball with 1 (set to 1)
@@ -472,7 +477,7 @@ class SegmentationEnvironmentMinimal(Env):
         self.seg_map_padded[stroke_ball] = 1 if new_brush_state == BRUSH_STATE_PAINT else 0
         
         # unnormed_patch_coord_list: may exceed bounding box (be negative or >= width or >= height)
-        unnormed_patch_coord_list = [[(dim_pos - ((self.patch_size[dim_idx]+1)//2)) + 1, dim_pos + ((self.patch_size[dim_idx]+2)//2)] for dim_idx, dim_pos in enumerate(self.agent_pos)]
+        unnormed_patch_coord_list = [[(int(dim_pos) - ((self.patch_size[dim_idx]+1)//2)) + 1, int(dim_pos) + ((self.patch_size[dim_idx]+2)//2)] for dim_idx, dim_pos in enumerate(self.agent_pos)]
         # reason for + 2:
         # patch_size = 5 (odd) : [dim_size - 2, dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]
         # patch_size = 4 (even): [dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]  (right-biased)
@@ -498,8 +503,9 @@ class SegmentationEnvironmentMinimal(Env):
         delta_x = math.cos(self.angle) * self.magnitude
         delta_y = math.sin(self.angle) * self.magnitude
         # project to bounding box
-        self.agent_pos = [max(0, min(int(self.agent_pos[0] + delta_y), self.gt.shape[0] - 1)),
-                          max(0, min(int(self.agent_pos[1] + delta_x), self.gt.shape[1] - 1))]
+        # do not round here, since if the changes are too small, the position may never get updated
+        self.agent_pos = [max(0, min(self.agent_pos[0] + delta_y, self.gt.shape[0] - 1)),
+                          max(0, min(self.agent_pos[1] + delta_x, self.gt.shape[1] - 1))]
         self.brush_state = new_brush_state
         
         
@@ -524,3 +530,6 @@ class SegmentationEnvironmentMinimal(Env):
         i, j = paddings_dim_0
         k, l = paddings_dim_1
         return self.seg_map_padded[i:-j, k:-l]
+
+    def get_rounded_agent_pos(self):
+        return [int(self.agent_pos[0]), int(self.agent_pos[1])]
