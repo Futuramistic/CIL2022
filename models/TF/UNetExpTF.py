@@ -1,7 +1,6 @@
 from keras.layers import *
 import tensorflow as tf
 import tensorflow.keras as K
-import numpy as np
 from tensorflow.keras.layers import *
 
 from .blocks import *
@@ -239,6 +238,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
            deep_supervision=False,
            cgm=False,
            cgm_dropout = 0.1,
+           architecture=None,
            **kwargs):
 
     def __build_model(inputs):
@@ -267,9 +267,26 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_regularizer':kernel_regularizer
         }
 
+        pretrained = None
+        
+        if(architecture=="vgg"):
+            layer_names = ['block2_conv2','block3_conv4','block4_conv4','block5_conv4']
+            inputs = K.applications.vgg19.preprocess_input(inputs)
+            vgg = K.applications.VGG19(include_top=False, weights='imagenet',input_shape=input_shape)
+            vgg.trainable = False
+            outputs = [vgg.get_layer(name).output for name in layer_names]
+            model = K.Model([vgg.input], outputs)
+            pretrained = model(inputs)
+
         pool_fct = Down_Block_LearnablePool if use_learnable_pool else Down_Block
 
         convo1,pool1 = pool_fct(name=name+"-down-block-1",filters=nb_filters[0],**down_args)(inputs)
+
+        if(architecture is not None):
+            pool1 = Concatenate(axis=3)([pool1,pretrained[0]])
+
+        pool1 = Convo_Block(name=name+"pool1", filters=nb_filters[0], **down_args)(pool1)
+
         convo2,pool2 = pool_fct(name=name+"-down-block-2",filters=nb_filters[1],**down_args)(pool1)
 
         pool0_1 = MaxPool2D((4,4),4,'same')(convo1)
@@ -278,6 +295,10 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         pool1_1 = Convo_Block(name=name+"maxpool1_1", filters=nb_filters[1], **down_args)(pool2)
         
         pool2 = Concatenate(axis=3)([pool1_1,pool0_1])
+
+        if(architecture is not None):
+            pool2 = Concatenate(axis=3)([pool2,pretrained[1]])
+
         pool2 = Convo_Block(name=name+"pool2", filters=nb_filters[1], **down_args)(pool2)
 
         convo3,pool3 = pool_fct(name=name+"-down-block-3",filters=nb_filters[2],**down_args)(pool2)
@@ -290,6 +311,10 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         pool2_2 = Convo_Block(name=name+"maxpool2_2", filters=nb_filters[2], **down_args)(pool3)
 
         pool3 = Concatenate(axis=3)([pool2_2,pool0_2,pool1_2])
+
+        if(architecture is not None):
+            pool3 = Concatenate(axis=3)([pool3,pretrained[2]])
+
         pool3 = Convo_Block(name=name+"pool3", filters=nb_filters[2], **down_args)(pool3)
 
         convo4,pool4 = pool_fct(name=name+"-down-block-4",filters=nb_filters[3],**down_args)(pool3)
@@ -300,10 +325,14 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         pool1_3 = Convo_Block(name=name+"maxpool1_3", filters=nb_filters[3], **down_args)(pool1_3)
         pool2_3 = MaxPool2D((4,4),4,'same')(convo3)
         pool2_3 = Convo_Block(name=name+"maxpool2_3", filters=nb_filters[3], **down_args)(pool2_3)
-        
+
         pool3_3 = Convo_Block(name=name+"maxpool3_3", filters=nb_filters[3], **down_args)(pool4)
 
         pool4 = Concatenate(axis=3)([pool3_3,pool0_3,pool1_3,pool2_3])
+
+        if(architecture is not None):
+            pool4 = Concatenate(axis=3)([pool4,pretrained[3]])
+
         pool4 = Convo_Block(name=name+"pool4", filters=nb_filters[3], **down_args)(pool4)
 
         convo5 = Convo_Block(name=name+"-convo-block",filters=nb_filters[4],**down_args)(pool4)
