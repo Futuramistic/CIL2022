@@ -274,7 +274,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             inputs = K.applications.vgg19.preprocess_input(inputs)
             vgg = K.applications.VGG19(include_top=False, weights='imagenet',input_shape=input_shape)
             for layer in vgg.layers:
-                layer.trainable = True
+                layer.trainable = False
             outputs = [vgg.get_layer(name).output for name in layer_names]
             model = K.Model([vgg.input], outputs)
             pretrained = model(inputs)
