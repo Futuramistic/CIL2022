@@ -2,7 +2,9 @@ import abc
 
 from data_handling import *
 from models import *
+from models.reinforcement.first_try import SimpleRLCNNMinimal
 from trainers import *
+from trainers.rl_trainer_torch_minimal import TorchRLTrainerMinimal
 from utils import *
 
 
@@ -45,6 +47,9 @@ class Factory(abc.ABC):
             return CRANetFactory()
         elif model_name_lower_no_sep == "simplerlcnn":
             return SimpleRLCNNFactory()
+        elif model_name_lower_no_sep == "simplerlcnnminimal":
+            return SimpleRLCNNMinimalFactory()
+        
         else:
             print(f"The factory for the model {model_name} doesn't exist. Check if you wrote the model name "
                   f"correctly and implemented a corresponding factory in factory.py.")
@@ -143,6 +148,16 @@ class SimpleRLCNNFactory(Factory):
 
     def get_model_class(self):
         return SimpleRLCNN
+
+    def get_dataloader_class(self):
+        return TorchDataLoader
+
+class SimpleRLCNNMinimalFactory(Factory):
+    def get_trainer_class(self):
+        return TorchRLTrainerMinimal
+
+    def get_model_class(self):
+        return SimpleRLCNNMinimal
 
     def get_dataloader_class(self):
         return TorchDataLoader

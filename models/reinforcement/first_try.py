@@ -80,6 +80,37 @@ class SimpleRLCNN(nn.Module):
         head_in = torch.flatten(conv_out, start_dim=1)
         return torch.sigmoid(self.head(head_in))
 
+class SimpleRLCNNMinimal(nn.Module):
+    def __init__(self, patch_size, in_channels=1):
+        super(SimpleRLCNNMinimal, self).__init__()
+        self.patch_size = patch_size
+        self.in_channels = in_channels
+        
+        layers = []
+        curr_output_dims = patch_size
+        kernel_size = 3
+        stride=1
+        padding=1
+        # initial input: RGB (3), history (5 by default), brush state (1)
+        for _ in range(3):
+            layers.append(nn.Conv2d(in_channels, in_channels*2, kernel_size, stride, padding))
+            in_channels *= 2
+            layers.append(nn.BatchNorm2d(in_channels))
+            layers.append(nn.LeakyReLU())
+            curr_output_dims=[((curr_output_dims[dim] - kernel_size + 2 * padding ) // stride  + 1) for dim in range(len(curr_output_dims))]
+            
+        self.convs = nn.Sequential(*layers)
+        flattened_dims = functools.reduce(lambda x, y: x*y, curr_output_dims)*in_channels
+        self.head = nn.Linear(flattened_dims, 2) # brush state and delta_angle
+        
+    # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate', for which we return the mean of the beta distribution
+    # the action is then sampled in the trainer from that distribution --> we only need values between 0 and 1 --> sigmoid everything
+    def forward(self, x):
+        x = x.float()
+        conv_out = self.convs(x)
+        head_in = torch.flatten(conv_out, start_dim=1)
+        return torch.sigmoid(self.head(head_in))
+
 # adapted from https://github.com/DCurro/CannyEdgePytorch to process batches
 class Canny(nn.Module):
     def __init__(self, threshold=10.0):

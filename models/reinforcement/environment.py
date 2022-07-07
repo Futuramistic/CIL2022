@@ -30,6 +30,11 @@ DEFAULT_REWARDS = {
     'unseen_pix_rew': 0.0007,
 }
 
+DEFAULT_REWARDS_MINIMAL = {
+    'true_seg_rew': 0.01,
+    'unseen_pix_rew': 0.001
+}
+
 
 class SegmentationEnvironment(Env):
 
@@ -186,7 +191,7 @@ class SegmentationEnvironment(Env):
         false_neg_seg_pen = num_false_negatives * self.rewards['false_neg_seg_pen']
         reward -= false_neg_seg_pen
         reward_decomp_quantities['false_neg_seg_pen'] += normalize_tensor(num_false_negatives)
-        reward_decomp_sums['false_pos_seg_pen'] -= normalize_tensor(false_neg_seg_pen)
+        reward_decomp_sums['false_neg_seg_pen'] -= normalize_tensor(false_neg_seg_pen)
         
         # reward currently correctly predicted pixels
         num_new_true_pos = torch.logical_and(new_seen_pixels, torch.logical_and(self.gt == 1, self.get_unpadded_segmentation() == 1)).sum()
@@ -298,6 +303,221 @@ class SegmentationEnvironment(Env):
         new_info = {'reward_decomp_quantities': reward_decomp_quantities,
                     'reward_decomp_sums': reward_decomp_sums}
         return new_observation, reward, self.terminated, new_info
+    
+    def get_unpadded_segmentation(self): # for trainer to calculate loss during testing
+        paddings_dim_0, paddings_dim_1 = self.paddings_per_dim
+        i, j = paddings_dim_0
+        k, l = paddings_dim_1
+        return self.seg_map_padded[i:-j, k:-l]
+
+class SegmentationEnvironmentMinimal(Env):
+    def __init__(self, gt, patch_size, rewards=DEFAULT_REWARDS_MINIMAL):
+        """Environment for reinforcement learning
+
+        Args:
+            gt (torch.Tensor): ground-truth of image to segment, or None if no segmentation is to be performed
+            patch_size (tuple of int): size of patch visible to agent at a given timestep
+            rewards
+        """
+        super(SegmentationEnvironmentMinimal, self).__init__()
+        self.patch_size = patch_size
+        self.gt = gt
+        self.rewards = rewards
+        self.device = self.gt.device
+        # self.padded_img_size = [dim_size + torch.ceil(dim_size / 2) * 2 for dim_size in img.shape]
+        self.padding_value = -1
+        # pad binary segmentation map at the edges
+        self.paddings_per_dim = [[(self.patch_size[dim_idx] + 1) // 2 - 1, (self.patch_size[dim_idx] + 1) // 2]
+                                  for dim_idx in [1, 0]]
+
+        # Groundtruth is Input
+        self.observation_channel_count = 1
+        self.observation_shape = (*patch_size, self.observation_channel_count)
+        self.observation_space = spaces.Box(low=0, 
+                                            high=1,
+                                            shape=self.observation_shape,
+                                            dtype = np.float32)
+        
+        # delta_angle, magnitude brush_state, brush_radius, terminate?
+        self.min_patch_size = min(list(self.patch_size))
+        self.magnitude = 1/self.min_patch_size # magnitude is always one pixel per step
+        self.brush_width = 1 # paint one pixel per
+
+        action_spaces = {
+             'delta_angle': gym.spaces.Box(low=0, high=1, shape=(1,)),
+             'brush_state': gym.spaces.Box(low=0, high=1, shape=(1,))
+        }
+        self.action_space = gym.spaces.Dict(action_spaces)
+                                                  
+        self.padded_gt = F.pad(gt, pad=flatten(self.paddings_per_dim),
+                                mode='constant', value=self.padding_value) 
+    
+        self.reset()        
+
+    def get_neutral_action(self):
+        # returns a neutral action
+        # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'
+        return torch.tensor([0.0, BRUSH_STATE_NOTHING], dtype=torch.float, device=self.device)
+
+    def reset(self):
+        self.agent_pos = [int(dim_size // 2) for dim_size in self.gt.shape]
+        self.agent_angle = 0.0
+        self.brush_state = BRUSH_STATE_NOTHING
+        self.seg_map_padded = F.pad(torch.zeros(self.gt.shape, device=self.device),
+                                    pad=flatten(self.paddings_per_dim),
+                                    mode='constant', value=self.padding_value)  
+
+        self.padded_grid_x, self.padded_grid_y =\
+            torch.meshgrid(torch.arange(self.seg_map_padded.shape[0], device=self.device),
+                           torch.arange(self.seg_map_padded.shape[1], device=self.device),
+                           indexing='xy')
+        self.grid_x, self.grid_y =\
+            torch.meshgrid(torch.arange(self.gt.shape[0], device=self.device),
+                           torch.arange(self.gt.shape[1], device=self.device),
+                           indexing='xy')
+        
+        self.seen_pixels = torch.zeros_like(self.gt, dtype=torch.int8)
+        
+        
+        # [0]
+        # patch_size=5: [-1, -1, 0, -1, -1, -1]
+        # patch_size=4: [-1, 0, -1, -1]
+
+        # comparison with below:
+
+        # patch_size = 5 (odd) : [dim_size - 2, dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]
+        # patch_size = 4 (even): [dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]  (right-biased)
+        
+        self.padded_img_size = self.seg_map_padded.shape
+
+    def calculate_reward(self, stroke_ball, new_seen_pixels):
+        # we penalize "brush radius changes performed at the same time as angle changes" less
+        # than "brush size changes performed when the agent does not "$
+        # this may lead to loopholes (agent turning right for a short time just to change the brush width,
+        # then turning )
+        
+        reward_decomp_quantities = {k: 0 for k in self.rewards.keys()}
+        reward_decomp_sums = {k: 0.0 for k in self.rewards.keys()}
+
+        reward = 0.0
+        
+        normalize_tensor = lambda x: x.detach().cpu().numpy().item() if isinstance(x, torch.Tensor) else x
+        new_seg = self.get_unpadded_segmentation()[stroke_ball]
+        
+        # reward newly seen pixels
+        num_newly_seen_pixels = torch.sum(new_seen_pixels)
+        
+        unseen_pix_rew = num_newly_seen_pixels * self.rewards['unseen_pix_rew']
+        reward += unseen_pix_rew
+        reward_decomp_quantities['unseen_pix_rew'] += normalize_tensor(num_newly_seen_pixels)
+        reward_decomp_sums['unseen_pix_rew'] += normalize_tensor(unseen_pix_rew)
+        
+        # reward currently correctly predicted pixels
+        num_new_true_pos = torch.logical_and(self.gt[stroke_ball] == 1, new_seg == 1).sum()
+        num_new_true_neg = torch.logical_and(self.gt[stroke_ball] == 0, new_seg == 0).sum()
+        
+        true_pos_seg_rew = num_new_true_pos * self.rewards['true_seg_rew']
+        reward += true_pos_seg_rew
+        reward_decomp_quantities['true_seg_rew'] += normalize_tensor(num_new_true_pos)
+        reward_decomp_sums['true_seg_rew'] += normalize_tensor(true_pos_seg_rew)
+
+        true_neg_seg_rew = num_new_true_neg * self.rewards['true_seg_rew']
+        reward += true_neg_seg_rew
+        reward_decomp_quantities['true_seg_rew'] += normalize_tensor(num_new_true_neg)
+        reward_decomp_sums['true_seg_rew'] += normalize_tensor(true_neg_seg_rew)
+        
+        # sum errored prediction over the current painted / unpainted pixel
+        num_false_positives = torch.logical_and(self.gt[stroke_ball] == 0, new_seg == 1).sum()
+        num_false_negatives = torch.logical_and(self.gt[stroke_ball] == 1, new_seg == 0).sum()
+        
+        false_pos_seg_pen = num_false_positives * self.rewards['true_seg_rew'] * 0.21651089 # true pos reward constant * (road_pixels/non-road_pixels)
+        reward -= false_pos_seg_pen
+        reward_decomp_quantities['true_seg_rew'] += normalize_tensor(num_false_positives)
+        reward_decomp_sums['true_seg_rew'] -= normalize_tensor(false_pos_seg_pen)
+
+        false_neg_seg_pen = num_false_negatives * self.rewards['true_seg_rew'] * 0.21651089
+        reward -= false_neg_seg_pen
+        reward_decomp_quantities['true_seg_rew'] += normalize_tensor(num_false_negatives)
+        reward_decomp_sums['true_seg_rew'] -= normalize_tensor(false_neg_seg_pen)
+        
+        return reward, reward_decomp_quantities, reward_decomp_sums
+
+    def step(self, action):
+        # returns: (new_observation, reward, done, new_info)
+        # action is Tensor, with highest dimension containing: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'
+        # unpack
+        delta_angle, new_brush_state = [action[idx] for idx in range(2)]
+        
+        # calculate new segmentation
+        # we don't need the old segmentation anymore, hence we do not store it
+        
+        # implicit circle equation: (x-center_x)^2 + (y-center_y)^2 - r^2 = 0
+        # inside circle: (x-center_x)^2 + (y-center_y)^2 - r^2 < 0
+        # outside circle: (x-center_x)^2 + (y-center_y)^2 - r^2 > 0
+
+        # x: [0, 1, 2, 3, ...] (row vector)
+        # y: [0, 1, 2, 3, ...] (column vector)
+        distance_map = (torch.square(self.padded_grid_y - (self.agent_pos[0] + self.paddings_per_dim[0][0]))
+                        + torch.square(self.padded_grid_x - (self.agent_pos[1] + self.paddings_per_dim[0][1]) )
+                        - self.brush_width**2) # 2D
+        unpadded_mask = self.seg_map_padded != self.padding_value
+        stroke_ball = torch.logical_and(distance_map <= 0, unpadded_mask)  # boolean mask
+        distance_map_unpadded = (torch.square(self.grid_y - max(0,min(len(self.grid_y)-1, self.agent_pos[0])))
+                        + torch.square(self.grid_x - max(0,min(len(self.grid_x)-1, self.agent_pos[1])))
+                        - self.brush_width**2) # 2D
+        stroke_ball_unpadded = distance_map_unpadded <= 0
+        # paint: OR everything within stroke_ball with 1 (set to 1)
+        # erase: AND everything within stroke_ball with 0 (set to 0)
+        #current_seg, new_seg_map
+        self.seg_map_padded[stroke_ball] = 1 if new_brush_state == BRUSH_STATE_PAINT else 0
+        
+        # unnormed_patch_coord_list: may exceed bounding box (be negative or >= width or >= height)
+        unnormed_patch_coord_list = [[(dim_pos - ((self.patch_size[dim_idx]+1)//2)) + 1, dim_pos + ((self.patch_size[dim_idx]+2)//2)] for dim_idx, dim_pos in enumerate(self.agent_pos)]
+        # reason for + 2:
+        # patch_size = 5 (odd) : [dim_size - 2, dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]
+        # patch_size = 4 (even): [dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]  (right-biased)
+        
+        # assume + 1:
+        # patch_size = 5 (odd) : [dim_size - 2, dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]
+        # patch_size = 4 (even): [dim_size - 1, dim_size + 0, dim_size + 1]  <--- too small!
+        
+        new_seen_pixels = torch.zeros_like(self.gt, dtype=self.seen_pixels.dtype)
+        # new_pixel_idx = tuple([[max(0, dim_range[0]), min(self.seen_pixels.shape[dim_idx], dim_range[1])] for dim_idx, dim_range in enumerate(unnormed_patch_coord_list)])
+        new_seen_pixels[max(0, unnormed_patch_coord_list[0][0]) : min(self.seen_pixels.shape[0], unnormed_patch_coord_list[0][1]),
+                        max(0, unnormed_patch_coord_list[1][0]) : min(self.seen_pixels.shape[0], unnormed_patch_coord_list[1][1])] = 1
+        new_seen_pixels = torch.max(new_seen_pixels - self.seen_pixels, torch.zeros_like(new_seen_pixels, dtype=new_seen_pixels.dtype)) > 0
+        
+        # calculate reward
+        reward, reward_decomp_quantities, reward_decomp_sums =\
+            self.calculate_reward(stroke_ball_unpadded, new_seen_pixels)
+        
+        # update class values
+
+        # calculate new position
+        self.angle = self.agent_angle + delta_angle * math.pi
+        delta_x = math.cos(self.angle) * self.magnitude
+        delta_y = math.sin(self.angle) * self.magnitude
+        # project to bounding box
+        self.agent_pos = [max(0, min(int(self.agent_pos[0] + delta_y), self.gt.shape[0] - 1)),
+                          max(0, min(int(self.agent_pos[1] + delta_x), self.gt.shape[1] - 1))]
+        self.brush_state = new_brush_state
+        
+        
+        self.seen_pixels[new_seen_pixels] = 1
+        
+        # extract padded patch, but shift indices so that they start from 0 (instead of possibly negative indices due to padding)
+        start_dim_0 = self.paddings_per_dim[0][0] + unnormed_patch_coord_list[0][0]
+        end_dim_0 = self.paddings_per_dim[0][0] + unnormed_patch_coord_list[0][1]
+        start_dim_1 = self.paddings_per_dim[1][0] + unnormed_patch_coord_list[1][0]
+        end_dim_1 = self.paddings_per_dim[1][0] + unnormed_patch_coord_list[1][1]
+        new_padded_patch = self.seg_map_padded[start_dim_0:end_dim_0, start_dim_1:end_dim_1]
+        new_input_patch = self.padded_gt[start_dim_0:end_dim_0, start_dim_1:end_dim_1]
+
+        # seg_map is padded; add padding size to patch_coords (to correct negative offset)
+        new_observation = torch.cat([new_input_patch], dim=0)
+        new_info = {'reward_decomp_quantities': reward_decomp_quantities,
+                    'reward_decomp_sums': reward_decomp_sums}
+        return new_observation, reward, new_info
     
     def get_unpadded_segmentation(self): # for trainer to calculate loss during testing
         paddings_dim_0, paddings_dim_1 = self.paddings_per_dim
