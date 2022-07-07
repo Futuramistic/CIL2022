@@ -352,7 +352,7 @@ class TorchRLTrainer(TorchTrainer):
                 # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
                 # accordingly, sample_y must be of shape (H, W) not (1, H, W)
                 sample_y = torch.squeeze(sample_y)
-                env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size, train_loader.img_val_min, train_loader.img_val_max) # take standard reward
+                env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size, train_loader.img_val_min, train_loader.img_val_max, self.rewards)
                 # using maximum memory capacity for balancing_trajectory_length is suboptimal;
                 # could e.g. empirically approximate expected trajectory length and use that instead
                 memory = self.ReplayMemory(capacity=int(self.replay_memory_capacity),
@@ -443,7 +443,7 @@ class TorchRLTrainer(TorchTrainer):
                 # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
                 # accordingly, sample_y must be of shape (H, W) not (1, H, W)
                 sample_y = torch.squeeze(sample_y)
-                env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size, test_loader.img_val_min, test_loader.img_val_max) # take standard reward
+                env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size, test_loader.img_val_min, test_loader.img_val_max, self.rewards)
 
                 # "state" is input to model
                 # observation in init state: RGB (3), history (5 by default), brush state (1)
@@ -603,7 +603,7 @@ class TorchRLTrainer(TorchTrainer):
                 # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
                 # accordingly, sample_y must be of shape (H, W) not (1, H, W)
                 sample_y = torch.squeeze(sample_y)
-                env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size, self.test_loader.img_val_min, self.test_loader.img_val_max) # take standard reward
+                env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size, self.test_loader.img_val_min, self.test_loader.img_val_max, self.rewards)
 
                 # loop until termination/timeout already inside this function
                 _, _, reward, trajectory_info = self.trajectory_step(env, sample_from_action_distributions=False)
