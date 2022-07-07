@@ -52,6 +52,7 @@ class TFTrainer(Trainer, abc.ABC):
             self.epoch_iteration_idx = 0
             self.epoch_idx = 0
             self.best_score = -1
+            self.best_val_loss = 1e5
             self.do_visualize = self.trainer.num_samples_to_visualize is not None and \
                                 self.trainer.num_samples_to_visualize > 0
 
@@ -90,6 +91,10 @@ class TFTrainer(Trainer, abc.ABC):
             # iteration
             if os.path.isdir(f'original_checkpoint_{SESSION_ID}.ckpt'):
                 shutil.rmtree(f'original_checkpoint_{SESSION_ID}.ckpt')
+
+            if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']:
+                self.best_val_loss = logs['val_loss']
+                keras.models.save_model(model=self.model,filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"))
 
 
         def on_train_batch_begin(self, batch, logs=None):
