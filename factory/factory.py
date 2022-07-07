@@ -165,7 +165,7 @@ class DeepLabV3PlusGANFactory(Factory):
 
 class UNetExpFactory(Factory):
     def get_trainer_class(self):
-        return UNetTrainer
+        return UNetTFTrainer
 
     def get_model_class(self):
         return UNetExpTF
@@ -175,7 +175,7 @@ class UNetExpFactory(Factory):
 
 class UNet3PlusFactory(Factory):
     def get_trainer_class(self):
-        return UNetTrainer
+        return UNetTFTrainer
 
     def get_model_class(self):
         return UNet3PlusTF
