@@ -539,7 +539,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
             action_rounded = torch.cat([tensor.unsqueeze(0) for tensor in action_rounded_list], dim=0)
 
             new_observation, reward, info = env.step(action_rounded)
-            terminated = torch.Tensor([timestep_idx == self.rollout_len-1], device=self.device)
+            terminated = torch.Tensor([timestep_idx == self.rollout_len-1]).to(self.device)
             info_sum['reward_decomp_quantities'] = {k: info_sum['reward_decomp_quantities'].get(k, 0.0) + v for k, v in info['reward_decomp_quantities'].items()}
             info_sum['reward_decomp_sums'] = {k: info_sum['reward_decomp_sums'].get(k, 0.0) + v for k, v in info['reward_decomp_sums'].items()}
             
