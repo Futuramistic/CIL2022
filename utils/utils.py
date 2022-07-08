@@ -27,6 +27,19 @@ DEFAULT_TF_INPUT_SHAPE = (None, None, 3)
 DATASET_ZIP_URLS = {
     # "original": dataset used in the ETHZ CIL Road Segmentation 2022 Kaggle competition
     "original": "https://polybox.ethz.ch/index.php/s/x2RcSv4MOG3rtPB/download",
+    
+    # "ext_original": "original" dataset, extended with 80 images scraped from Google Maps
+    "ext_original": "https://polybox.ethz.ch/index.php/s/mj4aokQ7ZMouMyh/download",
+
+    # "new_original": "original" dataset, with first 25 samples moved to end to form the validation split
+    # same 25 samples as in "new_ext_original", "new_original_aug_6" and "ext_original_aug_6" datasets
+    # use split of 0.827 to use exactly these 25 samples as the validation set
+    "new_original": "https://polybox.ethz.ch/index.php/s/1l67z55lmemASnb/download",
+
+    # "new_ext_original": "ext_original" dataset, with first 25 samples moved to end to form the validation split
+    # same 25 samples as in "new_original", "new_original_aug_6" and "ext_original_aug_6" datasets
+    # use split of 0.89 to use exactly these 25 samples as the validation set
+    "new_ext_original": "https://polybox.ethz.ch/index.php/s/GAv6JhORUjZOq5U/download",
 
     # "original_gt": dataset used in the ETHZ CIL Road Segmentation 2022 Kaggle competition, but with images replaced by ground truth
     "original_gt": "https://polybox.ethz.ch/index.php/s/kORjGAbqFvjG4My/download",
@@ -66,7 +79,22 @@ DATASET_ZIP_URLS = {
     # Testing: 144 Images - only original testing images
     # WARNING: Some images have white or black outer values due to processing (mostly bottom or right side)!
     #          However, the number of "partial" images is limited
-    "large":"https://polybox.ethz.ch/index.php/s/uXJgQrQazhrn5gA/download"
+    "large":"https://polybox.ethz.ch/index.php/s/uXJgQrQazhrn5gA/download",
+
+    # "original_aug_6": "original" dataset, 400x400 but with augmented training set using Preprocessor (x6)
+    # I usually use a 0.975 split for this dataset
+    "original_aug_6": "https://polybox.ethz.ch/index.php/s/ICjaUr4ayCNwySJ/download",
+
+    # Recreation of "original_aug_6" dataset, but with 25 samples from original dataset excluded from augmentation
+    # procedure to avoid data leakage; same 25 samples as in "new_original", "new_ext_original" and "ext_original_aug_6" datasets
+    # use split of 0.971 to use exactly these 25 samples as the validation set
+    "new_original_aug_6": "https://polybox.ethz.ch/index.php/s/LJZ0InoG6GwyGsC/download",
+
+    # Recreation of "original_aug_6" dataset, but with 80 additional samples scraped from Google Maps added before
+    # augmentation procedure, and with 25 samples from original dataset excluded from augmentation procedure
+    # to avoid data leakage; same 25 samples as in "new_original", "new_ext_original" and "new_original_aug_6" datasets
+    # use split of 0.9825 to use exactly these 25 samples as the validation set
+    "ext_original_aug_6": "https://polybox.ethz.ch/index.php/s/9hDXLlX7mB5Xljq/download"
 }
 # in case multiple jobs are running in the same directory, SESSION_ID will prevent name conflicts
 CODEBASE_SNAPSHOT_ZIP_NAME = f"codebase_{SESSION_ID}.zip"

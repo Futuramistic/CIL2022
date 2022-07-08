@@ -640,3 +640,179 @@ def U2NetSmallTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
     model.up_transpose = None
     model.kernel_regularizer = kernel_regularizer
     return model
+
+## Experimental U^2Net - combination of U^2Net and UNet3+
+def U2NetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
+              name="U2NetExpTF",
+              dropout=0.5,
+              kernel_init='he_normal',
+              normalize=True,
+              kernel_regularizer=K.regularizers.l2(),
+              **kwargs):
+
+    network_args = {
+        'dropout': dropout,
+        'kernel_init':kernel_init,
+        'normalize':normalize,
+        'kernel_regularizer': kernel_regularizer
+    }
+
+    pool_args = {
+        'pool_size':(2,2),
+        'strides':2,
+        'padding':'same'
+    }
+
+    convo2d_args={
+        'filters':1, 
+        'kernel_size':(3, 3),
+        'kernel_regularizer': kernel_regularizer,
+        'padding':'same'
+    }
+
+    up_convo2d_args={
+        'kernel_size':(3, 3),
+        'kernel_regularizer': kernel_regularizer,
+        'padding':'same'
+    }
+
+    conovo_relu_args={
+        'dropout': dropout,
+        'kernel_init':kernel_init,
+        'normalize':normalize,
+        'kernel_regularizer': kernel_regularizer,
+        'filters': 6*64
+    }
+
+    up_args = {
+        'size':(2,2),
+        'interpolation':'bilinear'
+    }
+
+    def __build_model(inputs):
+
+        hx1 = RSU7(mid_channels=32,out_channels=64,**network_args)(inputs)
+        hx = MaxPool2D(**pool_args)(hx1)
+
+        hx2 = RSU6(mid_channels=32,out_channels=128,**network_args)(hx)
+        hx = MaxPool2D(**pool_args)(hx2)
+
+        hx3 = RSU5(mid_channels=64,out_channels=256,**network_args)(hx)
+        hx = MaxPool2D(**pool_args)(hx3)
+
+        hx4 = RSU4(mid_channels=128,out_channels=512,**network_args)(hx)
+        hx = MaxPool2D(**pool_args)(hx4)
+
+        hx5 = RSU4F(mid_channels=256,out_channels=512,**network_args)(hx)
+        hx = MaxPool2D(**pool_args)(hx5)
+
+        hx6 = RSU4F(mid_channels=256,out_channels=512,**network_args)(hx)
+        hx6dup = UpSampling2D(**up_args)(hx6)
+        side6_in = Conv2D(**convo2d_args)(hx6)
+        side6 = UpSampling2D(size=(32, 32), interpolation='bilinear')(side6_in)
+
+        hx4_down = MaxPool2D((2,2),strides=2,padding='same')(hx4)
+        hx4_down = ConvoRelu_Block(name="e4-d5",filters=512,**network_args)(hx4_down)
+
+        hx3_down = MaxPool2D((4,4),strides=4,padding='same')(hx3)
+        hx3_down = ConvoRelu_Block(name="e3-d5",filters=512,**network_args)(hx3_down)
+
+        hx2_down = MaxPool2D((8,8),strides=8,padding='same')(hx2)
+        hx2_down = ConvoRelu_Block(name="e2-d5",filters=512,**network_args)(hx2_down)
+
+        hx1_down = MaxPool2D((16,16),strides=16,padding='same')(hx1)
+        hx1_down = ConvoRelu_Block(name="e1-d5",filters=512,**network_args)(hx1_down)
+
+        concat_5 = ConvoRelu_Block(name=name+"concat-5",**conovo_relu_args)(tf.concat([hx6dup,hx5,hx4_down,hx3_down,hx2_down,hx1_down], axis=3))
+
+        hx5d = RSU4F(mid_channels=256,out_channels=512,**network_args)(concat_5)
+        hx5dup = UpSampling2D(**up_args)(hx5d)
+        side5_in = Conv2D(**convo2d_args)(hx5d)
+        side5 = UpSampling2D(size=(16, 16), interpolation='bilinear')(side5_in)
+
+        hx3_down = MaxPool2D((2,2),strides=2,padding='same')(hx3)
+        hx3_down = ConvoRelu_Block(name="e3-d4",filters=512,**network_args)(hx3_down)
+
+        hx2_down = MaxPool2D((4,4),strides=4,padding='same')(hx2)
+        hx2_down = ConvoRelu_Block(name="e2-d4",filters=512,**network_args)(hx2_down)
+
+        hx1_down = MaxPool2D((8,8),strides=8,padding='same')(hx1)
+        hx1_down = ConvoRelu_Block(name="e1-d4",filters=512,**network_args)(hx1_down)
+
+        hx6_up = UpSampling2D(size=(4,4),interpolation='bilinear')(hx6)
+        hx6_up = ConvoRelu_Block(name="e6-d4",filters=512,**network_args)(hx6_up)
+
+        concat_4 = ConvoRelu_Block(name=name+"concat-4",**conovo_relu_args)(tf.concat([hx5dup,hx4,hx3_down,hx2_down,hx1_down,hx6_up], axis=3))
+        hx4d = RSU4(mid_channels=128,out_channels=256,**network_args)(concat_4)
+        hx4dup = UpSampling2D(**up_args)(hx4d)
+        side4_in = Conv2D(**convo2d_args)(hx4d)
+
+        side4 = UpSampling2D(size=(8, 8), interpolation='bilinear')(side4_in)
+
+        hx2_down = MaxPool2D((2,2),strides=2,padding='same')(hx2)
+        hx2_down = ConvoRelu_Block(name="e2-d3",filters=256,**network_args)(hx2_down)
+
+        hx1_down = MaxPool2D((4,4),strides=4,padding='same')(hx1)
+        hx1_down = ConvoRelu_Block(name="e1-d3",filters=256,**network_args)(hx1_down)
+
+        hx6_up = UpSampling2D(size=(8,8),interpolation='bilinear')(hx6)
+        hx6_up = ConvoRelu_Block(name="e6-d3",filters=256,**network_args)(hx6_up)
+
+        hx5_up = UpSampling2D(size=(4,4),interpolation='bilinear')(hx5d)
+        hx5_up = ConvoRelu_Block(name="e5-d3",filters=256,**network_args)(hx5_up)
+
+        concat_3 =  ConvoRelu_Block(name=name+"concat-3",**conovo_relu_args)(tf.concat([hx4dup,hx3,hx2_down,hx1_down,hx6_up,hx5_up], axis=3))
+        hx3d = RSU5(mid_channels=64,out_channels=128,**network_args)(concat_3)
+        hx3dup = UpSampling2D(**up_args)(hx3d)
+        side3_in = Conv2D(**convo2d_args)(hx3d)
+        side3 = UpSampling2D(size=(4, 4), interpolation='bilinear')(side3_in)
+
+        hx1_down = MaxPool2D((2,2),strides=2,padding='same')(hx1)
+        hx1_down = ConvoRelu_Block(name="e1-d2",filters=128,**network_args)(hx1_down)
+
+        hx6_up = UpSampling2D(size=(16,16),interpolation='bilinear')(hx6)
+        hx6_up = ConvoRelu_Block(name="e6-d2",filters=128,**network_args)(hx6_up)
+
+        hx5_up = UpSampling2D(size=(8,8),interpolation='bilinear')(hx5d)
+        hx5_up = ConvoRelu_Block(name="e5-d2",filters=128,**network_args)(hx5_up)
+
+        hx4_up = UpSampling2D(size=(4,4),interpolation='bilinear')(hx4d)
+        hx4_up = ConvoRelu_Block(name="e4-d2",filters=128,**network_args)(hx4_up)
+
+        concat_2 = ConvoRelu_Block(name=name+"concat-2",**conovo_relu_args)(tf.concat([hx3dup,hx2,hx1_down,hx6_up,hx5_up,hx4_up], axis=3))
+        hx2d = RSU6(mid_channels=32,out_channels=64,**network_args)(concat_2)
+        hx2dup = UpSampling2D(**up_args)(hx2d)
+        side2_in = Conv2D(**convo2d_args)(hx2d)
+        side2 = UpSampling2D(size=(2, 2), interpolation='bilinear')(side2_in)
+        
+        hx6_up = UpSampling2D(size=(32,32),interpolation='bilinear')(hx6)
+        hx6_up = ConvoRelu_Block(name="e6-d1",filters=64,**network_args)(hx6_up)
+
+        hx5_up = UpSampling2D(size=(16,16),interpolation='bilinear')(hx5d)
+        hx5_up = ConvoRelu_Block(name="e5-d1",filters=64,**network_args)(hx5_up)
+
+        hx4_up = UpSampling2D(size=(8,8),interpolation='bilinear')(hx4d)
+        hx4_up = ConvoRelu_Block(name="e4-d1",filters=64,**network_args)(hx4_up)
+
+        hx3_up = UpSampling2D(size=(4,4),interpolation='bilinear')(hx3d)
+        hx3_up = ConvoRelu_Block(name="e3-d1",filters=64,**network_args)(hx3_up)
+
+        concat_1 = ConvoRelu_Block(name=name+"concat-1",**conovo_relu_args)(tf.concat([hx2dup,hx1,hx6_up,hx5_up,hx4_up,hx3_up], axis=3))
+        hx1d = RSU7(mid_channels=16,out_channels=64,**network_args)(concat_1)
+        side1 = Conv2D(**convo2d_args)(hx1d)
+        outconv = Conv2D(1, (1, 1), padding='same', kernel_regularizer=kernel_regularizer)(tf.concat([side1, side2, side3, side4, side5, side6], axis=3))
+
+        sigmoid = keras.activations.sigmoid
+        return tf.stack([sigmoid(outconv), sigmoid(side1), sigmoid(side2), sigmoid(side3), sigmoid(side4), sigmoid(side5), sigmoid(side6)])
+        #return sigmoid(outconv)
+    
+    inputs = K.Input(input_shape)
+    outputs = __build_model(inputs)
+    model = K.Model(inputs=inputs, outputs=outputs, name='U2NetTF')
+    # store parameters for the Trainer to be able to log them to MLflow
+    model.dropout = dropout
+    model.kernel_init = kernel_init
+    model.normalize = normalize
+    model.up_transpose = None
+    model.kernel_regularizer = kernel_regularizer
+    return model

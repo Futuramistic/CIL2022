@@ -10,8 +10,10 @@ from utils import DEFAULT_TF_INPUT_SHAPE
 def GLDenseUNet(input_shape=DEFAULT_TF_INPUT_SHAPE,
                 growth_rate=16,
                 layers_per_block=(4, 5, 7, 10, 12),
-                conv2d_activation=tf.nn.relu,
-                num_classes=2):
+                conv2d_activation='relu',
+                num_classes=2,
+                input_resize_dim=256,
+                l2_regularization_param=1e-5):
     # This is a function and not a tf.keras.Model subclass because we're using the Keras functional API here to
     # construct the model's non-linear topology, and the functional API is not compatible with subclassing
     # tf.keras.Model. Yet, we want to maintain the illusion of "GLDenseUNet" returning a tf.keras.Model.
@@ -21,7 +23,7 @@ def GLDenseUNet(input_shape=DEFAULT_TF_INPUT_SHAPE,
     num_blocks = len(layers_per_block)
 
     def l2_reg():
-        return K.regularizers.l2(1e-5)
+        return K.regularizers.l2(l2_regularization_param)
 
     def dense_block(x, block_idx):
         dense_block_out = []
@@ -84,7 +86,11 @@ def GLDenseUNet(input_shape=DEFAULT_TF_INPUT_SHAPE,
         conv2d_t_args = {'activation': conv2d_activation}
         concats = []
 
-        x = K.layers.Conv2D(filters=48, kernel_size=(3, 3), strides=(1, 1), padding='SAME', **conv2d_args)(inputs)
+        if input_resize_dim is not None:
+            x = K.layers.Resizing(input_resize_dim, input_resize_dim, interpolation='bilinear')(inputs)
+        else:
+            x = inputs
+        x = K.layers.Conv2D(filters=48, kernel_size=(3, 3), strides=(1, 1), padding='SAME', **conv2d_args)(x)
         for block_idx in range(num_blocks):
             dense_block_out = dense_block(x, block_idx)
             x = tf.concat([x, dense_block_out], axis=3)
@@ -110,15 +116,23 @@ def GLDenseUNet(input_shape=DEFAULT_TF_INPUT_SHAPE,
             x = dense_block(x, falling_block_idx)
             x_last = x
 
-        # Standard: 
-        #   Actv: None; filters: num_classes
-        # New:
-        #   Actv: sigomid; filters: 1
-        x = K.layers.Conv2D(filters=1, kernel_size=(1, 1), strides=(1, 1), padding='SAME',
-                            activation='sigmoid', kernel_regularizer=None)(x)
+        if input_resize_dim is not None:
+            x = K.layers.Resizing(inputs.shape[1], inputs.shape[2], interpolation='bilinear')(x)
+            
+        x = K.layers.Conv2D(filters=2, kernel_size=(1, 1), strides=(1, 1), padding='SAME',
+                            activation='softmax', kernel_regularizer=None)(x)
         return x
 
     inputs = K.Input(input_shape)
     outputs = __build_model(inputs)
     model = K.Model(inputs=inputs, outputs=outputs, name='GLDenseUNet')
+    
+    # store hyperparameters so GLDenseUNetTrainer._get_hyperparams finds them
+    model.growth_rate = growth_rate
+    model.layers_per_block = layers_per_block
+    model.conv2d_activation = conv2d_activation
+    model.num_classes = num_classes
+    model.input_resize_dim = input_resize_dim
+    model.l2_regularization_param = l2_regularization_param
+    
     return model

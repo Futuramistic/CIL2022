@@ -19,7 +19,7 @@ class UNetTFTrainer(TFTrainer):
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
                  batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
-                 load_checkpoint_path=None, segmentation_threshold=None):
+                 load_checkpoint_path=None, segmentation_threshold=None, pre_process=None):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
@@ -57,10 +57,16 @@ class UNetTFTrainer(TFTrainer):
         # convert ground truth to int \in {0, 1} & remove A channel
 
         # note: no batch dim
-        preprocessing =\
-            lambda x, is_gt: (tf.cast(x[:, :, :3], dtype=tf.float32) / 255.0) if not is_gt \
-            else x[:, :, :1] // 255
-
+        if pre_process == "vgg":
+            preprocessing =\
+                lambda x, is_gt: K.applications.vgg19.preprocess_input(tf.cast(x[:, :, :3], dtype=tf.float32)) if not is_gt \
+                else x[:, :, :1] // 255
+        # Expect some preprocessing on the model side (VGG architecture preprocessing or other)
+        else:
+            preprocessing =\
+                lambda x, is_gt: (tf.cast(x[:, :, :3], dtype=tf.float32) / 255.0) if not is_gt \
+                else x[:, :, :1] // 255
+        
         super().__init__(dataloader, model, preprocessing, steps_per_training_epoch, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,

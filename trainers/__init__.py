@@ -10,4 +10,5 @@ from .UnetPlusPlusTF import UNetPlusPlusTrainer
 from .UnetTF import UNetTFTrainer
 from .cra_net import CRANetTrainer
 from .deep_lab_v3 import DeepLabV3Trainer
+from .deeplabv3gan import DeepLabV3PlusGANTrainer
 from .rl_trainer_torch import TorchRLTrainer

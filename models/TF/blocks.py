@@ -27,13 +27,13 @@ class GELU(tf.keras.layers.Layer):
 
 class ConvoRelu_Block(tf.keras.layers.Layer):
     def __init__(self,name="ConvoRelu-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,
-                 kernel_regularizer=K.regularizers.l2(),kernel_size=3,dilation_rate=1,**kwargs):
+                 kernel_regularizer=K.regularizers.l2(),kernel_size=3,dilation_rate=1,activation='leaky_relu',**kwargs):
         super(ConvoRelu_Block, self).__init__(name=name,**kwargs)
         self.normalize = normalize  
         self.convo = Conv2D(filters=filters, kernel_size=kernel_size, padding='same', kernel_initializer=kernel_init,
                             name=name+"-conv2D", kernel_regularizer=kernel_regularizer,dilation_rate=dilation_rate)
         self.norm = BatchNormalization(name=name+"-batchNorm", axis=3)
-        self.actv = LeakyReLU()
+        self.actv = Activation(name=name+"-"+activation,activation=activation)
         self.drop = Dropout(rate=dropout,name=name+"-drop")
     
     # Expose training:
@@ -110,21 +110,20 @@ class Transpose_Block(tf.keras.layers.Layer):
     def __init__(self,name="up-convo",filters=64,dropout=0.5,kernel_init='he_normal',normalize=False,kernel_regularizer=K.regularizers.l2(),**kwargs):
         super(Transpose_Block,self).__init__(name=name,**kwargs)
         self.normalize = normalize
-        self.transpose = Conv2DTranspose(filters=filters, kernel_size=(2, 2), strides=(2, 2), padding='same',kernel_initializer=kernel_init, name=name+"-convo2DTranspose",kernel_regularizer=kernel_regularizer)
-        self.norm = BatchNormalization(name=name+"-batchNorm")
-        self.actv = Activation(activation='relu', name=name+"-activ")
+        self.transpose = Conv2DTranspose(filters=filters,kernel_size=(2, 2),strides=(2, 2), padding='same',kernel_initializer=kernel_init,name=name+"-convo2DTranspose",kernel_regularizer=kernel_regularizer)
+        self.norm = BatchNormalization(name=name+"-batchNorm",axis=3)
+        self.actv = Activation(activation='leaky_relu', name=name+"-activ")
         self.drop = Dropout(rate=dropout,name=name+"-drop")
     
     # Expose training:
     # - Dropout -> only performed while training
     # - BatchNorm -> performs differently when predicting
-    def call(self,inputs,training = None, **kwargs):
-        x = self.transpose(inputs,training=training,**kwargs)
+    def call(self, inputs, training=None, **kwargs):
+        x = self.transpose(inputs)
         if self.normalize:
-            x = self.norm(x,training=training,**kwargs)
-        x = self.actv(x,training=training,**kwargs)
-        if training:
-            x = self.drop(x,training=training,**kwargs)
+            x = self.norm(x,training)
+        x = self.actv(x)
+        x = self.drop(x,training)
         return x
 
 class UpSampleConvo_Block(tf.keras.layers.Layer):
