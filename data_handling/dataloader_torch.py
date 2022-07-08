@@ -27,6 +27,24 @@ class TorchDataLoader(DataLoader):
         unlabeled_testing_data_len = len(self.test_img_paths)
         return training_data_len, testing_data_len, unlabeled_testing_data_len
 
+    def get_img_val_min_max(self, preprocessing):
+        """
+        Get the minimum and maximum possible values of an image pixel, when preprocessing the image using the given
+        preprocessing function.
+        Args:
+            preprocessing: function taking a raw sample and returning a preprocessed sample to be used when
+                           constructing the native dataloader
+        Returns:
+            Tuple of (int, int)
+        """
+        if preprocessing is None:
+            preprocessing = lambda x: x
+        min_img = torch.zeros((1, 1, 1, 3), dtype=torch.uint8)
+        min_img_val = preprocessing(min_img, is_gt=False).min()
+        max_img = torch.ones((1, 1, 1, 3), dtype=torch.uint8) * 255
+        max_img_val = preprocessing(max_img, is_gt=False).max()
+        return min_img_val.detach().cpu().numpy().item(), max_img_val.detach().cpu().numpy().item()
+
     def get_training_dataloader(self, split, batch_size, preprocessing=None, **args):
         """
         Args:
@@ -51,7 +69,10 @@ class TorchDataLoader(DataLoader):
         self.training_data = Subset(dataset, list(range(training_data_len)))
         self.testing_data = Subset(dataset, list(range(training_data_len, len(dataset))))
         
-        return torchDL(self.training_data, batch_size, shuffle=True, **args)
+        ret = torchDL(self.training_data, batch_size, shuffle=True, **args)
+        ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)
+        return ret
+        
     
     def get_testing_dataloader(self, batch_size, preprocessing=None, **args):
         """
@@ -77,8 +98,10 @@ class TorchDataLoader(DataLoader):
                 self.testing_data = SegmentationDataset(self.test_img_paths, self.test_gt_paths, preprocessing)
             else:
                 self.testing_data = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing)
-
-        return torchDL(self.testing_data, batch_size, shuffle=False, **args)
+        
+        ret = torchDL(self.testing_data, batch_size, shuffle=False, **args)
+        ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)
+        return ret
             
     def get_unlabeled_testing_dataloader(self, batch_size, preprocessing=None, **args):
         """
@@ -97,7 +120,9 @@ class TorchDataLoader(DataLoader):
             # self.unlabeled_testing_data = SegmentationDataset(*utils.consistent_shuffling(self.test_img_paths), None,
             #                                                   preprocessing)
             self.unlabeled_testing_data = SegmentationDataset(self.test_img_paths, None, preprocessing)
-        return torchDL(self.unlabeled_testing_data, batch_size, shuffle=False, **args)
+        ret = torchDL(self.unlabeled_testing_data, batch_size, shuffle=False, **args)
+        ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)
+        return ret
 
     def load_model(self, path, model_class_as_string):
         model = eval(model_class_as_string)

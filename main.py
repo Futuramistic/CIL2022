@@ -30,7 +30,9 @@ def main():
     trainer_args = ['experiment_name', 'E', 'run_name', 'R', 'split', 's', 'num_epochs', 'e', 'batch_size', 'b',
                     'optimizer_or_lr', 'l', 'loss_function', 'L', 'loss_function_hyperparams', 'H',
                     'evaluation_interval', 'i', 'num_samples_to_visualize', 'v', 'checkpoint_interval', 'c',
-                    'load_checkpoint_path', 'C', 'segmentation_threshold', 't']
+                    'load_checkpoint_path', 'C', 'segmentation_threshold', 't', 'history_size',
+                    'max_rollout_len', 'std', 'reward_discount_factor', 'num_policy_epochs', 'policy_batch_size',
+                    'sample_from_action_distributions', 'visualization_interval', 'min_steps', 'rollout_len']
     dataloader_args = ['dataset', 'd']
 
     # list of other arguments to avoid passing to constructor of model class
@@ -45,7 +47,7 @@ def main():
     parser.add_argument('-b', '--batch_size', type=int, required=False)
     parser.add_argument('-L', '--loss_function', type=str, required=False)
     # json.loads: substitute for dict
-    parser.add_argument('-H', '--loss_function_hyperparams', type=json.loads, required=False)
+    parser.add_argument('-H', '--loss_function_hyperparams', type=json.loads, required=False, default=None)
     parser.add_argument('-i', '--evaluation_interval', type=float, required=False)
     parser.add_argument('-v', '--num_samples_to_visualize', type=int, required=False)
     parser.add_argument('-c', '--checkpoint_interval', type=int, required=False)

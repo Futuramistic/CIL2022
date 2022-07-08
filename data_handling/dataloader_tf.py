@@ -24,7 +24,24 @@ class TFDataLoader(DataLoader):
         test_size = dataset_size - train_size
         unlabeled_test_size = len(self.test_img_paths)
         return train_size, test_size, unlabeled_test_size
-
+    
+    def get_img_val_min_max(self, preprocessing):
+        """
+        Get the minimum and maximum possible values of an image pixel, when preprocessing the image using the given
+        preprocessing function.
+        Args:
+            preprocessing: function taking a raw sample and returning a preprocessed sample to be used when
+                           constructing the native dataloader
+        Returns:
+            Tuple of (int, int)
+        """
+        if preprocessing is None:
+            preprocessing = lambda x: x
+        min_img = tf.zeros((1, 1, 1, 3), dtype=tf.dtypes.uint8)
+        min_img_val = preprocessing(min_img).min()
+        max_img = tf.ones((1, 1, 1, 3), dtype=tf.dtypes.uint8) * 255
+        max_img_val = preprocessing(max_img).max()
+        return min_img_val.numpy().item(), max_img_val.numpy().item()
 
     # Get image data
     # Args:
@@ -156,7 +173,10 @@ class TFDataLoader(DataLoader):
                 self.testing_data = self.__get_image_data(self.training_img_paths, self.training_gt_paths,
                                                           shuffle=False, preprocessing=preprocessing)
                 print(f'Test data consists of ({len(self.training_img_paths)}) samples')
-        return self.testing_data.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        
+        ret = self.testing_data.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)
+        return ret
         # return self.testing_data.cache().shuffle(100).batch(batch_size).repeat().prefetch(tf.data.AUTOTUNE)
 
     ###
@@ -174,7 +194,9 @@ class TFDataLoader(DataLoader):
             self.unlabeled_testing_data = self.__get_image_data(self.test_img_paths, preprocessing=preprocessing,
                                                                 shuffle=False)
             print(f'Found ({len(self.test_img_paths)}) unlabeled test data')
-        return self.unlabeled_testing_data.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        ret = self.unlabeled_testing_data.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)
+        return ret
         # return self.unlabeled_testing_data.cache().shuffle(100).batch(batch_size).repeat().prefetch(tf.data.AUTOTUNE)
         
     # Load model

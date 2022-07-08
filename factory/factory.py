@@ -2,7 +2,9 @@ import abc
 
 from data_handling import *
 from models import *
+from models.reinforcement.first_try import SimpleRLCNNMinimal
 from trainers import *
+from trainers.rl_trainer_torch_minimal import TorchRLTrainerMinimal
 from utils import *
 
 
@@ -51,6 +53,10 @@ class Factory(abc.ABC):
             return UNetExpFactory()
         elif model_name_lower_no_sep in ['unet3plus','unet3+']:
             return UNet3PlusFactory()
+        elif model_name_lower_no_sep == "simplerlcnn":
+            return SimpleRLCNNFactory()
+        elif model_name_lower_no_sep == "simplerlcnnminimal":
+            return SimpleRLCNNMinimalFactory()
         else:
             print(f"The factory for the model {model_name} doesn't exist. Check if you wrote the model name "
                   f"correctly and implemented a corresponding factory in factory.py.")
@@ -143,15 +149,28 @@ class CRANetFactory(Factory):
     def get_dataloader_class(self):
         return TorchDataLoader
 
+
 class TwoShotNetFactory(Factory):
     def get_trainer_class(self):
         return UNetTrainer
 
     def get_model_class(self):
         return TwoShotNet
+        
+    def get_dataloader_class(self):
+        return TorchDataLoader
+        
+        
+class SimpleRLCNNFactory(Factory):
+    def get_trainer_class(self):
+        return TorchRLTrainer
+
+    def get_model_class(self):
+        return SimpleRLCNN
 
     def get_dataloader_class(self):
         return TorchDataLoader
+
 
 class DeepLabV3PlusGANFactory(Factory):
     def get_trainer_class(self):
@@ -159,9 +178,21 @@ class DeepLabV3PlusGANFactory(Factory):
 
     def get_model_class(self):
         return DeepLabV3PlusGAN
+        
+    def get_dataloader_class(self):
+        return TorchDataLoader
+        
+
+class SimpleRLCNNMinimalFactory(Factory):
+    def get_trainer_class(self):
+        return TorchRLTrainerMinimal
+
+    def get_model_class(self):
+        return SimpleRLCNNMinimal
 
     def get_dataloader_class(self):
         return TorchDataLoader
+
 
 class UNetExpFactory(Factory):
     def get_trainer_class(self):
@@ -173,6 +204,7 @@ class UNetExpFactory(Factory):
     def get_dataloader_class(self):
         return TFDataLoader
 
+
 class UNet3PlusFactory(Factory):
     def get_trainer_class(self):
         return UNetTFTrainer
@@ -182,3 +214,18 @@ class UNet3PlusFactory(Factory):
 
     def get_dataloader_class(self):
         return TFDataLoader
+
+
+def get_torch_scheduler(optimizer, scheduler_name, kwargs):
+    if scheduler_name == "steplr":
+        return torch.optim.lr_scheduler.StepLR(optimizer=optimizer, **kwargs)
+    elif scheduler_name == 'lambdalr':
+        return torch.optim.lr_scheduler.LambdaLR(optimizer=optimizer, **kwargs)
+    elif scheduler_name == 'lambdaevallr':
+        return torch.optim.lr_scheduler.LambdaLR(optimizer=optimizer, lr_lambda=eval(kwargs['lr_lambda']),
+                                                 **{k: v for k, v in kwargs.items() if k != 'lr_lambda'})
+    elif scheduler_name == 'plateau':
+        return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, **kwargs)
+    else:
+        # standard configuration
+        return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: 1.0)

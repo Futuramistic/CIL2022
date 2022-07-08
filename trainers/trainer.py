@@ -320,6 +320,11 @@ class Trainer(abc.ABC):
 
         return metrics
 
+    def create_visualizations(self, vis_file_path, iteration_index, epoch_idx, epoch_iteration_idx):
+        """
+        Create visualizations for the validation dataset and save them into "vis_file_path".
+        """
+        raise NotImplementedError('Must be defined for trainer.')
 
     @staticmethod
     def _fill_images_array(preds, batch_ys, images):

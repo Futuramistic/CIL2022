@@ -31,6 +31,8 @@ class TorchTrainer(Trainer, abc.ABC):
             dataloader: the DataLoader to use when training the model
             model: the model to train
         """
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold)
@@ -66,7 +68,7 @@ class TorchTrainer(Trainer, abc.ABC):
                 if mlflow_logger.logging_to_mlflow_enabled():
                     mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=self.iteration_idx)
                     if self.do_visualize:
-                        mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
+                        mlflow_logger.log_visualizations(self.trainer, self.iteration_idx, self.epoch_idx, self.epoch_iteration_idx)
                 
                 if self.trainer.do_checkpoint\
                    and self.iteration_idx % self.trainer.checkpoint_interval == 0\
@@ -77,6 +79,7 @@ class TorchTrainer(Trainer, abc.ABC):
             self.epoch_iteration_idx += 1
     
         def on_epoch_end(self):
+            # F1 score returned by this function is used by some models
             self.epoch_idx += 1
             self.epoch_iteration_idx = 0
             return self.f1_score
@@ -85,7 +88,7 @@ class TorchTrainer(Trainer, abc.ABC):
     # and the "create_visualizations" functions of the Trainer subclasses (containing ML framework-specific code)
     # Specifically, the Trainer calls mlflow_logger's "log_visualizations" (e.g. in "on_train_batch_end" of the
     # tensorflow.keras.callbacks.Callback subclass), which in turn uses the Trainer's "create_visualizations".
-    def create_visualizations(self, file_path):
+    def create_visualizations(self, file_path, iteration_index, epoch_idx, epoch_iteration_idx):
         # sample image indices to visualize
         # fix half of the samples, randomize other half
         # the first, fixed half of samples serves for comparison purposes across models/runs
@@ -179,7 +182,6 @@ class TorchTrainer(Trainer, abc.ABC):
                                                                     preprocessing=self.preprocessing)
         self.test_loader = self.dataloader.get_testing_dataloader(split=self.split, batch_size=1,
                                                                   preprocessing=self.preprocessing)
-        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         print(f'Using device: {self.device}\n')
 
         self.model = self.model.to(self.device)
@@ -187,7 +189,9 @@ class TorchTrainer(Trainer, abc.ABC):
         if self.load_checkpoint_path is not None:
             self._load_checkpoint(self.load_checkpoint_path)
 
-        callback_handler = TorchTrainer.Callback(self, mlflow_run, self.model)
+        # use self.Callback instead of TorchTrainer.Callback, to allow subclasses to overwrite the callback handler
+        callback_handler = self.Callback(self, mlflow_run, self.model)
+        print(self.num_epochs)
         for epoch in range(self.num_epochs):
             last_train_loss = self._train_step(self.model, self.device, self.train_loader, callback_handler=callback_handler)
             last_test_loss = self._eval_step(self.model, self.device, self.test_loader)

@@ -39,6 +39,7 @@
   - terminal should now have venv name as prefix
 - installing requirements
   - make sure correct venv is installed and activated
+  - for reinforcement learning load the openmpi module before pip installing the library "baselines": ```module load openmpi```
   - ```cd``` into the ```CIL2022``` directory (where ```requirements.txt``` is located)
   - run ```pip install -r requirements.txt```
     - there may be errors related to ```pywin32``` because we're on a Linux machine
@@ -104,3 +105,10 @@
 - drag files from left to right to upload them / from right to left to download them
 - double-click on files in the left side to upload them / in the right side to download them
 - if you've created/deleted/moved files/directories, you might have to press F5 to reload the current directory
+
+
+## Summary for quick start of a Run after Initialization is finished:
+- `cd CIL2022`
+- `source bin/activate`
+- `module load gcc/8.2.0 && module load python_gpu/3.9.9 && module load openmpi && module load eth_proxy`
+- 
