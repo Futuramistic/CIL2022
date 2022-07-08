@@ -226,7 +226,7 @@ class TFTrainer(Trainer, abc.ABC):
         
         self.train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                                     preprocessing=self.preprocessing)
-        self.test_loader = self.dataloader.get_testing_dataloader(split=self.split, batch_size=1,
+        self.test_loader = self.dataloader.get_testing_dataloader(batch_size=1,
                                                                   preprocessing=self.preprocessing)
         _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
 

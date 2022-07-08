@@ -286,7 +286,7 @@ class Trainer(abc.ABC):
         if not hasattr(self, 'test_loader') or self.test_loader is None:
             # initialize by calling get_training_dataloader
             self.dataloader.get_training_dataloader(split=self.split, batch_size=1, preprocessing=self.preprocessing)
-            self.test_loader = self.dataloader.get_testing_dataloader(split=self.split, batch_size=1,
+            self.test_loader = self.dataloader.get_testing_dataloader(batch_size=1,
                                                                       preprocessing=self.preprocessing)
 
         if self.mlflow_experiment_name not in ['', None] and self._init_mlflow():
