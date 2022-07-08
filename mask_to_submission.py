@@ -66,7 +66,7 @@ def masks_to_submission(submission_filename, mask_dir, *image_filenames):
 
 def main(_):
     image_filenames = [os.path.join(FLAGS.base_dir, name) for name in os.listdir(FLAGS.base_dir)]
-    masks_to_submission(FLAGS.submission_filename, "", *image_filenames)
+    masks_to_submission(FLAGS.submission_filename, "final_output_masks", *image_filenames)
 
 if __name__ == '__main__':
     app.run(main)

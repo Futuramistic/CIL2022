@@ -95,6 +95,7 @@ from utils.logging import mlflow_logger, optim_hyparam_serializer
 #     print('mlflow initialization failed')
 
 
+# modify in tf_predictor.py as well!
 def compute_best_threshold(loader, apply_sigmoid):
     best_thresh = 0
     best_f1_score = 0
