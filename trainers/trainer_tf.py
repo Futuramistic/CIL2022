@@ -1,5 +1,6 @@
 import abc
 import datetime
+import hashlib
 # from typing import final
 import numpy as np
 import os
@@ -25,7 +26,7 @@ class TFTrainer(Trainer, abc.ABC):
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None, evaluation_interval=None,
                  num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
-                 segmentation_threshold=None, loss_weights=None):
+                 segmentation_threshold=None):
         """
         Abstract class for TensorFlow-based model trainers.
         Args:
@@ -38,7 +39,6 @@ class TFTrainer(Trainer, abc.ABC):
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
-        self.loss_weights = loss_weights
     # Subclassing tensorflow.keras.callbacks.Callback (here: KC.Callback) allows us to override various functions to be
     # called when specific events occur while fitting a model using TF's model.fit(...). An instance of the subclass
     # needs to be passed in the "callbacks" parameter (which, if specified, can either be a single instance, or a list
@@ -53,6 +53,7 @@ class TFTrainer(Trainer, abc.ABC):
             self.epoch_iteration_idx = 0
             self.epoch_idx = 0
             self.best_score = -1
+            self.best_val_loss = 1e5
             self.do_visualize = self.trainer.num_samples_to_visualize is not None and \
                                 self.trainer.num_samples_to_visualize > 0
 
@@ -82,6 +83,11 @@ class TFTrainer(Trainer, abc.ABC):
             # since we don't have a way of getting notified when KC.ModelCheckpoint has finished creating the checkpoint,
             # we simply check at the end of each epoch whether there are any checkpoints to upload and upload them
             # if necessary
+            
+            if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']:
+                self.best_val_loss = logs['val_loss']
+                keras.models.save_model(model=self.model,filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"))
+
             mlflow_logger.log_checkpoints()
             
             self.epoch_idx += 1
@@ -89,8 +95,8 @@ class TFTrainer(Trainer, abc.ABC):
 
             # it seems we can only safely delete the original checkpoint dir after having trained for at least one
             # iteration
-            if os.path.isdir(f'original_checkpoint_{SESSION_ID}.ckpt'):
-                shutil.rmtree(f'original_checkpoint_{SESSION_ID}.ckpt')
+            # if self.original_checkpoint_hash is not None and os.path.isdir(f'original_checkpoint_{self.original_checkpoint_hash}.ckpt'):
+            #     shutil.rmtree(f'original_checkpoint_{self.original_checkpoint_hash}.ckpt')
 
 
         def on_train_batch_begin(self, batch, logs=None):
@@ -126,7 +132,7 @@ class TFTrainer(Trainer, abc.ABC):
     # and the "create_visualizations" functions of the Trainer subclasses (containing ML framework-specific code)
     # Specifically, the Trainer calls mlflow_logger's "log_visualizations" (e.g. in "on_train_batch_end" of the
     # tensorflow.keras.callbacks.Callback subclass), which in turn uses the Trainer's "create_visualizations".
-    def create_visualizations(self, file_path):
+    def create_visualizations(self, file_path, iteration_index, epoch_idx, epoch_iteration_idx):
         # for batch_xs, batch_ys in self.test_loader.shuffle(10 * num_samples).batch(num_samples):
 
         # fix half of the samples, randomize other half
@@ -176,27 +182,31 @@ class TFTrainer(Trainer, abc.ABC):
         self._save_image_array(images, file_path)
 
     def _compile_model(self):
-        self.model.compile(loss=self.loss_function, optimizer=self.optimizer_or_lr,loss_weights=self.loss_weights)
+        self.model.compile(loss=self.loss_function, optimizer=self.optimizer_or_lr)
 
     def _load_checkpoint(self, checkpoint_path):
         print(f'\n*** WARNING: resuming training from checkpoint "{checkpoint_path}" ***\n')
         load_from_sftp = checkpoint_path.lower().startswith('sftp://')
         if load_from_sftp:
+            self.original_checkpoint_hash = hashlib.md5(str.encode(checkpoint_path)).hexdigest()
             # in TF, even though the checkpoint names all end in ".ckpt", they are actually directories
             # hence we have to use sftp_download_dir_portable to download them
-            final_checkpoint_path = f'original_checkpoint_{SESSION_ID}.ckpt'
-            os.makedirs(final_checkpoint_path, exist_ok=True)
-            print(f'Downloading checkpoint from "{checkpoint_path}" to "{final_checkpoint_path}"...')
-            cnopts = pysftp.CnOpts()
-            cnopts.hostkeys = None
-            mlflow_ftp_pass = requests.get(MLFLOW_FTP_PASS_URL,
-                                           auth=HTTPBasicAuth(os.environ['MLFLOW_TRACKING_USERNAME'],
-                                                              os.environ['MLFLOW_TRACKING_PASSWORD'])).text
-            url_components = urlparse(checkpoint_path)
-            with pysftp.Connection(host=MLFLOW_HOST, username=MLFLOW_FTP_USER, password=mlflow_ftp_pass,
-                                   cnopts=cnopts) as sftp:
-                sftp_download_dir_portable(sftp, remote_dir=url_components.path, local_dir=final_checkpoint_path)
-            print(f'Download successful')
+            final_checkpoint_path = f'original_checkpoint_{self.original_checkpoint_hash}.ckpt'
+            if not os.path.isdir(final_checkpoint_path):
+                os.makedirs(final_checkpoint_path, exist_ok=True)
+                print(f'Downloading checkpoint from "{checkpoint_path}" to "{final_checkpoint_path}"...')
+                cnopts = pysftp.CnOpts()
+                cnopts.hostkeys = None
+                mlflow_ftp_pass = requests.get(MLFLOW_FTP_PASS_URL,
+                                            auth=HTTPBasicAuth(os.environ['MLFLOW_TRACKING_USERNAME'],
+                                                                os.environ['MLFLOW_TRACKING_PASSWORD'])).text
+                url_components = urlparse(checkpoint_path)
+                with pysftp.Connection(host=MLFLOW_HOST, username=MLFLOW_FTP_USER, password=mlflow_ftp_pass,
+                                    cnopts=cnopts) as sftp:
+                    sftp_download_dir_portable(sftp, remote_dir=url_components.path, local_dir=final_checkpoint_path)
+                print(f'Download successful')
+            else:
+                print(f'Checkpoint "{checkpoint_path}", to be downloaded to "{final_checkpoint_path}", found on disk')
         else:
             final_checkpoint_path = checkpoint_path
 

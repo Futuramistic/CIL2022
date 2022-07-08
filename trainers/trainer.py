@@ -90,15 +90,20 @@ class Trainer(abc.ABC):
             segmentation_threshold if segmentation_threshold is not None else DEFAULT_SEGMENTATION_THRESHOLD
         self.is_windows = os.name == 'nt'
         self.load_checkpoint_path = load_checkpoint_path
+        self.mlflow_initialized = False
+        self.original_checkpoint_hash = None
         if not self.do_checkpoint:
             print('\n*** WARNING: no checkpoints of this model will be created! Specify valid checkpoint_interval '
                   '(in iterations) to Trainer in order to create checkpoints. ***\n')
         # if load_checkpoint_path is not None:
-        #     self._load_checkpoint(load_checkpoint_path)
+        #    self._load_checkpoint(load_checkpoint_path)
 
     def _init_mlflow(self):
+        if self.mlflow_initialized:
+            return True
+        
         self.mlflow_experiment_id = None
-        if self.mlflow_experiment_name is not None:
+        if self.mlflow_experiment_name not in ['', None]:
             def add_known_hosts(host, user, password, jump_host=None):
                 spawn_str =\
                     'ssh %s@%s' % (user, host) if jump_host is None else 'ssh -J %s %s@%s' % (jump_host, user, host)
@@ -177,6 +182,7 @@ class Trainer(abc.ABC):
                         self.mlflow_experiment_id = mlflow.create_experiment(self.mlflow_experiment_name)
                     else:
                         self.mlflow_experiment_id = experiment.experiment_id
+                    self.mlflow_initialized = True
                 except:
                     mlflow_init_successful = False
                     print(MLFLOW_INIT_ERROR_MSG)
@@ -208,7 +214,7 @@ class Trainer(abc.ABC):
     @abc.abstractmethod
     def get_default_optimizer_with_lr(lr, model):
         """
-        Constructs and returns the default optimizer for this method, with the given learning rate and model.
+        Construct and return the default optimizer for this method, with the given learning rate and model.
         Args:
             lr: the learning rate to use
             model: the model to use
@@ -231,6 +237,14 @@ class Trainer(abc.ABC):
         """
         raise NotImplementedError('Must be defined for trainer.')
 
+    @abc.abstractmethod
+    def get_precision_recall_F1_score_validation(self):
+        """
+        Calculate and return the precision, recall and F1 score on the validation split of the current dataset.
+        Returns: Tuple of (float, float, float) containing (precision, recall, f1_score)
+        """
+        raise NotImplementedError('Must be defined for trainer.')
+
     def train(self):
         """
         Trains the model
@@ -238,7 +252,7 @@ class Trainer(abc.ABC):
         if self.do_checkpoint and not os.path.exists(CHECKPOINTS_DIR):
             os.makedirs(CHECKPOINTS_DIR)
         
-        if self.mlflow_experiment_name is not None and self._init_mlflow():
+        if self.mlflow_experiment_name not in ['', None] and self._init_mlflow():
             with mlflow.start_run(experiment_id=self.mlflow_experiment_id, run_name=self.mlflow_run_name) as run:
                 try:
                     mlflow_logger.log_hyperparams(self._get_hyperparams())
@@ -263,6 +277,54 @@ class Trainer(abc.ABC):
             shutil.rmtree(CHECKPOINTS_DIR)
 
         return last_test_loss
+
+    def eval(self):
+        """
+        Evaluate the model on the validation split of the current dataset, using the precision, recall
+        and F1 score metrics
+        """
+        if not hasattr(self, 'test_loader') or self.test_loader is None:
+            # initialize by calling get_training_dataloader
+            self.dataloader.get_training_dataloader(split=self.split, batch_size=1, preprocessing=self.preprocessing)
+            self.test_loader = self.dataloader.get_testing_dataloader(split=self.split, batch_size=1,
+                                                                      preprocessing=self.preprocessing)
+
+        if self.mlflow_experiment_name not in ['', None] and self._init_mlflow():
+            with mlflow.start_run(experiment_id=self.mlflow_experiment_id, run_name=self.mlflow_run_name) as run:
+                try:
+                    mlflow_logger.log_hyperparams(self._get_hyperparams())
+                    mlflow_logger.snapshot_codebase()  # snapshot before training as the files may change in-between
+                    mlflow_logger.log_codebase()  # log codebase before training, to be invariant to training crashes and stops
+                    mlflow_logger.log_command_line()  # log command line used to execute the script, if available
+                    
+                    precision, recall, f1_score = self.get_precision_recall_F1_score_validation()
+                    metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score}
+                    print(f'Evaluation metrics: {metrics}')
+                    if mlflow_logger.logging_to_mlflow_enabled():
+                        mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=0)
+                        if self.num_samples_to_visualize is not None and self.num_samples_to_visualize > 0:
+                            mlflow_logger.log_visualizations(self, 0)
+
+                    mlflow_logger.log_logfiles()
+                except Exception as e:
+                    err_msg = f'*** Exception encountered: ***\n{e}'
+                    print(f'\n\n{err_msg}\n')
+                    mlflow_logger.log_logfiles()
+                    if not IS_DEBUG:
+                        pushbullet_logger.send_pushbullet_message(err_msg)
+                    raise e
+        else:
+            precision, recall, f1_score = self.get_precision_recall_F1_score_validation()
+            metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score}
+            print(f'Evaluation metrics: {metrics}')
+
+        return metrics
+
+    def create_visualizations(self, vis_file_path, iteration_index, epoch_idx, epoch_iteration_idx):
+        """
+        Create visualizations for the validation dataset and save them into "vis_file_path".
+        """
+        raise NotImplementedError('Must be defined for trainer.')
 
     @staticmethod
     def _fill_images_array(preds, batch_ys, images):

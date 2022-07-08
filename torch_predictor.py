@@ -18,6 +18,7 @@ import tensorflow.keras as K
 from utils import *
 
 
+# modify in tf_predictor.py as well!
 def compute_best_threshold(loader, apply_sigmoid):
     best_thresh = 0
     best_f1_score = 0

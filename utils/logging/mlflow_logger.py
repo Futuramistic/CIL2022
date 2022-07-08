@@ -12,7 +12,7 @@ def logging_to_mlflow_enabled():
     return mlflow.active_run() is not None
 
 
-def log_visualizations(trainer, iteration_index):
+def log_visualizations(trainer, iteration_index, epoch_idx, epoch_iteration_idx):
     """
     Log the segmentations to MLFlow as images.
     Called by a Trainer, and calls that Trainer's "create_visualizations" (which contains ML framework-specific code).
@@ -30,7 +30,7 @@ def log_visualizations(trainer, iteration_index):
     # MLFlow does not have the functionality to log artifacts per training step,
     # so we have to incorporate the training step (iteration_idx) into the filename
     vis_file_path = os.path.join(temp_dir, 'iteration_%07i.png' % iteration_index)
-    trainer.create_visualizations(vis_file_path)
+    vis_file_path = next(filter(lambda x: x is not None, [trainer.create_visualizations(vis_file_path, iteration_index, epoch_idx, epoch_iteration_idx), vis_file_path]))
     eval_inference_end = time.time()
 
     eval_mlflow_start = time.time()

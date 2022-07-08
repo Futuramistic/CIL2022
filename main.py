@@ -13,6 +13,16 @@ from utils import *
 from utils.logging import pushbullet_logger
 
 
+# keep these imports here so that we can access the corresponding namespaces from the "eval" call
+
+import tensorflow as tf
+import tensorflow.keras as K
+import torch
+import torch.nn
+import torch.optim
+import torch.nn.functional as F
+
+
 def main():
     # all args that cannot be matched to the Trainer or DataLoader classes and are not in filter_args will be passed to the
     # model's constructor
@@ -20,11 +30,13 @@ def main():
     trainer_args = ['experiment_name', 'E', 'run_name', 'R', 'split', 's', 'num_epochs', 'e', 'batch_size', 'b',
                     'optimizer_or_lr', 'l', 'loss_function', 'L', 'loss_function_hyperparams', 'H',
                     'evaluation_interval', 'i', 'num_samples_to_visualize', 'v', 'checkpoint_interval', 'c',
-                    'load_checkpoint_path', 'C', 'segmentation_threshold', 't']
+                    'load_checkpoint_path', 'C', 'segmentation_threshold', 't', 'history_size',
+                    'max_rollout_len', 'std', 'reward_discount_factor', 'num_policy_epochs', 'policy_batch_size',
+                    'sample_from_action_distributions', 'visualization_interval', 'min_steps', 'rollout_len']
     dataloader_args = ['dataset', 'd']
 
     # list of other arguments to avoid passing to constructor of model class
-    filter_args = ['h', 'model', 'm']
+    filter_args = ['h', 'model', 'm', 'evaluate', 'eval', 'V']
 
     parser = argparse.ArgumentParser(description='Implementation of ETHZ CIL Road Segmentation 2022 project')
     parser.add_argument('-m', '--model', type=str, required=True)
@@ -33,16 +45,16 @@ def main():
     parser.add_argument('-s', '--split', type=float, default=DEFAULT_TRAIN_FRACTION, required=False)
     parser.add_argument('-e', '--num_epochs', type=int, required=False)
     parser.add_argument('-b', '--batch_size', type=int, required=False)
-    parser.add_argument('-l', '--optimizer_or_lr', type=float, required=False)
     parser.add_argument('-L', '--loss_function', type=str, required=False)
     # json.loads: substitute for dict
-    parser.add_argument('-H', '--loss_function_hyperparams', type=json.loads, required=False)
+    parser.add_argument('-H', '--loss_function_hyperparams', type=json.loads, required=False, default=None)
     parser.add_argument('-i', '--evaluation_interval', type=float, required=False)
     parser.add_argument('-v', '--num_samples_to_visualize', type=int, required=False)
     parser.add_argument('-c', '--checkpoint_interval', type=int, required=False)
-    parser.add_argument('-C', '--load_checkpoint_path', type=str, required=False)
+    parser.add_argument('-C', '--load_checkpoint_path', '--from_checkpoint', type=str, required=False)
     parser.add_argument('-t', '--segmentation_threshold', type=float, default=DEFAULT_SEGMENTATION_THRESHOLD, required=False)
     parser.add_argument('-d', '--dataset', type=str, required=True)
+    parser.add_argument('-V', '--evaluate', '--eval', action='store_true')
     known_args, unknown_args = parser.parse_known_args()
 
     remove_leading_dashes = lambda s: ''.join(itertools.dropwhile(lambda c: c == '-', s))
@@ -74,15 +86,25 @@ def main():
     # do not move these Pushbullet messages into the Trainer class, as this may lead to a large amount of
     # messages when using Hyperopt
 
-    if not IS_DEBUG:
-        pushbullet_logger.send_pushbullet_message('Training started.\n' +\
-                                                  f'Hyperparameters:\n{trainer._get_hyperparams()}')
-
-    last_test_loss = trainer.train()
-    
-    if not IS_DEBUG:
-        pushbullet_logger.send_pushbullet_message(('Training finished. Last test loss: %.4f\n' % last_test_loss) +\
-                                                  f'Hyperparameters:\n{trainer._get_hyperparams()}')
+    if ('evaluate' in known_args_dict and known_args_dict['evaluate']) or\
+       ('eval' in known_args_dict and known_args_dict['eval']):
+        # evaluate
+        if trainer.load_checkpoint_path is not None:
+            trainer._init_mlflow()
+            trainer._load_checkpoint(trainer.load_checkpoint_path)
+        metrics = trainer.eval()
+        if not IS_DEBUG:
+            pushbullet_logger.send_pushbullet_message(('Evaluation finished. Metrics: %s\n' % str(metrics)) +\
+                                                      f'Hyperparameters:\n{trainer._get_hyperparams()}')
+    else:
+        # train
+        if not IS_DEBUG:
+            pushbullet_logger.send_pushbullet_message('Training started.\n' +\
+                                                     f'Hyperparameters:\n{trainer._get_hyperparams()}')
+        last_test_loss = trainer.train()
+        if not IS_DEBUG:
+            pushbullet_logger.send_pushbullet_message(('Training finished. Last test loss: %.4f\n' % last_test_loss) +\
+                                                      f'Hyperparameters:\n{trainer._get_hyperparams()}')
 
 
 if __name__ == '__main__':
