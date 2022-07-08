@@ -39,7 +39,6 @@ class TFTrainer(Trainer, abc.ABC):
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
-
     # Subclassing tensorflow.keras.callbacks.Callback (here: KC.Callback) allows us to override various functions to be
     # called when specific events occur while fitting a model using TF's model.fit(...). An instance of the subclass
     # needs to be passed in the "callbacks" parameter (which, if specified, can either be a single instance, or a list
@@ -54,6 +53,7 @@ class TFTrainer(Trainer, abc.ABC):
             self.epoch_iteration_idx = 0
             self.epoch_idx = 0
             self.best_score = -1
+            self.best_val_loss = 1e5
             self.do_visualize = self.trainer.num_samples_to_visualize is not None and \
                                 self.trainer.num_samples_to_visualize > 0
 
@@ -83,6 +83,11 @@ class TFTrainer(Trainer, abc.ABC):
             # since we don't have a way of getting notified when KC.ModelCheckpoint has finished creating the checkpoint,
             # we simply check at the end of each epoch whether there are any checkpoints to upload and upload them
             # if necessary
+            
+            if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']:
+                self.best_val_loss = logs['val_loss']
+                keras.models.save_model(model=self.model,filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"))
+
             mlflow_logger.log_checkpoints()
             
             self.epoch_idx += 1
