@@ -80,7 +80,7 @@ DATASET_ZIP_URLS = {
     # Recreation of "original_aug_6" dataset, but with 80 additional samples scraped from Google Maps added before
     # augmentation procedure, and with 25 samples from original dataset excluded from augmentation procedure
     # to avoid data leakage; same 25 sample as in "new_original_aug_6" dataset
-    # use split of 0.971 to use exactly these 25 samples as the validation set
+    # use split of 0.9825 to use exactly these 25 samples as the validation set
     "ext_original_aug_6": "https://polybox.ethz.ch/index.php/s/9hDXLlX7mB5Xljq/download"
 }
 # in case multiple jobs are running in the same directory, SESSION_ID will prevent name conflicts
