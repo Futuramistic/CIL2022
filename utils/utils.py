@@ -28,6 +28,9 @@ DATASET_ZIP_URLS = {
     # "original": dataset used in the ETHZ CIL Road Segmentation 2022 Kaggle competition
     "original": "https://polybox.ethz.ch/index.php/s/x2RcSv4MOG3rtPB/download",
 
+    # "original_ext": "original" dataset, extended with 80 images scraped from Google Maps
+    "original_ext": "https://polybox.ethz.ch/index.php/s/mj4aokQ7ZMouMyh/download",
+
     # "original_128": "original" dataset, patchified into 128x128 patches and augmented using Preprocessor
     # WARNING: take into account that this dataset has 2160/720 train/"unlabeled test" images (original has only 144/144, resp.)
     # e.g. use fewer epochs and a high train fraction (high "split" value), so the evaluation doesn't take too long!
@@ -68,6 +71,17 @@ DATASET_ZIP_URLS = {
     # "original_aug_6": "original" dataset, 400x400 but with augmented training set using Preprocessor (x6)
     # I usually use a 0.975 split for this dataset
     "original_aug_6": "https://polybox.ethz.ch/index.php/s/ICjaUr4ayCNwySJ/download",
+
+    # Recreation of "original_aug_6" dataset, but with 25 samples from original dataset excluded from augmentation
+    # procedure to avoid data leakage; same 25 sample as in "ext_original_aug_6" dataset
+    # use split of 0.971 to use exactly these 25 samples as the validation set
+    "new_original_aug_6": "https://polybox.ethz.ch/index.php/s/LJZ0InoG6GwyGsC/download",
+
+    # Recreation of "original_aug_6" dataset, but with 80 additional samples scraped from Google Maps added before
+    # augmentation procedure, and with 25 samples from original dataset excluded from augmentation procedure
+    # to avoid data leakage; same 25 sample as in "new_original_aug_6" dataset
+    # use split of 0.971 to use exactly these 25 samples as the validation set
+    "ext_original_aug_6": "https://polybox.ethz.ch/index.php/s/9hDXLlX7mB5Xljq/download"
 }
 # in case multiple jobs are running in the same directory, SESSION_ID will prevent name conflicts
 CODEBASE_SNAPSHOT_ZIP_NAME = f"codebase_{SESSION_ID}.zip"

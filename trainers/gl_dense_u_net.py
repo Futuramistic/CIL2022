@@ -8,6 +8,8 @@ import tensorflow.keras as K
 from .trainer_tf import TFTrainer
 from utils import *
 
+from losses import DiceLoss
+
 
 class GLDenseUNetTrainer(TFTrainer):
     """
@@ -41,7 +43,9 @@ class GLDenseUNetTrainer(TFTrainer):
         if loss_function is None:
             cat_xent = K.losses.SparseCategoricalCrossentropy(from_logits=False)
             loss_function = lambda targets, inputs, cat_xent=cat_xent: cat_xent(tf.squeeze(targets, axis=-1), inputs)
-            self.loss_function_name = 'SparseCategoricalCrossentropy'
+            #loss_function = DiceLoss()
+            #self.loss_function_name = 'DiceLoss'
+            self.loss_function_name = 'SparseCatXEnt'
 
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs, num_samples_to_visualize)

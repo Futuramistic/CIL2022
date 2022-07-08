@@ -29,7 +29,8 @@ class DataLoader(abc.ABC):
         if os.path.exists(test_gt_dir):
             self.test_gt_dir = test_gt_dir
 
-        self.training_img_paths, self.training_gt_paths = DataLoader.get_img_gt_paths(self.training_img_dir, self.training_gt_dir)
+        self.training_img_paths, self.training_gt_paths = DataLoader.get_img_gt_paths(self.training_img_dir, self.training_gt_dir,
+                                                                                      initial_shuffle=False)
         
         # WARNING: test dataset must be ordered alphabetically by filename for tf_predictor.py to work!
         self.test_img_paths, self.test_gt_paths = DataLoader.get_img_gt_paths(self.test_img_dir, self.test_gt_dir,
@@ -58,7 +59,7 @@ class DataLoader(abc.ABC):
                     img_paths.append(pth)
         if have_gt:
             gt_paths = [""] * len(img_paths) if have_samples else []
-            for img_name in os.listdir(gt_dir):
+            for img_name in sorted(os.listdir(gt_dir)):
                 if have_samples and img_name not in img_idxs:
                     continue
                 _, ext = os.path.splitext(img_name)
