@@ -28,8 +28,18 @@ DATASET_ZIP_URLS = {
     # "original": dataset used in the ETHZ CIL Road Segmentation 2022 Kaggle competition
     "original": "https://polybox.ethz.ch/index.php/s/x2RcSv4MOG3rtPB/download",
 
-    # "original_ext": "original" dataset, extended with 80 images scraped from Google Maps
-    "original_ext": "https://polybox.ethz.ch/index.php/s/mj4aokQ7ZMouMyh/download",
+    # "ext_original": "original" dataset, extended with 80 images scraped from Google Maps
+    "ext_original": "https://polybox.ethz.ch/index.php/s/mj4aokQ7ZMouMyh/download",
+
+    # "new_original": "original" dataset, with first 25 samples moved to end to form the validation split
+    # same 25 samples as in "new_ext_original", "new_original_aug_6" and "ext_original_aug_6" datasets
+    # use split of 0.827 to use exactly these 25 samples as the validation set
+    "new_original": "https://polybox.ethz.ch/index.php/s/1l67z55lmemASnb/download",
+
+    # "new_ext_original": "ext_original" dataset, with first 25 samples moved to end to form the validation split
+    # same 25 samples as in "new_original", "new_original_aug_6" and "ext_original_aug_6" datasets
+    # use split of 0.89 to use exactly these 25 samples as the validation set
+    "new_ext_original": "https://polybox.ethz.ch/index.php/s/GAv6JhORUjZOq5U/download",
 
     # "original_128": "original" dataset, patchified into 128x128 patches and augmented using Preprocessor
     # WARNING: take into account that this dataset has 2160/720 train/"unlabeled test" images (original has only 144/144, resp.)
@@ -73,13 +83,13 @@ DATASET_ZIP_URLS = {
     "original_aug_6": "https://polybox.ethz.ch/index.php/s/ICjaUr4ayCNwySJ/download",
 
     # Recreation of "original_aug_6" dataset, but with 25 samples from original dataset excluded from augmentation
-    # procedure to avoid data leakage; same 25 sample as in "ext_original_aug_6" dataset
+    # procedure to avoid data leakage; same 25 samples as in "new_original", "new_ext_original" and "ext_original_aug_6" datasets
     # use split of 0.971 to use exactly these 25 samples as the validation set
     "new_original_aug_6": "https://polybox.ethz.ch/index.php/s/LJZ0InoG6GwyGsC/download",
 
     # Recreation of "original_aug_6" dataset, but with 80 additional samples scraped from Google Maps added before
     # augmentation procedure, and with 25 samples from original dataset excluded from augmentation procedure
-    # to avoid data leakage; same 25 sample as in "new_original_aug_6" dataset
+    # to avoid data leakage; same 25 samples as in "new_original", "new_ext_original" and "new_original_aug_6" datasets
     # use split of 0.9825 to use exactly these 25 samples as the validation set
     "ext_original_aug_6": "https://polybox.ethz.ch/index.php/s/9hDXLlX7mB5Xljq/download"
 }
