@@ -57,14 +57,14 @@ class UNetTFTrainer(TFTrainer):
         # convert ground truth to int \in {0, 1} & remove A channel
 
         # note: no batch dim
-        if pre_process is None:
+        if pre_process is "vgg":
             preprocessing =\
-                lambda x, is_gt: (tf.cast(x[:, :, :3], dtype=tf.float32) / 255.0) if not is_gt \
+                lambda x, is_gt: K.applications.vgg19.preprocess_input(tf.cast(x[:, :, :3], dtype=tf.float32)) if not is_gt \
                 else x[:, :, :1] // 255
         # Expect some preprocessing on the model side (VGG architecture preprocessing or other)
         else:
             preprocessing =\
-                lambda x, is_gt: tf.cast(x[:, :, :3], dtype=tf.float32) if not is_gt \
+                lambda x, is_gt: (tf.cast(x[:, :, :3], dtype=tf.float32) / 255.0) if not is_gt \
                 else x[:, :, :1] // 255
         
         super().__init__(dataloader, model, preprocessing, steps_per_training_epoch, experiment_name, run_name, split,

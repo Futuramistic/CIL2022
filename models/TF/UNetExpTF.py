@@ -268,8 +268,6 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         }
 
         pretrained = None
-        
-        inputs = K.applications.vgg19.preprocess_input(inputs)
         if(architecture=="vgg"):
             layer_names = ['block2_conv2','block3_conv4','block4_conv4','block5_conv4']
             vgg = K.applications.VGG19(include_top=False, weights='imagenet',input_shape=input_shape)
