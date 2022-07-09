@@ -24,6 +24,8 @@ class VGGPerceptualLoss(torch.nn.Module):
         if input.shape[1] != 3:
             input = input.repeat(1, 3, 1, 1)
             target = target.repeat(1, 3, 1, 1)
+        print(input.shape, target.shape)
+        print(self.mean, self.std)
         input = ((input-self.mean) / self.std).cuda()
         target = ((target-self.mean) / self.std).cuda()
         if self.resize:
