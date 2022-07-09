@@ -44,9 +44,6 @@ class CRANetTrainer(TorchTrainer):
         if loss_function is None:
             loss_function = cra_loss()
 
-        if loss_function_name is not None:
-            self.loss_function_name = loss_function_name
-
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs,
                                                                              num_samples_to_visualize)
@@ -59,6 +56,9 @@ class CRANetTrainer(TorchTrainer):
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
                          segmentation_threshold)
+
+        if loss_function_name is not None:
+            self.loss_function_name = loss_function_name
 
     def _train_step(self, model, device, train_loader, callback_handler):
 
