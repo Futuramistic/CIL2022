@@ -8,10 +8,9 @@ import utils
 
 class TFDataLoader(DataLoader):
 
-    def __init__(self, dataset="original", pad32 = False, use_augemntation = False):
+    def __init__(self, dataset="original", pad32 = False):
         super().__init__(dataset)
         self.pad32 = pad32
-        self.use_augmentation = use_augemntation
 
     # Get the sizes of the training, test and unlabeled datasets associated with this DataLoader.
     # Args:
@@ -38,9 +37,9 @@ class TFDataLoader(DataLoader):
         if preprocessing is None:
             preprocessing = lambda x: x
         min_img = tf.zeros((1, 1, 1, 3), dtype=tf.dtypes.uint8)
-        min_img_val = preprocessing(min_img).min()
+        min_img_val = tf.math.reduce_min(preprocessing(min_img, is_gt=False))
         max_img = tf.ones((1, 1, 1, 3), dtype=tf.dtypes.uint8) * 255
-        max_img_val = preprocessing(max_img).max()
+        max_img_val = tf.math.reduce_max(preprocessing(max_img, is_gt=False))
         return min_img_val.numpy().item(), max_img_val.numpy().item()
 
     # Get image data

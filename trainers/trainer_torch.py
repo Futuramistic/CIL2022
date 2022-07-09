@@ -180,8 +180,7 @@ class TorchTrainer(Trainer, abc.ABC):
 
         self.train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                                     preprocessing=self.preprocessing)
-        self.test_loader = self.dataloader.get_testing_dataloader(split=self.split, batch_size=1,
-                                                                  preprocessing=self.preprocessing)
+        self.test_loader = self.dataloader.get_testing_dataloader(batch_size=1, preprocessing=self.preprocessing)
         print(f'Using device: {self.device}\n')
 
         self.model = self.model.to(self.device)

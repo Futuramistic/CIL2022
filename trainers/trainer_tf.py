@@ -111,7 +111,7 @@ class TFTrainer(Trainer, abc.ABC):
                 if mlflow_logger.logging_to_mlflow_enabled():
                     mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=self.iteration_idx)
                     if self.do_visualize:
-                        mlflow_logger.log_visualizations(self.trainer, self.iteration_idx)
+                        mlflow_logger.log_visualizations(self.trainer, self.iteration_idx,self.epoch_idx,self.epoch_iteration_idx)
                 # save the best f1 score checkpoint
                 if self.trainer.do_checkpoint and self.best_score <= f1_score:
                     self.best_score = f1_score
@@ -226,7 +226,7 @@ class TFTrainer(Trainer, abc.ABC):
         
         self.train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                                     preprocessing=self.preprocessing)
-        self.test_loader = self.dataloader.get_testing_dataloader(split=self.split, batch_size=1,
+        self.test_loader = self.dataloader.get_testing_dataloader(batch_size=1,
                                                                   preprocessing=self.preprocessing)
         _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
 
