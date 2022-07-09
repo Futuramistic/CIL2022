@@ -96,6 +96,15 @@ DATASET_ZIP_URLS = {
     # use split of 0.9825 to use exactly these 25 samples as the validation set
     "ext_original_aug_6": "https://polybox.ethz.ch/index.php/s/9hDXLlX7mB5Xljq/download"
 }
+DATASET_STATS = {
+    "original": {"pixel_mean_0": 161.983, "pixel_mean_1": 162.134, "pixel_mean_2": 162.231, "pixel_std_0": 72.398, "pixel_std_1": 72.468, "pixel_std_2": 72.195},
+    "new_original": {"pixel_mean_0": 161.983, "pixel_mean_1": 162.134, "pixel_mean_2": 162.231, "pixel_std_0": 72.398, "pixel_std_1": 72.468, "pixel_std_2": 72.195},
+    "new_ext_original": {"pixel_mean_0": 156.617, "pixel_mean_1": 156.717, "pixel_mean_2": 156.736, "pixel_std_0": 73.563, "pixel_std_1": 73.595, "pixel_std_2": 73.470},
+    "new_original_aug_6": {"pixel_mean_0": 97.204, "pixel_mean_1": 103.475, "pixel_mean_2": 108.853, "pixel_std_0": 95.648, "pixel_std_1": 95.778, "pixel_std_2": 95.376},
+    "original_aug_6": {"pixel_mean_0": 151.766, "pixel_mean_1": 153.037, "pixel_mean_2": 154.239, "pixel_std_0": 83.284, "pixel_std_1": 82.505, "pixel_std_2": 81.720},
+    "ext_original_aug_6": {"pixel_mean_0": 94.396, "pixel_mean_1": 100.863, "pixel_mean_2": 106.722, "pixel_std_0": 93.997, "pixel_std_1": 94.120, "pixel_std_2": 93.762},
+    "original_gt": {"pixel_mean_0": 0.120, "pixel_mean_1": 0.120, "pixel_mean_2": 0.120, "pixel_std_0": 5.551, "pixel_std_1": 5.545, "pixel_std_2": 5.536}
+}
 # in case multiple jobs are running in the same directory, SESSION_ID will prevent name conflicts
 CODEBASE_SNAPSHOT_ZIP_NAME = f"codebase_{SESSION_ID}.zip"
 CHECKPOINTS_DIR = os.path.join("checkpoints", str(SESSION_ID))

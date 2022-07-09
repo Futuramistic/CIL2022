@@ -1,12 +1,12 @@
 import os
 from tqdm import tqdm
 
-pred_dir = "predictions_to_ensemble/"
+pred_dir = "submissions_to_ensemble/"
 output_filename = "ensembled_submission.csv"
 
 def main():
     if not os.path.isdir(pred_dir):
-        print(f'Directory "{pred_dir}" (supposed to contain CSV files with predictions to ensemble) does not exist')
+        print(f'Directory "{pred_dir}" (supposed to contain CSV files with submissions to ensemble) does not exist')
         return
     
     csv_filenames = []
@@ -19,7 +19,7 @@ def main():
         return
 
     if len(csv_filenames) % 2 == 0:
-        print('WARNING: found even number of predictions to ensemble; not recommended; will use value 1 to break ties')
+        print('WARNING: found even number of submissions to ensemble; not recommended; will use value 1 to break ties')
 
     patch_order_list = []
     patches = {}
@@ -38,7 +38,7 @@ def main():
     out_lines = ['id,prediction', *[f'{k},{patches.get(k, 0)}' for k in patch_order_list]]
     with open(output_filename, 'w') as file:
         file.write('\n'.join(out_lines))
-    print(f'Ensembled {len(csv_filenames)} predictions into "{output_filename}"')
+    print(f'Ensembled {len(csv_filenames)} submissions into "{output_filename}"')
 
 if __name__ == '__main__':
     main()

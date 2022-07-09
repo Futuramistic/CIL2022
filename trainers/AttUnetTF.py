@@ -18,7 +18,7 @@ class AttUNetTrainer(TFTrainer):
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
                  batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
-                 load_checkpoint_path=None, segmentation_threshold=None):
+                 load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
@@ -47,16 +47,29 @@ class AttUNetTrainer(TFTrainer):
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs, num_samples_to_visualize)
 
-        # convert model input to float32 \in [0, 1] & remove A channel;
-        # convert ground truth to int \in {0, 1} & remove A channel
-        preprocessing =\
-            lambda x, is_gt: (tf.cast(x[:, :, :3], dtype=tf.float32) / 255.0) if not is_gt \
-            else (x[:, :, :1] // 255)
+        preprocessing = None
+        if use_channelwise_norm and dataloader.dataset in DATASET_STATS:
+            def channelwise_preprocessing(x, is_gt):
+                if is_gt:
+                    return x[:, :, :1] // 255
+                stats = DATASET_STATS[dataloader.dataset]
+                x = tf.cast(x[:, :, :3], dtype=tf.float32)
+                x = tf.concat([(x[:, :, 0] - stats['pixel_mean_0']) / stats['pixel_std_0'],
+                               (x[:, :, 1] - stats['pixel_mean_1']) / stats['pixel_std_1'],
+                               (x[:, :, 2] - stats['pixel_mean_2']) / stats['pixel_std_2']], axis=-1)
+                return x
+            preprocessing = channelwise_preprocessing
+        else:
+            # convert samples to float32 \in [0, 1] & remove A channel;
+            # convert ground truth to int \in {0, 1} & remove A channel
+            preprocessing =\
+                lambda x, is_gt: (tf.cast(x[:, :, :3], dtype=tf.float32) / 255.0) if not is_gt \
+                else (x[:, :, :1] // 255)
 
         super().__init__(dataloader, model, preprocessing, steps_per_training_epoch, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
-                         segmentation_threshold)
+                         segmentation_threshold, use_channelwise_norm)
 
     def _get_hyperparams(self):
         return {**(super()._get_hyperparams()),

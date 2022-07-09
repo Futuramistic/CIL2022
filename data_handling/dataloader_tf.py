@@ -36,9 +36,9 @@ class TFDataLoader(DataLoader):
         """
         if preprocessing is None:
             preprocessing = lambda x: x
-        min_img = tf.zeros((1, 1, 1, 3), dtype=tf.dtypes.uint8)
+        min_img = tf.zeros((1, 1, 3), dtype=tf.dtypes.uint8)
         min_img_val = tf.math.reduce_min(preprocessing(min_img, is_gt=False))
-        max_img = tf.ones((1, 1, 1, 3), dtype=tf.dtypes.uint8) * 255
+        max_img = tf.ones((1, 1, 3), dtype=tf.dtypes.uint8) * 255
         max_img_val = tf.math.reduce_max(preprocessing(max_img, is_gt=False))
         return min_img_val.numpy().item(), max_img_val.numpy().item()
 

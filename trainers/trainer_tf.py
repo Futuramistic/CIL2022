@@ -26,7 +26,7 @@ class TFTrainer(Trainer, abc.ABC):
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None, evaluation_interval=None,
                  num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
-                 segmentation_threshold=None):
+                 segmentation_threshold=None, use_channelwise_norm=False):
         """
         Abstract class for TensorFlow-based model trainers.
         Args:
@@ -35,7 +35,7 @@ class TFTrainer(Trainer, abc.ABC):
         """
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
-                         checkpoint_interval, load_checkpoint_path, segmentation_threshold)
+                         checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch

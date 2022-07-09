@@ -31,7 +31,7 @@ class TorchRLTrainer(TorchTrainer):
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, scheduler=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
-                 load_checkpoint_path=None, segmentation_threshold=None, history_size=5,
+                 load_checkpoint_path=None, segmentation_threshold=None, history_size=5, use_channelwise_norm=False,
                  max_rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), std=[1e-3, 1e-3, 1e-3, 1e-3, 1e-2], reward_discount_factor=0.99,
                  num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20,
                  min_steps=20, rewards = None):
@@ -58,7 +58,21 @@ class TorchRLTrainer(TorchTrainer):
         if loss_function is not None:
             raise RuntimeError('Custom losses not supported by TorchRLTrainer')
         
-        if preprocessing is None:
+        preprocessing = None
+        if use_channelwise_norm and dataloader.dataset in DATASET_STATS:
+            def channelwise_preprocessing(x, is_gt):
+                if is_gt:
+                    return x[:1, :, :].float() / 255
+                stats = DATASET_STATS[dataloader.dataset]
+                x = x[:3, :, :].float()
+                x[0] = (x[0] - stats['pixel_mean_0']) / stats['pixel_std_0']
+                x[1] = (x[1] - stats['pixel_mean_1']) / stats['pixel_std_1']
+                x[2] = (x[2] - stats['pixel_mean_2']) / stats['pixel_std_2']
+                return x
+            preprocessing = channelwise_preprocessing
+        else:
+            # convert samples to float32 \in [0, 1] & remove A channel;
+            # convert ground truth to int \in {0, 1} & remove A channel
             preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
 
         if optimizer_or_lr is None:
