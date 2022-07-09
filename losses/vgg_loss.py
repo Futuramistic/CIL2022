@@ -21,6 +21,10 @@ class VGGPerceptualLoss(torch.nn.Module):
 
     def forward(self, input, target, feature_layers=[0, 1, 2, 3], style_layers=[]):
         print(input.shape, target.shape)
+        if len(input.shape) == 3:
+            input = torch.unsqueeze(input, 1)
+            target = torch.unsqueeze(target, 1)
+        print(input.shape, target.shape)
         if input.shape[1] != 3:
             input = input.repeat(1, 3, 1, 1)
             target = target.repeat(1, 3, 1, 1)
