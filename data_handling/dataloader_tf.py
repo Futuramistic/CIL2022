@@ -8,10 +8,9 @@ import utils
 
 class TFDataLoader(DataLoader):
 
-    def __init__(self, dataset="original", pad32 = False, use_augemntation = False):
+    def __init__(self, dataset="original", pad32 = False):
         super().__init__(dataset)
         self.pad32 = pad32
-        self.use_augmentation = use_augemntation
 
     # Get the sizes of the training, test and unlabeled datasets associated with this DataLoader.
     # Args:
@@ -38,9 +37,9 @@ class TFDataLoader(DataLoader):
         if preprocessing is None:
             preprocessing = lambda x: x
         min_img = tf.zeros((1, 1, 1, 3), dtype=tf.dtypes.uint8)
-        min_img_val = preprocessing(min_img).min()
+        min_img_val = tf.math.reduce_min(preprocessing(min_img, is_gt=False))
         max_img = tf.ones((1, 1, 1, 3), dtype=tf.dtypes.uint8) * 255
-        max_img_val = preprocessing(max_img).max()
+        max_img_val = tf.math.reduce_max(preprocessing(max_img, is_gt=False))
         return min_img_val.numpy().item(), max_img_val.numpy().item()
 
     # Get image data
@@ -139,9 +138,6 @@ class TFDataLoader(DataLoader):
         print(f'Train data consists of ({train_size}) samples')
         print(f'Test data consists of ({test_size}) samples')
 
-        if self.use_augmentation:
-            return self.training_data.shuffle(50, reshuffle_each_iteration=True).map(self.augmentation,tf.data.AUTOTUNE).batch(batch_size).prefetch(tf.data.AUTOTUNE)
-
         return self.training_data.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
         # # Shuffle and split
@@ -211,27 +207,3 @@ class TFDataLoader(DataLoader):
     #   filepath (string)
     def save_model(self, model, filepath):
         tf.keras.models.save_model(model,filepath)
-
-    # Flip the image randomly (add possible augmentations later)
-    def augmentation(self,image,label):
-        seed1 = randint(0,pow(2,31)-1)
-        seed2 = randint(0,pow(2,31)-1)
-        seed = [seed1,seed2]
-
-        # Flips
-        image = tf.image.stateless_random_flip_left_right(image,seed=seed)
-        label = tf.image.stateless_random_flip_left_right(label,seed=seed)
-        image = tf.image.stateless_random_flip_up_down(image,seed=seed)
-        label = tf.image.stateless_random_flip_up_down(label,seed=seed)
-
-        # Image colour changes
-        # image = tf.image.stateless_random_brightness(image,max_delta=0.2,seed=seed)
-        # image = tf.image.stateless_random_saturation(image,lower=0.8,upper=1.2,seed=seed)
-        # image = tf.image.stateless_random_contrast(image,lower=0.8,upper=1.2,seed=seed)
-        # image = tf.clip_by_value(image,0,1)
-
-        # Rotate by 90 degrees only - if we rotate by an aribitrary -> road my disappear!
-        i = randint(0,3)
-        image = tf.image.rot90(image,i)
-        label = tf.image.rot90(label,i)
-        return image, label
