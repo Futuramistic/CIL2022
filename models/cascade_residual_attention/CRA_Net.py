@@ -444,6 +444,16 @@ class OurDinkNet50(nn.Module):
     def __init__(self, num_classes=1, num_channels=3):
         super(OurDinkNet50, self).__init__()
 
+        # vgg = models.vgg16(pretrained=True)
+        # blocks = []
+        # blocks.append(vgg.features[:4].eval().cuda())
+        # blocks.append(vgg.features[4:9].eval().cuda())
+        # blocks.append(vgg.features[9:16].eval().cuda())
+        # blocks.append(vgg.features[16:23].eval().cuda())
+        # for bl in blocks:
+        #     for p in bl:
+        #         p.requires_grad = False
+
         filters = [256, 512, 1024, 128]
         resnet = models.resnet50(pretrained=True)
         self.firstconv = resnet.conv1

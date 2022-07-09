@@ -13,6 +13,7 @@ from typing import Optional
 from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
+from losses.vgg_loss import VGGPerceptualLoss
 
 try:
     from itertools import ifilterfalse
@@ -151,6 +152,21 @@ class cra_loss(nn.Module):
         lossr = self.criterion1(labels, lower)
         losss = self.criterion2(labels, outputs)
         loss = losss + 4 * lossr
+        return loss
+
+
+class cra_loss_with_vgg(nn.Module):
+    def __init__(self):
+        super(cra_loss_with_vgg, self).__init__()
+        self.criterion1 = dice_bce_loss_with_logits1().cuda()
+        self.criterion2 = dice_bce_loss_with_logits().cuda()
+        self.criterion3 = VGGPerceptualLoss().cuda()
+
+    def __call__(self, labels, lower, outputs):
+        lossr = self.criterion1(labels, lower)
+        losss = self.criterion2(labels, outputs)
+        lossv = self.criterion3(outputs, labels)
+        loss = losss + 4 * lossr + lossv  # todo check the magnitude of the vgg loss and scale it accordingly
         return loss
 
 

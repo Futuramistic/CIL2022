@@ -4,7 +4,7 @@ from utils import *
 import torch
 from torch import optim
 from torch.autograd import Variable
-from losses.cra_losses import cra_loss
+from losses.cra_losses import cra_loss, cra_loss_with_vgg
 
 
 class CRANetTrainer(TorchTrainer):
