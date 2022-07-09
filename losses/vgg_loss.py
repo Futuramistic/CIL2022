@@ -20,16 +20,12 @@ class VGGPerceptualLoss(torch.nn.Module):
         self.resize = resize
 
     def forward(self, input, target, feature_layers=[0, 1, 2, 3], style_layers=[]):
-        print(input.shape, target.shape)
         if len(input.shape) == 3:
             input = torch.unsqueeze(input, 1)
             target = torch.unsqueeze(target, 1)
-        print(input.shape, target.shape)
         if input.shape[1] != 3:
             input = input.repeat(1, 3, 1, 1)
             target = target.repeat(1, 3, 1, 1)
-        print(input.shape, target.shape)
-        print(self.mean, self.std)
         input = ((input-self.mean) / self.std).cuda()
         target = ((target-self.mean) / self.std).cuda()
         if self.resize:
