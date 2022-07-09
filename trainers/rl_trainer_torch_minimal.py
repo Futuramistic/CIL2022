@@ -13,7 +13,7 @@ from .trainer_torch import TorchTrainer
 from utils import *
 
 import gym
-from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
+# from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 
 import torch.distributions
 

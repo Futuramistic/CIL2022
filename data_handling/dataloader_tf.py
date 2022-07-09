@@ -8,9 +8,10 @@ import utils
 
 class TFDataLoader(DataLoader):
 
-    def __init__(self, dataset="original", pad32 = False):
+    def __init__(self, dataset="original", pad32 = False, use_augmentation = False):
         super().__init__(dataset)
         self.pad32 = pad32
+        self.use_augmentation = use_augmentation
 
     # Get the sizes of the training, test and unlabeled datasets associated with this DataLoader.
     # Args:

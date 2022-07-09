@@ -4,7 +4,7 @@ from utils import *
 import torch
 from torch import optim
 from torch.autograd import Variable
-from losses.cra_losses import cra_loss
+from losses.cra_losses import cra_loss, cra_loss_with_vgg
 
 
 class CRANetTrainer(TorchTrainer):
@@ -16,7 +16,7 @@ class CRANetTrainer(TorchTrainer):
                  batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None,
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
-                 use_channelwise_norm=False):
+                 use_channelwise_norm=False, loss_function_name=None):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
@@ -69,6 +69,9 @@ class CRANetTrainer(TorchTrainer):
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
                          segmentation_threshold, use_channelwise_norm)
+
+        if loss_function_name is not None:
+            self.loss_function_name = loss_function_name
 
     def _train_step(self, model, device, train_loader, callback_handler):
 
