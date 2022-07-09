@@ -166,8 +166,7 @@ class cra_loss_with_vgg(nn.Module):
         lossr = self.criterion1(labels, lower)
         losss = self.criterion2(labels, outputs)
         lossv = self.criterion3(outputs, labels)
-        print(lossr, losss, lossv)
-        loss = losss + 4 * lossr + lossv  # todo check the magnitude of the vgg loss and scale it accordingly
+        loss = losss + 2 * lossr + lossv
         return loss
 
 
