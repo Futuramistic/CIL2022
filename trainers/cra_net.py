@@ -15,7 +15,8 @@ class CRANetTrainer(TorchTrainer):
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
                  batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None,
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
-                 checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None):
+                 checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
+                 loss_function_name=None):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
@@ -42,6 +43,9 @@ class CRANetTrainer(TorchTrainer):
 
         if loss_function is None:
             loss_function = cra_loss()
+
+        if loss_function_name is not None:
+            self.loss_function_name = loss_function_name
 
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs,
