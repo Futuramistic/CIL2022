@@ -175,10 +175,29 @@ class TFTrainer(Trainer, abc.ABC):
                 output = np.expand_dims(output, axis=channel_dim_idx)
 
             preds = (output >= self.segmentation_threshold).astype(np.float)
-            preds = remove_blobs(preds, self.blobs_removal_threshold)
-            # preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
             batch_ys = np.moveaxis(batch_ys, -1, 1)  # TODO only do this if we know the network uses HWC format
             preds = np.moveaxis(preds, -1, 1)
+
+            # preds = remove_blobs(preds, self.blobs_removal_threshold)
+
+            print('shape', preds.shape)
+            preds_list = []
+            for i in range(preds.shape[0]):
+                print('preds[i]', preds[i].shape)
+                pred_ = remove_blobs(preds[i], threshold=self.blobs_removal_threshold)
+                print('pred_', pred_.shape)
+                if len(pred_.shape) == 2:
+                    preds_list.append(pred_[None, None, :, :])
+                elif len(pred_.shape) == 3:
+                    preds_list.append(pred_[None, :, :, :])
+                else:
+                    print('problem', pred_.shape)
+            print('len', len(preds_list))
+            preds = np.concatenate(preds_list, axis=0)
+            print(preds.shape)
+
+            # preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
+
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
             self._fill_images_array(preds, batch_ys, images)
 
