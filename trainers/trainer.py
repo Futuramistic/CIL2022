@@ -24,7 +24,7 @@ class Trainer(abc.ABC):
                  batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
-                 blobs_removal_threshold=0):
+                 blobs_removal_threshold=0, hyper_seg_threshold=False):
         """
         Abstract class for model trainers.
         Args:
@@ -53,6 +53,7 @@ class Trainer(abc.ABC):
                                   resume training from (None to start training from scratch instead)
             segmentation_threshold: threshold >= which to consider the model's prediction for a given pixel to
                                     correspond to class 1 rather than class 0 (None to use default)
+            hyper_seg_threshold: whether to use hyperopt to calculate the optimal threshold on the evaluation data (measured by F1 score)
         """
         self.dataloader = dataloader
         self.model = model
@@ -64,6 +65,7 @@ class Trainer(abc.ABC):
         self.batch_size = batch_size
         self.optimizer_or_lr = optimizer_or_lr
         self.loss_function_hyperparams = loss_function_hyperparams if loss_function_hyperparams is not None else {}
+        self.hyper_seg_threshold = hyper_seg_threshold
 
         self.loss_function_name = str(loss_function)
         if isinstance(loss_function, str):
@@ -211,6 +213,7 @@ class Trainer(abc.ABC):
             'dataset': self.dataloader.dataset,
             'from_checkpoint': self.load_checkpoint_path if self.load_checkpoint_path is not None else '',
             'session_id': SESSION_ID,
+            'use_hyperopt_for_optimal_threshold': self.hyper_seg_threshold,
             **(optim_hyparam_serializer.serialize_optimizer_hyperparams(self.optimizer_or_lr)),
             **({f'loss_{k}': v for k, v in self.loss_function_hyperparams.items()})
         }
@@ -330,6 +333,13 @@ class Trainer(abc.ABC):
         Create visualizations for the validation dataset and save them into "vis_file_path".
         """
         raise NotImplementedError('Must be defined for trainer.')
+    
+    def get_best_segmentation_threshold(self):
+        """Uses Hyperopt to get the segmentation threshold with the best F1 score based on a subset of the training data
+        Returns:
+            float: best segmentation threshold of the current model
+        """
+        raise NotImplementedError('Must be defined for trainer')
 
     @staticmethod
     def _fill_images_array(preds, batch_ys, images):

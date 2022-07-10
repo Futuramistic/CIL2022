@@ -20,7 +20,7 @@ class UNetTFTrainer(TFTrainer):
                  batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, pre_process=None, use_channelwise_norm=False,
-                 blobs_removal_threshold=0):
+                 blobs_removal_threshold=0, hyper_seg_threshold=False):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
@@ -47,9 +47,9 @@ class UNetTFTrainer(TFTrainer):
 
         # According to the online github repo
         if loss_function is None:
-            loss_function = DiceLoss
-            # loss_function = K.losses.BinaryCrossentropy(from_logits=False,
-            #                                            reduction=K.losses.Reduction.SUM_OVER_BATCH_SIZE)
+            # loss_function = DiceLoss
+            loss_function = K.losses.BinaryCrossentropy(from_logits=False,
+                                                       reduction=K.losses.Reduction.SUM_OVER_BATCH_SIZE)
 
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs, num_samples_to_visualize)
@@ -86,7 +86,7 @@ class UNetTFTrainer(TFTrainer):
         super().__init__(dataloader, model, preprocessing, steps_per_training_epoch, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
-                         segmentation_threshold, use_channelwise_norm, blobs_removal_threshold)
+                         segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold)
 
     def _get_hyperparams(self):
         return {**(super()._get_hyperparams()),
