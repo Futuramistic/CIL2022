@@ -460,6 +460,13 @@ class OurDinkNet50(nn.Module):
         self.firstbn = resnet.bn1
         self.firstrelu = resnet.relu
         self.firstmaxpool = resnet.maxpool
+        self._first_conv = nn.Sequential(nn.Conv2d(3, 16, kernel_size=3),
+                                         nn.BatchNorm2d(16),
+                                         nn.ReLU(),
+                                         nn.Conv2d(16, 32, kernel_size=3),
+                                         nn.BatchNorm2d(32),
+                                         nn.ReLU()
+                                         )
         self.first_conv = nn.Sequential(nn.Conv2d(64, 128, kernel_size=1),
                                         nn.BatchNorm2d(128),
                                         nn.ReLU(),
@@ -474,6 +481,7 @@ class OurDinkNet50(nn.Module):
         self.encoder3 = resnet.layer3
         self.encoder4 = resnet.layer4
 
+        self._dblock32 = Dblock(32)
         self.dblock = Dblock(1024)
         self.pam3 = PositionAttentionModule(in_channels=1024)
         self.cam = ChannelAttentionModule()
@@ -512,6 +520,9 @@ class OurDinkNet50(nn.Module):
         x = self.firstmaxpool(x)
         # print('after first max pool', x.shape)
 
+        _x = self._first_conv(input)
+        _x = self._dblock32(_x)
+
         e1 = self.encoder1(x)
         e2 = self.encoder2(e1)
         e3 = self.encoder3(e2)
@@ -534,7 +545,7 @@ class OurDinkNet50(nn.Module):
 
         out = self.finaldeconv1(d1)
         # print('out', out.shape)
-        out = self.finalrelu1(out)
+        out = self.finalrelu1(out + _x)  # changed + _x
         # print('out', out.shape)
         out = self.finalconv2(out)
         # print('out', out.shape)
