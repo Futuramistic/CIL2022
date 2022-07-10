@@ -4,8 +4,8 @@ from PIL import Image
 from tqdm import tqdm
 
 
-ds_name = 'original'
-ds_images_dir = 'dataset/{ds_name}/training/images'
+ds_name = 'ext_original_aug_6_oversampled'
+ds_images_dir = f'dataset/{ds_name}/training/images'
 
 def main():
     if not os.path.isdir(ds_images_dir):
