@@ -180,21 +180,21 @@ class TFTrainer(Trainer, abc.ABC):
 
             # preds = remove_blobs(preds, self.blobs_removal_threshold)
 
-            print('shape', preds.shape)
+            # print('shape', preds.shape)
             preds_list = []
             for i in range(preds.shape[0]):
-                print('preds[i]', preds[i].shape)
+                # print('preds[i]', preds[i].shape)
                 pred_ = remove_blobs(preds[i], threshold=self.blobs_removal_threshold)
-                print('pred_', pred_.shape)
+                # print('pred_', pred_.shape)
                 if len(pred_.shape) == 2:
                     preds_list.append(pred_[None, None, :, :])
                 elif len(pred_.shape) == 3:
                     preds_list.append(pred_[None, :, :, :])
                 else:
                     print('problem', pred_.shape)
-            print('len', len(preds_list))
+            # print('len', len(preds_list))
             preds = np.concatenate(preds_list, axis=0)
-            print(preds.shape)
+            # print(preds.shape)
 
             # preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
 
@@ -278,10 +278,10 @@ class TFTrainer(Trainer, abc.ABC):
                 output = output[0]
                 
             preds = tf.cast(output >= self.segmentation_threshold, tf.dtypes.int8)
-            print('tf preds', preds.shape)
+            # print('tf preds', preds.shape)
             blb_input = preds.numpy()
             preds = remove_blobs(blb_input, threshold=self.blobs_removal_threshold)
-            print('tf preds 2', preds.shape)
+            # print('tf preds 2', preds.shape)
             precision, recall, f1_score = precision_recall_f1_score_tf(preds, y)
             precisions.append(precision.numpy().item())
             recalls.append(recall.numpy().item())

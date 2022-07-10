@@ -23,7 +23,7 @@ def remove_blobs(image, threshold=200):
     #     image = image[0][0]
     #     restore_second_dim = True
     image = np.squeeze(image)
-    print('#blobs', image.shape)
+    # print('#blobs', image.shape)
     is_tf = False
     is_torch = False
     if tf.is_tensor(image):
@@ -35,7 +35,7 @@ def remove_blobs(image, threshold=200):
 
     labeled, ncomponents = label(image, connection_filter)
     indices = np.indices(image.shape).T[:, :, [1, 0]]
-    print('ncomponents', ncomponents)
+    # print('ncomponents', ncomponents)
     for i in range(ncomponents):
         idcs = indices[labeled == i+1]
         component_size = len(idcs)
