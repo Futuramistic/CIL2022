@@ -128,7 +128,10 @@ class TorchTrainer(Trainer, abc.ABC):
             preds_list = []
             for i in range(len(preds[0])):
                 pred_ = remove_blobs(preds[i], threshold=self.blobs_removal_threshold)
-                preds_list.append(pred_[None, :, :, :])
+                if len(pred_.shape) == 2:
+                    preds_list.append(pred_[None, None, :, :])
+                elif len(pred_.shape) == 3:
+                    preds_list.append(pred_[None, :, :, :])
             preds = np.concatenate(preds_list, axis=0)
             print(preds.shape)
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
