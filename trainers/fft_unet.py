@@ -17,7 +17,7 @@ class FFT_UNetTrainer(TorchTrainer):
                  batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None,
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
-                 blobs_removal_threshold=0):
+                 blobs_removal_threshold=0, hyper_seg_threshold=False):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
@@ -52,7 +52,7 @@ class FFT_UNetTrainer(TorchTrainer):
         super().__init__(dataloader, model, preprocessing, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
-                         segmentation_threshold, blobs_removal_threshold)
+                         segmentation_threshold, blobs_removal_threshold,hyper_seg_threshold)
 
     def _train_step(self, model, device, train_loader, callback_handler):
         # unet y may not be squeezed like in torch trainer, dtype is float for BCE

@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 from blobs_remover import remove_blobs
 
 from requests.auth import HTTPBasicAuth
+from hyperopt_.threshold_optimizer import ThresholdOptimizer
 
 from losses.loss_harmonizer import DEFAULT_TF_DIM_LAYOUT
 from losses.precision_recall_f1 import *
@@ -27,7 +28,7 @@ class TFTrainer(Trainer, abc.ABC):
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None, evaluation_interval=None,
                  num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
-                 segmentation_threshold=None, use_channelwise_norm=False, blobs_removal_threshold=0):
+                 segmentation_threshold=None, use_channelwise_norm=False, blobs_removal_threshold=0, hyper_seg_threshold=False):
         """
         Abstract class for TensorFlow-based model trainers.
         Args:
@@ -37,10 +38,11 @@ class TFTrainer(Trainer, abc.ABC):
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
-                         blobs_removal_threshold)
+                         blobs_removal_threshold, hyper_seg_threshold)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
+        
     # Subclassing tensorflow.keras.callbacks.Callback (here: KC.Callback) allows us to override various functions to be
     # called when specific events occur while fitting a model using TF's model.fit(...). An instance of the subclass
     # needs to be passed in the "callbacks" parameter (which, if specified, can either be a single instance, or a list
@@ -249,6 +251,9 @@ class TFTrainer(Trainer, abc.ABC):
 
     def get_precision_recall_F1_score_validation(self):
         precisions, recalls, f1_scores = [], [], []
+        threshold = self.segmentation_threshold
+        if self.hyper_seg_threshold:
+            threshold = self.get_best_segmentation_threshold()
         _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
         for x, y in self.test_loader.take(test_dataset_size):
             output = self.model(x)
@@ -257,7 +262,7 @@ class TFTrainer(Trainer, abc.ABC):
             if(len(output.shape)==5):
                 output = output[0]
                 
-            preds = tf.cast(output >= self.segmentation_threshold, tf.dtypes.int8)
+            preds = tf.cast(output >= threshold, tf.dtypes.int8)
             preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
             precision, recall, f1_score = precision_recall_f1_score_tf(preds, y)
             precisions.append(precision.numpy().item())
@@ -265,7 +270,7 @@ class TFTrainer(Trainer, abc.ABC):
             f1_scores.append(f1_score.numpy().item())
         return np.mean(precisions), np.mean(recalls), np.mean(f1_scores)
 
-    def find_best_segmentation_threshold(self,step=0.05):
+    ''' def find_best_segmentation_threshold(self,step=0.05):
         # Save original threshold
         original_threshold = self.segmentation_threshold
         best_threshold = None
@@ -279,4 +284,21 @@ class TFTrainer(Trainer, abc.ABC):
         # Restore to the original threshold
         self.segmentation_threshold = original_threshold
         print(f'F1 score: {best_f1:.4f} for threshold: {best_threshold:.4f}')
+        return best_threshold '''
+    
+    def get_best_segmentation_threshold(self):
+        predictions = []
+        targets = []
+        threshold_optimizer = ThresholdOptimizer()
+        dataloader_len, _, _ = self.dataloader.get_dataset_sizes(split=0.2)
+        for (x,y) in self.seg_thresh_dataloader.take(dataloader_len):
+            output = self.model(x)
+            
+            # More channels than needed - U^2-Net-style
+            if(len(output.shape)==5):
+                output = output[0]
+            preds = remove_blobs(output, threshold=self.blobs_removal_threshold)
+            predictions.append(preds)
+            targets.append(y)
+        best_threshold = threshold_optimizer.run(predictions, targets, f1_score_tf)
         return best_threshold
