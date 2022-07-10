@@ -504,7 +504,7 @@ class OurDinkNet50(nn.Module):
 
         self.finaldeconv1 = nn.ConvTranspose2d(filters[3], 32, 4, 2, 1)
         self.finalrelu1 = nonlinearity
-        self.finalconv2 = nn.Conv2d(32, 32, 3, padding=1)
+        self.finalconv2 = nn.Conv2d(64, 32, 3, padding=1) # original 32, 32
         self.finalrelu2 = nonlinearity
         self.finalconv3 = nn.Conv2d(32, num_classes, 1)
 
@@ -547,7 +547,7 @@ class OurDinkNet50(nn.Module):
 
         out = self.finaldeconv1(d1)
         # print('out', out.shape)
-        out = self.finalrelu1(out + _x)  # changed + _x
+        out = self.finalrelu1(torch.cat((out, _x), dim=1))  # original out
         # print('out', out.shape)
         out = self.finalconv2(out)
         # print('out', out.shape)
