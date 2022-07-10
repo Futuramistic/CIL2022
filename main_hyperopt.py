@@ -3,7 +3,7 @@ then passes the remaining command line arguments to a Hyperparameter optimizer."
 
 import argparse
 from contextlib import redirect_stderr, redirect_stdout
-from hyperopt_.HyperOptimizer import HyperParamOptimizer
+from hyperopt_.hyper_optimizer import HyperParamOptimizer
 from hyperopt_ import *
 import os
 import time
