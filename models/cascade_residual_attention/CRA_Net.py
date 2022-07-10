@@ -460,10 +460,10 @@ class OurDinkNet50(nn.Module):
         self.firstbn = resnet.bn1
         self.firstrelu = resnet.relu
         self.firstmaxpool = resnet.maxpool
-        self._first_conv = nn.Sequential(nn.Conv2d(3, 16, kernel_size=3),
+        self._first_conv = nn.Sequential(nn.Conv2d(3, 16, kernel_size=3, padding='same'),
                                          nn.BatchNorm2d(16),
                                          nn.ReLU(),
-                                         nn.Conv2d(16, 32, kernel_size=3),
+                                         nn.Conv2d(16, 32, kernel_size=3, padding='same'),
                                          nn.BatchNorm2d(32),
                                          nn.ReLU()
                                          )
@@ -521,7 +521,9 @@ class OurDinkNet50(nn.Module):
         # print('after first max pool', x.shape)
 
         _x = self._first_conv(input)
+        # print('_x', _x.shape)
         _x = self._dblock32(_x)
+        # print('_x', _x.shape)
 
         e1 = self.encoder1(x)
         e2 = self.encoder2(e1)
