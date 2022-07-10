@@ -80,10 +80,14 @@ class CRANetTrainer(TorchTrainer):
         train_loss = 0
         for (inputs, labels) in train_loader:
             labels = torch.squeeze(labels, dim=1)
-            # TODO: May want to uncomment .cuda() if not available
-            inputs = Variable(inputs.cuda())
-            labels = Variable(labels.cuda())
-            labels = labels.float().cuda()
+            if torch.cuda.is_available():
+                inputs = Variable(inputs.cuda())
+                labels = Variable(labels.cuda())
+                labels = labels.float().cuda()
+            else:
+                inputs = Variable(inputs)
+                labels = Variable(labels)
+                labels = labels.float()
             opt.zero_grad()
             outputs, refined = model.forward(inputs)
             outputs = torch.squeeze(outputs, dim=1)
@@ -107,10 +111,15 @@ class CRANetTrainer(TorchTrainer):
         with torch.no_grad():
             for (inputs, labels) in test_loader:
                 labels = torch.squeeze(labels, dim=0)
-                # TODO: May want to uncomment .cuda() if not available
-                inputs = Variable(inputs.cuda())
-                labels = Variable(labels.cuda())
-                labels = labels.float().cuda()
+
+                if torch.cuda.is_available():
+                    inputs = Variable(inputs.cuda())
+                    labels = Variable(labels.cuda())
+                    labels = labels.float().cuda()
+                else:
+                    inputs = Variable(inputs)
+                    labels = Variable(labels)
+                    labels = labels.float()
 
                 outputs, lower = model.forward(inputs)
                 outputs = torch.squeeze(outputs, dim=1)

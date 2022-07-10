@@ -502,33 +502,46 @@ class OurDinkNet50(nn.Module):
 
     def forward(self, input):
         # Encoder
+        # print('input.shape:', input.shape)
         x = self.firstconv(input)
+        # print('x', x.shape)
         x = self.firstbn(x)
+        # print('x', x.shape)
         x = self.firstrelu(x)
+        # print('x', x.shape)
         x = self.firstmaxpool(x)
+        # print('after first max pool', x.shape)
 
         e1 = self.encoder1(x)
         e2 = self.encoder2(e1)
         e3 = self.encoder3(e2)
-        # e4 = self.encoder4(e3)
+        # print('e1 e2 e3', e1.shape, e2.shape, e3.shape)
 
         e3 = self.pam3(e3)
         e3 = self.dblock(e3)
         e4 = self.cam(e3)
-        # Center
-        # e4 = self.dblock(e3)
+        # print('e4', e4.shape)
 
         # Decoder
-        # d4 = self.decoder4(e4) + e3
         d3 = self.decoder3(e4) + e2
+        # print('d3', d3.shape)
         d2 = self.decoder2(d3) + e1
+        # print('d2', d2.shape)
         x = self.first_conv(x)
+        # print('x', x.shape)
         d1 = self.decoder1(d2+x)
+        # print('d1', d1.shape)
 
         out = self.finaldeconv1(d1)
+        # print('out', out.shape)
         out = self.finalrelu1(out)
+        # print('out', out.shape)
         out = self.finalconv2(out)
+        # print('out', out.shape)
         out = self.finalrelu2(out)
+        # print('out', out.shape)
         res = self.finalconv3(out)
+        # print('res', res.shape)
         refine = self.sample_conv(out)
+        # print('refine', refine.shape)
         return res, refine
