@@ -206,6 +206,7 @@ class Trainer(abc.ABC):
             'loss_function': self.loss_function_name if hasattr(self, 'loss_function_name') else self.loss_function,
             'seg_threshold': self.segmentation_threshold,
             'use_channelwise_norm': self.use_channelwise_norm,
+            'blobs_removal_threshold': self.blobs_removal_threshold if hasattr(self, 'blobs_removal_threshold') else 0,
             'model': self.model.name if hasattr(self.model, 'name') else type(self.model).__name__,
             'dataset': self.dataloader.dataset,
             'from_checkpoint': self.load_checkpoint_path if self.load_checkpoint_path is not None else '',
