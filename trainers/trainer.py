@@ -23,7 +23,8 @@ class Trainer(abc.ABC):
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
                  batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
-                 load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False):
+                 load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
+                 blobs_removal_threshold=0):
         """
         Abstract class for model trainers.
         Args:
@@ -89,6 +90,7 @@ class Trainer(abc.ABC):
         self.segmentation_threshold =\
             segmentation_threshold if segmentation_threshold is not None else DEFAULT_SEGMENTATION_THRESHOLD
         self.use_channelwise_norm = use_channelwise_norm
+        self.blobs_removal_threshold = blobs_removal_threshold
         self.is_windows = os.name == 'nt'
         self.load_checkpoint_path = load_checkpoint_path
         self.mlflow_initialized = False
@@ -204,6 +206,7 @@ class Trainer(abc.ABC):
             'loss_function': self.loss_function_name if hasattr(self, 'loss_function_name') else self.loss_function,
             'seg_threshold': self.segmentation_threshold,
             'use_channelwise_norm': self.use_channelwise_norm,
+            'blobs_removal_threshold': self.blobs_removal_threshold if hasattr(self, 'blobs_removal_threshold') else 0,
             'model': self.model.name if hasattr(self.model, 'name') else type(self.model).__name__,
             'dataset': self.dataloader.dataset,
             'from_checkpoint': self.load_checkpoint_path if self.load_checkpoint_path is not None else '',

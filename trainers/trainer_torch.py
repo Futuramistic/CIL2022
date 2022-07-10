@@ -17,6 +17,7 @@ from losses.precision_recall_f1 import *
 from utils.logging import mlflow_logger
 from .trainer import Trainer
 from utils import *
+from blobs_remover import remove_blobs
 
 
 class TorchTrainer(Trainer, abc.ABC):
@@ -24,7 +25,8 @@ class TorchTrainer(Trainer, abc.ABC):
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, scheduler=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
-                 load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False):
+                 load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
+                 blobs_removal_threshold=0):
         """
         Abstract class for Torch-based model trainers.
         Args:
@@ -35,7 +37,8 @@ class TorchTrainer(Trainer, abc.ABC):
 
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
-                         checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm)
+                         checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
+                         blobs_removal_threshold)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.scheduler = scheduler
@@ -58,6 +61,7 @@ class TorchTrainer(Trainer, abc.ABC):
             self.do_visualize = self.trainer.num_samples_to_visualize is not None and \
                                 self.trainer.num_samples_to_visualize > 0
             self.f1_score = None
+            self.best_f1_score = -1.0
 
         def on_train_batch_end(self):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
@@ -69,7 +73,11 @@ class TorchTrainer(Trainer, abc.ABC):
                     mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=self.iteration_idx)
                     if self.do_visualize:
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx, self.epoch_idx, self.epoch_iteration_idx)
-                
+
+                if self.trainer.do_checkpoint and self.best_f1_score < self.f1_score:
+                    self.best_f1_score = self.f1_score
+                    self.trainer._save_checkpoint(self.trainer.model,None,None,None,best="f1")
+
                 if self.trainer.do_checkpoint\
                    and self.iteration_idx % self.trainer.checkpoint_interval == 0\
                    and self.iteration_idx > 0:  # avoid creating checkpoints at iteration 0
@@ -117,15 +125,33 @@ class TorchTrainer(Trainer, abc.ABC):
             if type(output) is tuple:
                 output = output[0]
             preds = (output >= self.segmentation_threshold).float().cpu().detach().numpy()
+            # print('shape', preds.shape)
+            preds_list = []
+            for i in range(preds.shape[0]):
+                # print('preds[i]', preds[i].shape)
+                # print('THRESHOLD', self.blobs_removal_threshold)
+                pred_ = remove_blobs(preds[i], threshold=self.blobs_removal_threshold)
+                # print('pred_', pred_.shape)
+                if len(pred_.shape) == 2:
+                    preds_list.append(pred_[None, None, :, :])
+                elif len(pred_.shape) == 3:
+                    preds_list.append(pred_[None, :, :, :])
+                else:
+                    print('problem', pred_.shape)
+            # print('len', len(preds_list))
+            preds = np.concatenate(preds_list, axis=0)
+            # print(preds.shape)
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
             self._fill_images_array(preds, batch_ys, images)
 
         self._save_image_array(images, file_path)
 
-    def _save_checkpoint(self, model, epoch, epoch_iteration, total_iteration):
+    def _save_checkpoint(self, model, epoch, epoch_iteration, total_iteration,best=None):
         if None not in [epoch, epoch_iteration, total_iteration]:
             checkpoint_path = f'{CHECKPOINTS_DIR}/cp_ep-{"%05i" % epoch}_epit-{"%05i" % epoch_iteration}' +\
                               f'_step-{total_iteration}.pt'
+        elif best is not None:
+            checkpoint_path = f'{CHECKPOINTS_DIR}/cp_best_{best}.pt'
         else:
             checkpoint_path = f'{CHECKPOINTS_DIR}/cp_final.pt'
         torch.save({
@@ -192,11 +218,14 @@ class TorchTrainer(Trainer, abc.ABC):
         # use self.Callback instead of TorchTrainer.Callback, to allow subclasses to overwrite the callback handler
         callback_handler = self.Callback(self, mlflow_run, self.model)
         print(self.num_epochs)
+        best_val_loss = 1e5
         for epoch in range(self.num_epochs):
             last_train_loss = self._train_step(self.model, self.device, self.train_loader, callback_handler=callback_handler)
             last_test_loss = self._eval_step(self.model, self.device, self.test_loader)
             metrics = {'train_loss': last_train_loss, 'test_loss': last_test_loss}
-
+            if(self.do_checkpoint and best_val_loss > last_test_loss):
+                best_val_loss = last_test_loss
+                self._save_checkpoint(self.model,None,None,None,best="test_loss")
             print('\nEpoch %i finished at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()) % epoch)
             print('Metrics: %s\n' % str(metrics))
 
@@ -262,6 +291,7 @@ class TorchTrainer(Trainer, abc.ABC):
             if type(output) is tuple:
                 output = output[0]
             preds = (output >= self.segmentation_threshold).float()
+            preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
             precision, recall, f1_score = precision_recall_f1_score_torch(preds, y)
             precisions.append(precision.cpu().numpy())
             recalls.append(recall.cpu().numpy())

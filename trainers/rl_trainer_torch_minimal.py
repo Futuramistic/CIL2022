@@ -34,7 +34,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
                  load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
                  rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), std=[1e-3, 1e-3], reward_discount_factor=0.99,
                  num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20,
-                 rewards = None):
+                 rewards = None, blobs_removal_threshold=0):
         """
         Trainer for RL-based models.
         Args:
@@ -90,7 +90,8 @@ class TorchRLTrainerMinimal(TorchTrainer):
                  experiment_name=experiment_name, run_name=run_name, split=split, num_epochs=num_epochs, batch_size=batch_size,
                  optimizer_or_lr=optimizer_or_lr, scheduler=scheduler, loss_function=loss_function, loss_function_hyperparams=loss_function_hyperparams,
                  evaluation_interval=evaluation_interval, num_samples_to_visualize=num_samples_to_visualize, checkpoint_interval=checkpoint_interval,
-                 load_checkpoint_path=load_checkpoint_path, segmentation_threshold=segmentation_threshold, use_channelwise_norm=use_channelwise_norm)
+                 load_checkpoint_path=load_checkpoint_path, segmentation_threshold=segmentation_threshold, use_channelwise_norm=use_channelwise_norm,
+                 blobs_removal_threshold=blobs_removal_threshold)
         self.rollout_len = int(rollout_len)
         self.replay_memory_capacity = int(replay_memory_capacity)
         self.std = torch.tensor(std, device=self.device).detach()

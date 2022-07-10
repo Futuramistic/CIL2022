@@ -32,7 +32,8 @@ def main():
                     'evaluation_interval', 'i', 'num_samples_to_visualize', 'v', 'checkpoint_interval', 'c',
                     'load_checkpoint_path', 'C', 'segmentation_threshold', 't', 'use_channelwise_norm', 'history_size',
                     'max_rollout_len', 'std', 'reward_discount_factor', 'num_policy_epochs', 'policy_batch_size',
-                    'sample_from_action_distributions', 'visualization_interval', 'min_steps', 'rollout_len']
+                    'sample_from_action_distributions', 'visualization_interval', 'min_steps', 'rollout_len',
+                    'blobs_removal_threshold']
     dataloader_args = ['dataset', 'd']
 
     # list of other arguments to avoid passing to constructor of model class
@@ -53,6 +54,7 @@ def main():
     parser.add_argument('-c', '--checkpoint_interval', type=int, required=False)
     parser.add_argument('-C', '--load_checkpoint_path', '--from_checkpoint', type=str, required=False)
     parser.add_argument('-t', '--segmentation_threshold', type=float, default=DEFAULT_SEGMENTATION_THRESHOLD, required=False)
+    parser.add_argument('-B', '--blobs_removal_threshold', type=int, default=DEFAULT_BLOBS_REMOVAL_THRESHOLD, required=False)
     parser.add_argument('-d', '--dataset', type=str, required=True)
     parser.add_argument('-V', '--evaluate', '--eval', action='store_true')
     known_args, unknown_args = parser.parse_known_args()
