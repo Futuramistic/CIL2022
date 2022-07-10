@@ -16,7 +16,7 @@ class CRANetTrainer(TorchTrainer):
                  batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None,
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
-                 use_channelwise_norm=False, loss_function_name=None):
+                 use_channelwise_norm=False, loss_function_name=None, blobs_removal_threshold=None):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
@@ -48,6 +48,9 @@ class CRANetTrainer(TorchTrainer):
             evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs,
                                                                              num_samples_to_visualize)
 
+        if blobs_removal_threshold is None:
+            blobs_removal_threshold = 0
+
         preprocessing = None
         if use_channelwise_norm and dataloader.dataset in DATASET_STATS:
             def channelwise_preprocessing(x, is_gt):
@@ -68,7 +71,7 @@ class CRANetTrainer(TorchTrainer):
         super().__init__(dataloader, model, preprocessing, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
-                         segmentation_threshold, use_channelwise_norm)
+                         segmentation_threshold, use_channelwise_norm, blobs_removal_threshold)
 
         if loss_function_name is not None:
             self.loss_function_name = loss_function_name

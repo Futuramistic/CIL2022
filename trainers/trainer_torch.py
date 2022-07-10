@@ -17,6 +17,7 @@ from losses.precision_recall_f1 import *
 from utils.logging import mlflow_logger
 from .trainer import Trainer
 from utils import *
+from blobs_remover import remove_blobs
 
 
 class TorchTrainer(Trainer, abc.ABC):
@@ -24,7 +25,8 @@ class TorchTrainer(Trainer, abc.ABC):
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, scheduler=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
-                 load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False):
+                 load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
+                 blobs_removal_threshold=0):
         """
         Abstract class for Torch-based model trainers.
         Args:
@@ -35,7 +37,8 @@ class TorchTrainer(Trainer, abc.ABC):
 
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
-                         checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm)
+                         checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
+                         blobs_removal_threshold)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.scheduler = scheduler
@@ -262,6 +265,7 @@ class TorchTrainer(Trainer, abc.ABC):
             if type(output) is tuple:
                 output = output[0]
             preds = (output >= self.segmentation_threshold).float()
+            preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
             precision, recall, f1_score = precision_recall_f1_score_torch(preds, y)
             precisions.append(precision.cpu().numpy())
             recalls.append(recall.cpu().numpy())

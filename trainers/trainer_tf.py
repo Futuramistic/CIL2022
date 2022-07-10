@@ -11,6 +11,7 @@ import tempfile
 import tensorflow as tf
 import tensorflow.keras.callbacks as KC
 from urllib.parse import urlparse
+from blobs_remover import remove_blobs
 
 from requests.auth import HTTPBasicAuth
 
@@ -26,7 +27,7 @@ class TFTrainer(Trainer, abc.ABC):
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None, evaluation_interval=None,
                  num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
-                 segmentation_threshold=None, use_channelwise_norm=False):
+                 segmentation_threshold=None, use_channelwise_norm=False, blobs_removal_threshold=0):
         """
         Abstract class for TensorFlow-based model trainers.
         Args:
@@ -35,7 +36,8 @@ class TFTrainer(Trainer, abc.ABC):
         """
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
-                         checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm)
+                         checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
+                         blobs_removal_threshold)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
@@ -256,6 +258,7 @@ class TFTrainer(Trainer, abc.ABC):
                 output = output[0]
                 
             preds = tf.cast(output >= self.segmentation_threshold, tf.dtypes.int8)
+            preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
             precision, recall, f1_score = precision_recall_f1_score_tf(preds, y)
             precisions.append(precision.numpy().item())
             recalls.append(recall.numpy().item())
