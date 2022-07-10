@@ -175,6 +175,7 @@ class TFTrainer(Trainer, abc.ABC):
                 output = np.expand_dims(output, axis=channel_dim_idx)
 
             preds = (output >= self.segmentation_threshold).astype(np.float)
+            preds = remove_blobs(preds, self.blobs_removal_threshold)
             # preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
             batch_ys = np.moveaxis(batch_ys, -1, 1)  # TODO only do this if we know the network uses HWC format
             preds = np.moveaxis(preds, -1, 1)
