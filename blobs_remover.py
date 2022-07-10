@@ -7,6 +7,7 @@ import torch
 connection_filter = np.ones((3, 3), dtype=np.int32)
 
 # with_blobs = (cv2.imread('output_preds/satimage_151.png')[:, :, 0] / 255)
+device = torch.device('cuda') if torch.cuda.is_available() else 'cpu'
 
 
 def remove_blobs(image, threshold=200):
@@ -44,7 +45,7 @@ def remove_blobs(image, threshold=200):
     if is_tf:
         image = tf.convert_to_tensor(image)
     elif is_torch:
-        image = torch.Tensor(image)
+        image = torch.Tensor(image).to(device)
     return image
 
 
