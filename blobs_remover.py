@@ -20,10 +20,10 @@ def remove_blobs(image, threshold=200):
     is_tf = False
     is_torch = False
     if tf.is_tensor(image):
-        image = image.cpu().numpy()
+        image = image.numpy()
         is_tf = True
     elif torch.is_tensor(image):
-        image = image.numpy()
+        image = image.cpu().numpy()
         is_torch = True
 
     labeled, ncomponents = label(image, connection_filter)
