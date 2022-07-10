@@ -126,8 +126,8 @@ class TorchTrainer(Trainer, abc.ABC):
                 output = output[0]
             preds = (output >= self.segmentation_threshold).float().cpu().detach().numpy()
             preds_list = []
-            for pred in range(len(preds[0])):
-                pred_ = remove_blobs(pred, threshold=self.blobs_removal_threshold)
+            for i in range(len(preds[0])):
+                pred_ = remove_blobs(preds[i], threshold=self.blobs_removal_threshold)
                 preds_list.append(pred_[None, :, :, :])
             preds = np.concatenate(preds_list, axis=0)
             print(preds.shape)
