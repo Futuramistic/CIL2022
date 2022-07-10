@@ -125,6 +125,7 @@ class TorchTrainer(Trainer, abc.ABC):
             if type(output) is tuple:
                 output = output[0]
             preds = (output >= self.segmentation_threshold).float().cpu().detach().numpy()
+            print('shape', preds.shape)
             preds_list = []
             for i in range(len(preds[0])):
                 pred_ = remove_blobs(preds[i], threshold=self.blobs_removal_threshold)
@@ -132,6 +133,7 @@ class TorchTrainer(Trainer, abc.ABC):
                     preds_list.append(pred_[None, None, :, :])
                 elif len(pred_.shape) == 3:
                     preds_list.append(pred_[None, :, :, :])
+            print(len(preds_list))
             preds = np.concatenate(preds_list, axis=0)
             print(preds.shape)
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys

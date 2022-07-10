@@ -23,7 +23,7 @@ def remove_blobs(image, threshold=200):
     #     image = image[0][0]
     #     restore_second_dim = True
     image = np.squeeze(image)
-    print(image.shape)
+    print('#blobs', image.shape)
     is_tf = False
     is_torch = False
     if tf.is_tensor(image):
