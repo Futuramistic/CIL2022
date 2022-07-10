@@ -128,11 +128,15 @@ class TorchTrainer(Trainer, abc.ABC):
             print('shape', preds.shape)
             preds_list = []
             for i in range(len(preds[0])):
+                print('preds[i]', preds[i].shape)
                 pred_ = remove_blobs(preds[i], threshold=self.blobs_removal_threshold)
+                print('pred_', pred_.shape)
                 if len(pred_.shape) == 2:
                     preds_list.append(pred_[None, None, :, :])
                 elif len(pred_.shape) == 3:
                     preds_list.append(pred_[None, :, :, :])
+                else:
+                    print('problem', pred_.shape)
             print(len(preds_list))
             preds = np.concatenate(preds_list, axis=0)
             print(preds.shape)
