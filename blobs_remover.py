@@ -11,16 +11,18 @@ device = torch.device('cuda') if torch.cuda.is_available() else 'cpu'
 
 
 def remove_blobs(image, threshold=200):
+    original_shape = image.shape
     if threshold == 0:
         return image
-    restore_first_dim = False
-    restore_second_dim = False
-    if len(image.shape) == 3:
-        image = image[0]
-        restore_first_dim = True
-    elif len(image.shape) == 4:
-        image = image[0][0]
-        restore_second_dim = True
+    # restore_first_dim = False
+    # restore_second_dim = False
+    # if len(image.shape) == 3:
+    #     image = image[0]
+    #     restore_first_dim = True
+    # elif len(image.shape) == 4:
+    #     image = image[0][0]
+    #     restore_second_dim = True
+    image = np.squeeze(image)
     print(image.shape)
     is_tf = False
     is_torch = False
@@ -38,10 +40,11 @@ def remove_blobs(image, threshold=200):
         component_size = len(idcs)
         if component_size < threshold:
             image[idcs[:, 0], idcs[:, 1]] = 0
-    if restore_first_dim:
-        image = image[None, :, :]
-    elif restore_second_dim:
-        image = image[None, None, :, :]
+    # if restore_first_dim:
+    #     image = image[None, :, :]
+    # elif restore_second_dim:
+    #     image = image[None, None, :, :]
+    np.reshape(image, original_shape)
     if is_tf:
         image = tf.convert_to_tensor(image)
     elif is_torch:
