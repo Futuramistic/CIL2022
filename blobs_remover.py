@@ -16,7 +16,6 @@ def remove_blobs(image, threshold=200):
     if len(image.shape) == 3:
         image = image[0]
         restore_first_dim = True
-    print(image.shape)
     is_tf = False
     is_torch = False
     if tf.is_tensor(image):

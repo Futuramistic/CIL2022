@@ -66,9 +66,6 @@ class Trainer(abc.ABC):
         self.optimizer_or_lr = optimizer_or_lr
         self.loss_function_hyperparams = loss_function_hyperparams if loss_function_hyperparams is not None else {}
         self.hyper_seg_threshold = hyper_seg_threshold
-        if hyper_seg_threshold:
-            self.seg_thresh_dataloader = self.dataloader.get_training_dataloader(split=0.2, batch_size=self.batch_size,
-                                                                preprocessing=self.preprocessing)
 
         self.loss_function_name = str(loss_function)
         if isinstance(loss_function, str):

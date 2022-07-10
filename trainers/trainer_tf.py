@@ -12,9 +12,9 @@ import tensorflow as tf
 import tensorflow.keras.callbacks as KC
 from urllib.parse import urlparse
 from blobs_remover import remove_blobs
+from threshold_optimizer import ThresholdOptimizer
 
 from requests.auth import HTTPBasicAuth
-from hyperopt_.threshold_optimizer import ThresholdOptimizer
 
 from losses.loss_harmonizer import DEFAULT_TF_DIM_LAYOUT
 from losses.precision_recall_f1 import *
@@ -42,6 +42,10 @@ class TFTrainer(Trainer, abc.ABC):
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
+        
+        if hyper_seg_threshold:
+            self.seg_thresh_dataloader = self.dataloader.get_training_dataloader(split=0.2, batch_size=self.batch_size,
+                                                                preprocessing=self.preprocessing)
         
     # Subclassing tensorflow.keras.callbacks.Callback (here: KC.Callback) allows us to override various functions to be
     # called when specific events occur while fitting a model using TF's model.fit(...). An instance of the subclass
@@ -263,7 +267,7 @@ class TFTrainer(Trainer, abc.ABC):
                 output = output[0]
                 
             preds = tf.cast(output >= threshold, tf.dtypes.int8)
-            preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
+            preds = remove_blobs(tf.squeeze(preds), threshold=self.blobs_removal_threshold)
             precision, recall, f1_score = precision_recall_f1_score_tf(preds, y)
             precisions.append(precision.numpy().item())
             recalls.append(recall.numpy().item())
@@ -297,7 +301,7 @@ class TFTrainer(Trainer, abc.ABC):
             # More channels than needed - U^2-Net-style
             if(len(output.shape)==5):
                 output = output[0]
-            preds = remove_blobs(output, threshold=self.blobs_removal_threshold)
+            preds = remove_blobs(tf.squeeze(output), threshold=self.blobs_removal_threshold)
             predictions.append(preds)
             targets.append(y)
         best_threshold = threshold_optimizer.run(predictions, targets, f1_score_tf)

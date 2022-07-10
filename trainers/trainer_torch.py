@@ -12,14 +12,13 @@ import torch
 import torch.cuda
 from torch.utils.data import DataLoader, Subset
 from urllib.parse import urlparse
-from hyperopt_.threshold_optimizer import ThresholdOptimizer
 
 from losses.precision_recall_f1 import *
 from utils.logging import mlflow_logger
 from .trainer import Trainer
 from utils import *
 from blobs_remover import remove_blobs
-
+from threshold_optimizer import ThresholdOptimizer
 
 class TorchTrainer(Trainer, abc.ABC):
     def __init__(self, dataloader, model, preprocessing,
@@ -35,7 +34,6 @@ class TorchTrainer(Trainer, abc.ABC):
             model: the model to train
         """
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
@@ -43,6 +41,12 @@ class TorchTrainer(Trainer, abc.ABC):
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.scheduler = scheduler
+        
+        if hyper_seg_threshold:
+            self.seg_thresh_dataloader = self.dataloader.get_training_dataloader(split=0.2, batch_size=1,
+                                                                preprocessing=self.preprocessing)
+        
+        
         
 
     # This class is a mimicry of TensorFlow's "Callback" class behavior, used not out of necessity (as we write the
@@ -269,7 +273,7 @@ class TorchTrainer(Trainer, abc.ABC):
             output = self.model(x)
             if type(output) is tuple:
                 output = output[0]
-            preds = (output >= threshold).float()
+            preds = (output.squeeze() >= threshold).float()
             preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
             precision, recall, f1_score = precision_recall_f1_score_torch(preds, y)
             precisions.append(precision.cpu().numpy())
@@ -284,14 +288,15 @@ class TorchTrainer(Trainer, abc.ABC):
         threshold_optimizer = ThresholdOptimizer()
         predictions = []
         targets = []
-        for (x,y) in self.seg_thresh_dataloader:
-            x, y = x.to(self.device, dtype=torch.float32), y.to(self.device, dtype=torch.long)
-            y = torch.squeeze(y, dim=1)  # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
-            output = self.model(x)
-            if type(output) is tuple:
-                output = output[0]
-            preds = remove_blobs(output, threshold=self.blobs_removal_threshold)
-            predictions.append(preds)
-            targets.append(y)
-        best_threshold = threshold_optimizer.run(predictions, targets, f1_score_torch)
+        with torch.no_grad():
+            for (sample_x,sample_y) in self.seg_thresh_dataloader: # batch size is 1
+                x, y = sample_x.to(self.device, dtype=torch.float32), sample_y.to(self.device, dtype=torch.long)
+                y = torch.squeeze(y, dim=1)  # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
+                output = self.model(x)
+                if type(output) is tuple:
+                    output = output[0]
+                preds = remove_blobs(output.squeeze(), threshold=self.blobs_removal_threshold)
+                predictions.append(preds)
+                targets.append(y)
+            best_threshold = threshold_optimizer.run(predictions, targets, f1_score_torch)
         return best_threshold

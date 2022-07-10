@@ -57,15 +57,13 @@ class ThresholdOptimizer:
         Returns:
         output (Dictionary[loss, status, and other things])
         """
-        try:            
+        try:
             f1_scores = []
             for idx, pred in enumerate(self.prediction):
                 target = self.target[idx]
                 thresholded_predictions = pred >= hyperparams["threshold"]
-                f1_scores.append(self.f1_score_function(thresholded_predictions, target))
-            average_f1_score = torch.sum(f1_scores) / len(f1_scores)
-            # save scores
-            hyperparams[""]
+                f1_scores.append(self.f1_score_function(thresholded_predictions, target).numpy())
+            average_f1_score = np.mean(f1_scores)
         except RuntimeError as r:
             err_msg = f"Hyperopt failed.\nCurrent hyperparams that lead to error:\n{hyperparams}" +\
                       f"\n\nError message:\n{r}"
@@ -87,4 +85,4 @@ class ThresholdOptimizer:
         losses = [float(trial['result']['loss']) for trial in valid_trial_list]
         index_having_minumum_loss = np.argmin(losses)
         best_trial_obj = valid_trial_list[index_having_minumum_loss]
-        return float(best_trial_obj["params"]["threshold"])
+        return float(best_trial_obj["result"]["params"]["threshold"])
