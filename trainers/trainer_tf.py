@@ -260,7 +260,8 @@ class TFTrainer(Trainer, abc.ABC):
                 
             preds = tf.cast(output >= self.segmentation_threshold, tf.dtypes.int8)
             print('tf preds', preds.shape)
-            preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
+            blb_input = preds.numpy()
+            preds = remove_blobs(blb_input, threshold=self.blobs_removal_threshold)
             print('tf preds 2', preds.shape)
             precision, recall, f1_score = precision_recall_f1_score_tf(preds, y)
             precisions.append(precision.numpy().item())
