@@ -44,7 +44,7 @@ class TFTrainer(Trainer, abc.ABC):
         self.steps_per_training_epoch = steps_per_training_epoch
         
         if hyper_seg_threshold:
-            self.seg_thresh_dataloader = self.dataloader.get_training_dataloader(split=0.2, batch_size=self.batch_size,
+            self.seg_thresh_dataloader = self.dataloader.get_training_dataloader(split=0.2, batch_size=1,
                                                                 preprocessing=self.preprocessing)
         
     # Subclassing tensorflow.keras.callbacks.Callback (here: KC.Callback) allows us to override various functions to be
@@ -279,14 +279,13 @@ class TFTrainer(Trainer, abc.ABC):
         if self.hyper_seg_threshold:
             threshold = self.get_best_segmentation_threshold()
         _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
-        for x, y in self.test_loader.take(test_dataset_size):
+        for x, y in self.test_loader.take(2):
             output = self.model(x)
             
             # More channels than needed - U^2-Net-style
             if(len(output.shape)==5):
                 output = output[0]
-                
-            preds = tf.cast(output >= threshold, tf.dtypes.int8)
+            preds = tf.cast(tf.squeeze(output) >= threshold, tf.dtypes.int8)
             # print('tf preds', preds.shape)
             blb_input = preds.numpy()
             preds = remove_blobs(blb_input, threshold=self.blobs_removal_threshold)
@@ -320,11 +319,11 @@ class TFTrainer(Trainer, abc.ABC):
         dataloader_len, _, _ = self.dataloader.get_dataset_sizes(split=0.2)
         for (x,y) in self.seg_thresh_dataloader.take(dataloader_len):
             output = self.model(x)
-            
             # More channels than needed - U^2-Net-style
             if(len(output.shape)==5):
                 output = output[0]
-            preds = remove_blobs(tf.squeeze(output), threshold=self.blobs_removal_threshold)
+            blb_input = tf.squeeze(output).numpy()
+            preds = remove_blobs(blb_input, threshold=self.blobs_removal_threshold)
             predictions.append(preds)
             targets.append(y)
         best_threshold = threshold_optimizer.run(predictions, targets, f1_score_tf)

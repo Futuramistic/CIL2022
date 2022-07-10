@@ -321,8 +321,8 @@ class TorchTrainer(Trainer, abc.ABC):
                 output = self.model(x)
                 if type(output) is tuple:
                     output = output[0]
-                preds = remove_blobs(output.squeeze(), threshold=self.blobs_removal_threshold)
+                preds = remove_blobs(output.squeeze(), threshold=self.blobs_removal_threshold) # returns np array on cpu
                 predictions.append(preds)
-                targets.append(y)
+                targets.append(sample_y)
             best_threshold = threshold_optimizer.run(predictions, targets, f1_score_torch)
         return best_threshold
