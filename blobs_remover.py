@@ -35,7 +35,8 @@ def remove_blobs(image, threshold=200):
 
     labeled, ncomponents = label(image, connection_filter)
     indices = np.indices(image.shape).T[:, :, [1, 0]]
-    for i in range (ncomponents):
+    print('ncomponents', ncomponents)
+    for i in range(ncomponents):
         idcs = indices[labeled == i+1]
         component_size = len(idcs)
         if component_size < threshold:
