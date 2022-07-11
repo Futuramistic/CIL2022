@@ -13,7 +13,7 @@ class ThresholdOptimizer:
     def __init__(self):
         warnings.filterwarnings("ignore", category=UserWarning)
         self.trials = Trials()
-        self.n_runs = 15
+        self.n_runs = 20
         self.space = {
             "threshold": hp.uniform("threshold", low=0.0, high=1.0)
         }
