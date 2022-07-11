@@ -248,8 +248,8 @@ class Trainer(abc.ABC):
     @abc.abstractmethod
     def get_precision_recall_F1_score_validation(self):
         """
-        Calculate and return the precision, recall and F1 score on the validation split of the current dataset.
-        Returns: Tuple of (float, float, float) containing (precision, recall, f1_score)
+        Calculate and return the precision, recall and F1 score on the validation split of the current dataset, as well as the segmentation threshold used to calculate these metrics.
+        Returns: Tuple of (float, float, float, float) containing (precision, recall, f1_score, segmentation_threshold)
         """
         raise NotImplementedError('Must be defined for trainer.')
 
@@ -305,8 +305,8 @@ class Trainer(abc.ABC):
                     mlflow_logger.log_codebase()  # log codebase before training, to be invariant to training crashes and stops
                     mlflow_logger.log_command_line()  # log command line used to execute the script, if available
                     
-                    precision, recall, f1_score = self.get_precision_recall_F1_score_validation()
-                    metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score}
+                    precision, recall, f1_score, threshold = self.get_precision_recall_F1_score_validation()
+                    metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score, 'seg_threshold': threshold}
                     print(f'Evaluation metrics: {metrics}')
                     if mlflow_logger.logging_to_mlflow_enabled():
                         mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=0)
@@ -322,8 +322,8 @@ class Trainer(abc.ABC):
                         pushbullet_logger.send_pushbullet_message(err_msg)
                     raise e
         else:
-            precision, recall, f1_score = self.get_precision_recall_F1_score_validation()
-            metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score}
+            precision, recall, f1_score, threshold = self.get_precision_recall_F1_score_validation()
+            metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score, 'seg_threshold': threshold}
             print(f'Evaluation metrics: {metrics}')
 
         return metrics

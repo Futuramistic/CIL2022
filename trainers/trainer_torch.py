@@ -71,8 +71,8 @@ class TorchTrainer(Trainer, abc.ABC):
 
         def on_train_batch_end(self):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                precision, recall, self.f1_score = self.trainer.get_precision_recall_F1_score_validation()
-                metrics = {'precision': precision, 'recall': recall, 'f1_score': self.f1_score}
+                precision, recall, self.f1_score, threshold = self.trainer.get_precision_recall_F1_score_validation()
+                metrics = {'precision': precision, 'recall': recall, 'f1_score': self.f1_score, 'seg_threshold': threshold}
                 print('Metrics at aggregate iteration %i (ep. %i, ep.-it. %i): %s'
                       % (self.iteration_idx, self.epoch_idx, self.epoch_iteration_idx, str(metrics)))
                 if mlflow_logger.logging_to_mlflow_enabled():
@@ -223,8 +223,7 @@ class TorchTrainer(Trainer, abc.ABC):
 
         # use self.Callback instead of TorchTrainer.Callback, to allow subclasses to overwrite the callback handler
         callback_handler = self.Callback(self, mlflow_run, self.model)
-        print(self.num_epochs)
-        best_val_loss = 1e5
+        best_val_loss = 1e12
         for epoch in range(self.num_epochs):
             last_train_loss = self._train_step(self.model, self.device, self.train_loader, callback_handler=callback_handler)
             last_test_loss = self._eval_step(self.model, self.device, self.test_loader)
@@ -284,7 +283,7 @@ class TorchTrainer(Trainer, abc.ABC):
         return test_loss
 
     def get_F1_score_validation(self):
-        _, _, f1_score = self.get_precision_recall_F1_score_validation()
+        _, _, f1_score, _ = self.get_precision_recall_F1_score_validation()
         return f1_score
 
     def get_precision_recall_F1_score_validation(self):
@@ -307,7 +306,7 @@ class TorchTrainer(Trainer, abc.ABC):
             f1_scores.append(f1_score.cpu().numpy())
             del x
             del y
-        return np.mean(precisions), np.mean(recalls), np.mean(f1_scores)
+        return np.mean(precisions), np.mean(recalls), np.mean(f1_scores), threshold
     
     def get_best_segmentation_threshold(self):
         # use hyperopt search space to get the best segmentation threshold based on a subset of the training data
@@ -321,8 +320,9 @@ class TorchTrainer(Trainer, abc.ABC):
                 output = self.model(x)
                 if type(output) is tuple:
                     output = output[0]
-                preds = remove_blobs(output.squeeze(), threshold=self.blobs_removal_threshold) # returns np array on cpu
+                preds = remove_blobs(output.squeeze(), threshold=self.blobs_removal_threshold)
                 predictions.append(preds)
-                targets.append(sample_y)
-            best_threshold = threshold_optimizer.run(predictions, targets, f1_score_torch)
+                targets.append(y)
+            best_threshold = threshold_optimizer.run(predictions, targets,
+                                                     lambda thresholded_prediction, targets: f1_score_torch(thresholded_prediction, targets).cpu().numpy())
         return best_threshold

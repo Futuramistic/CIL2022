@@ -112,8 +112,8 @@ class TFTrainer(Trainer, abc.ABC):
 
         def on_train_batch_end(self, batch, logs=None):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                precision, recall, f1_score = self.trainer.get_precision_recall_F1_score_validation()
-                metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score}
+                precision, recall, f1_score, threshold = self.trainer.get_precision_recall_F1_score_validation()
+                metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score, 'seg_threshold': threshold}
                 print('\nMetrics at aggregate iteration %i (ep. %i, ep.-it. %i): %s'
                       % (self.iteration_idx, self.epoch_idx, batch, str(metrics)))
                 if mlflow_logger.logging_to_mlflow_enabled():
@@ -270,7 +270,7 @@ class TFTrainer(Trainer, abc.ABC):
                                     filepath=os.path.join(CHECKPOINTS_DIR, "cp_final.ckpt"))
 
     def get_F1_score_validation(self):
-        _, _, f1_score = self.get_precision_recall_F1_score_validation()
+        _, _, f1_score, _ = self.get_precision_recall_F1_score_validation()
         return f1_score
 
     def get_precision_recall_F1_score_validation(self):
@@ -294,7 +294,7 @@ class TFTrainer(Trainer, abc.ABC):
             precisions.append(precision.numpy().item())
             recalls.append(recall.numpy().item())
             f1_scores.append(f1_score.numpy().item())
-        return np.mean(precisions), np.mean(recalls), np.mean(f1_scores)
+        return np.mean(precisions), np.mean(recalls), np.mean(f1_scores), threshold
 
     ''' def find_best_segmentation_threshold(self,step=0.05):
         # Save original threshold

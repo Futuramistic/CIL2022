@@ -30,10 +30,6 @@ class ThresholdOptimizer:
         self.prediction = predictions
         self.target = targets
         self.f1_score_function = f1_score_function
-        # we log these Pushbullet messages regardless of whether we're in debug mode or not, as the optimization may
-        # take very long
-
-        pushbullet_logger.send_pushbullet_message("Hyperopt optimization started.")
 
         # run objective function n times with different variations of the parameter space and search for the variation minimizing the loss
         best_run = fmin(
@@ -41,11 +37,9 @@ class ThresholdOptimizer:
                 space = self.space,
                 trials = self.trials,
                 algo=tpe.suggest,
-                max_evals = self.n_runs
+                max_evals = self.n_runs,
+                verbose=False
             )
-        
-        print(f"-----------Best Run:-----------\n{best_run}")
-        pushbullet_logger.send_pushbullet_message(f"Hyperopt search for best segmentation threshold finished.\nBest run: {best_run}")
         
         return self.get_best_threshold()
     
@@ -62,7 +56,7 @@ class ThresholdOptimizer:
             for idx, pred in enumerate(self.prediction):
                 target = self.target[idx]
                 thresholded_predictions = pred >= hyperparams["threshold"]
-                f1_scores.append(self.f1_score_function(thresholded_predictions, target).numpy())
+                f1_scores.append(self.f1_score_function(thresholded_predictions, target))
             average_f1_score = np.mean(f1_scores)
         except RuntimeError as r:
             err_msg = f"Hyperopt failed.\nCurrent hyperparams that lead to error:\n{hyperparams}" +\
