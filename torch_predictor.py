@@ -148,9 +148,9 @@ sigmoid = torch.nn.Sigmoid()
 
 # Parameters
 blob_threshold = 250
-model_name = 'deeplabv3'                               # <<<<<<<<<<<<<<<<<< Insert model type
-trained_model_path = 'cp_final_dlv.pt'                      # <<<<<<<<<<<<<<<<<< Insert trained model name
-apply_sigmoid = True                                   # <<<<<<<<<<<<<<<< Specify whether Sigmoid should
+model_name = 'cranet'                               # <<<<<<<<<<<<<<<<<< Insert model type
+trained_model_path = 'cra_ext_aug_better_2720.pt'   # <<<<<<<<<<<<<<<<<< Insert trained model name
+apply_sigmoid = False                                   # <<<<<<<<<<<<<<<< Specify whether Sigmoid should
                                                             # be applied to the model's output
 
 # Create loader, trainer etc. from factory
@@ -171,12 +171,14 @@ model.load_state_dict(model_data['model'])
 model.eval()
 
 preprocessing = trainer.preprocessing
-train_loader = dataloader.get_training_dataloader(split=1, batch_size=1, preprocessing=preprocessing)
+
+original_dataloader = factory.get_dataloader_class()(dataset='original')
+train_loader = original_dataloader.get_training_dataloader(split=0.174, batch_size=1, preprocessing=preprocessing)
 test_loader = dataloader.get_unlabeled_testing_dataloader(batch_size=1, preprocessing=preprocessing)
 
 create_or_clean_directory(OUTPUT_PRED_DIR)
 
-segmentation_threshold = 0.45  # compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
+segmentation_threshold = compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
 
 predict(segmentation_threshold, apply_sigmoid=apply_sigmoid, with_augmentation=False)
 

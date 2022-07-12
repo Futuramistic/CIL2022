@@ -33,7 +33,7 @@ def main():
                     'load_checkpoint_path', 'C', 'segmentation_threshold', 't', 'use_channelwise_norm', 'history_size',
                     'max_rollout_len', 'std', 'reward_discount_factor', 'num_policy_epochs', 'policy_batch_size',
                     'sample_from_action_distributions', 'visualization_interval', 'min_steps', 'rollout_len',
-                    'blobs_removal_threshold']
+                    'blobs_removal_threshold', 'T', 'hyper_seg_threshold']
     dataloader_args = ['dataset', 'd']
 
     # list of other arguments to avoid passing to constructor of model class
@@ -57,6 +57,7 @@ def main():
     parser.add_argument('-B', '--blobs_removal_threshold', type=int, default=DEFAULT_BLOBS_REMOVAL_THRESHOLD, required=False)
     parser.add_argument('-d', '--dataset', type=str, required=True)
     parser.add_argument('-V', '--evaluate', '--eval', action='store_true')
+    parser.add_argument('-T', '--hyper_seg_threshold', type=bool, help="If True, use hyperparameter search after evaluation to find the best segmentation threshold", required=False, default=True)
     known_args, unknown_args = parser.parse_known_args()
 
     remove_leading_dashes = lambda s: ''.join(itertools.dropwhile(lambda c: c == '-', s))
