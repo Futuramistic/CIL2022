@@ -8,6 +8,7 @@ from torchvision import models
 import torch.nn.functional as F
 
 from functools import partial
+from torch.autograd import Variable
 
 nonlinearity = partial(F.relu, inplace=True)
 
@@ -508,6 +509,9 @@ class OurDinkNet50(nn.Module):
         self.finalrelu2 = nonlinearity
         self.finalconv3 = nn.Conv2d(32, num_classes, 1)
 
+        self.lam1 = Variable(torch.rand([]), requires_grad=True)
+        self.lam2 = Variable(torch.rand([]), requires_grad=True)
+
     def forward(self, input):
         # Encoder
         # print('input.shape:', input.shape)
@@ -536,9 +540,9 @@ class OurDinkNet50(nn.Module):
         # print('e4', e4.shape)
 
         # Decoder
-        d3 = self.decoder3(e4) + e2
+        d3 = self.decoder3(e4) + self.lam1 * e2
         # print('d3', d3.shape)
-        d2 = self.decoder2(d3) + e1
+        d2 = self.decoder2(d3) + self.lam2 * e1
         # print('d2', d2.shape)
         x = self.first_conv(x)
         # print('x', x.shape)
