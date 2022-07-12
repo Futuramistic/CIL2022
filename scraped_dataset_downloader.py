@@ -20,14 +20,10 @@ sftp_zip_path = requests.get(f'https://algvrithm.com/zip_scraped_dataset.php{"?c
 print(f'Downloading dataset (curated: {curated}) from "{sftp_zip_path}"...')
 
 url_components = urlparse(sftp_zip_path)
-
 url = f'sftp://mlflow_user@algvrithm.com/mlruns/maps{"_curated" if curated else ""}'
-
 local_dir = os.path.join('dataset', os.path.basename(url_components.path).replace('.zip', ''))
-
 cnopts = pysftp.CnOpts()
 cnopts.hostkeys = None
-
 zip_path = os.path.join(local_dir, 'dataset.zip')
 
 if not os.path.isdir(local_dir):
@@ -36,12 +32,12 @@ if not os.path.isdir(local_dir):
 with pysftp.Connection(host=MLFLOW_HOST, username=MLFLOW_FTP_USER, password=mlflow_ftp_pass, cnopts=cnopts) as sftp:
     sftp.get(url_components.path, zip_path)
 
-print(f'Extracting dataset...')
+print('Extracting dataset...')
 
 with zipfile.ZipFile(zip_path) as z:
     z.extractall(local_dir)
 
-print("Removing ZIP file...")
+print('Removing ZIP file...')
 os.unlink(zip_path)
 
 if not os.path.isdir(os.path.join(local_dir, 'training')):
@@ -53,7 +49,7 @@ if os.path.isdir(os.path.join(local_dir, 'images')):
 if os.path.isdir(os.path.join(local_dir, 'groundtruth')):
     shutil.move(os.path.join(local_dir, 'groundtruth'), os.path.join(local_dir, 'training', 'groundtruth'))
 
-print(f'Ensuring images and GT match...')
+print('Ensuring images and GT match...')
 
 num_samples = 0
 for folder_name, _, file_names in os.walk(os.path.join(local_dir, 'training', 'images')):
@@ -63,7 +59,6 @@ for folder_name, _, file_names in os.walk(os.path.join(local_dir, 'training', 'i
                 os.unlink(os.path.join(local_dir, 'training', 'images', file_name))
             else:
                 num_samples += 1
-
 
 for folder_name, _, file_names in os.walk(os.path.join(local_dir, 'training', 'groundtruth')):
     for file_name in file_names:
