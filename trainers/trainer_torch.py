@@ -38,7 +38,7 @@ class TorchTrainer(Trainer, abc.ABC):
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
                          blobs_removal_threshold, hyper_seg_threshold)
-        # these attributes must also be set by each TFTrainer subclass upon initialization:
+        # these attributes must also be set by each TorchTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.scheduler = scheduler
         

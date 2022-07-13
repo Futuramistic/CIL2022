@@ -63,7 +63,18 @@ class Factory(abc.ABC):
             print(f"The factory for the model {model_name} doesn't exist. Check if you wrote the model name "
                   f"correctly and implemented a corresponding factory in factory.py.")
 
+# used preprocessors
+def channelwise_preprocessing(x, is_gt):
+    if is_gt:
+        return x[:1, :, :].float() / 255
+    stats = DATASET_STATS[dataloader.dataset]
+    x = x[:3, :, :].float()
+    x[0] = (x[0] - stats['pixel_mean_0']) / stats['pixel_std_0']
+    x[1] = (x[1] - stats['pixel_mean_1']) / stats['pixel_std_1']
+    x[2] = (x[2] - stats['pixel_mean_2']) / stats['pixel_std_2']
+    return x
 
+# factories
 class UNetFactory(Factory):
     def get_trainer_class(self):
         return UNetTrainer
@@ -73,6 +84,9 @@ class UNetFactory(Factory):
 
     def get_dataloader_class(self):
         return TorchDataLoader
+    
+    def get_standard_preprocessor(self):
+        return channelwise_preprocessing
 
 
 class UNetTFFactory(Factory):
@@ -84,6 +98,10 @@ class UNetTFFactory(Factory):
 
     def get_dataloader_class(self):
         return TFDataLoader
+    
+    def get_standard_preprocessor(self):
+        return channelwise_preprocessing
+        
 
 
 class UNetPlusPlusFactory(Factory):
@@ -95,6 +113,9 @@ class UNetPlusPlusFactory(Factory):
 
     def get_dataloader_class(self):
         return TFDataLoader
+    
+    def get_standard_preprocessor(self):
+        return channelwise_preprocessing
 
 
 class AttUNetFactory(Factory):
@@ -117,6 +138,9 @@ class AttUNetPlusPlusTFFactory(Factory):
 
     def get_dataloader_class(self):
         return TFDataLoader
+    
+    def get_standard_preprocessor(self):
+        return channelwise_preprocessing
 
 
 class GLDenseUNetFactory(Factory):
@@ -128,6 +152,9 @@ class GLDenseUNetFactory(Factory):
 
     def get_dataloader_class(self):
         return TFDataLoader
+    
+    def get_standard_preprocessor(self):
+        return channelwise_preprocessing
 
 
 class DeepLabV3Factory(Factory):
@@ -139,6 +166,9 @@ class DeepLabV3Factory(Factory):
 
     def get_dataloader_class(self):
         return TorchDataLoader
+    
+    def get_standard_preprocessor(self):
+        return channelwise_preprocessing
 
 
 class CRANetFactory(Factory):
@@ -150,7 +180,9 @@ class CRANetFactory(Factory):
 
     def get_dataloader_class(self):
         return TorchDataLoader
-
+    
+    def get_standard_preprocessor(self):
+        return channelwise_preprocessing    
 
 class TwoShotNetFactory(Factory):
     def get_trainer_class(self):
@@ -161,6 +193,9 @@ class TwoShotNetFactory(Factory):
         
     def get_dataloader_class(self):
         return TorchDataLoader
+    
+    def get_standard_preprocessor(self):
+        return channelwise_preprocessing
         
         
 class SimpleRLCNNFactory(Factory):
@@ -172,6 +207,9 @@ class SimpleRLCNNFactory(Factory):
 
     def get_dataloader_class(self):
         return TorchDataLoader
+    
+    def get_standard_preprocessor(self):
+        return channelwise_preprocessing
 
 
 class DeepLabV3PlusGANFactory(Factory):
@@ -183,6 +221,9 @@ class DeepLabV3PlusGANFactory(Factory):
         
     def get_dataloader_class(self):
         return TorchDataLoader
+    
+    def get_standard_preprocessor(self):
+        return channelwise_preprocessing
         
 
 class SimpleRLCNNMinimalFactory(Factory):
@@ -194,6 +235,9 @@ class SimpleRLCNNMinimalFactory(Factory):
 
     def get_dataloader_class(self):
         return TorchDataLoader
+    
+    def get_standard_preprocessor(self):
+        return channelwise_preprocessing
 
 
 class UNetExpFactory(Factory):
@@ -205,6 +249,9 @@ class UNetExpFactory(Factory):
 
     def get_dataloader_class(self):
         return TFDataLoader
+    
+    def get_standard_preprocessor(self):
+        return channelwise_preprocessing
 
 
 class UNet3PlusFactory(Factory):
@@ -216,6 +263,9 @@ class UNet3PlusFactory(Factory):
 
     def get_dataloader_class(self):
         return TFDataLoader
+    
+    def get_standard_preprocessor(self):
+        return channelwise_preprocessing
 
 
 class FFT_UNetFactory(Factory):
@@ -227,6 +277,12 @@ class FFT_UNetFactory(Factory):
 
     def get_dataloader_class(self):
         return TorchDataLoader
+    
+    def get_standard_preprocessor(self):
+        preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
+        return preprocessing
+
+
 
 def get_torch_scheduler(optimizer, scheduler_name, kwargs):
     if scheduler_name == "steplr":
