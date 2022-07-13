@@ -279,7 +279,8 @@ def main_model_visualizer():
         print("Layer names:")
         for name in get_model_layers(model):
             print(name)
-        layer = input(">>>>>>>>>>>>>>>>> Please Enter the name of the layer you want to visualize:\n")
+        # layer = input(">>>>>>>>>>>>>>>>> Please Enter the name of the layer you want to visualize:\n")
+        layer = "net_inc_double_conv_0"
         images = calculate_activations_torch(model, device, dataloader, preprocessing, layer)
         
     else:
