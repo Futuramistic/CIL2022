@@ -1,9 +1,10 @@
 import itertools
-from random import randint
 import tensorflow as tf
 import warnings
 import math
 from .dataloader import DataLoader
+import time
+import random
 import utils
 
 class TFDataLoader(DataLoader):
@@ -140,7 +141,7 @@ class TFDataLoader(DataLoader):
         print(f'Test data consists of ({test_size}) samples')
 
         if self.use_augmentation:
-            return self.training_data.shuffle(50, reshuffle_each_iteration=True).map(self.augmentation,tf.data.AUTOTUNE).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+            return self.training_data.batch(batch_size).map(self.augmentation,tf.data.AUTOTUNE).prefetch(tf.data.AUTOTUNE)
 
         return self.training_data.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
@@ -214,8 +215,10 @@ class TFDataLoader(DataLoader):
 
     # Flip the image randomly (add possible augmentations later)
     def augmentation(self,image,label):
-        seed1 = randint(0,pow(2,31)-1)
-        seed2 = randint(0,pow(2,31)-1)
+
+        init_seed = random.seed(int(time.process_time()))
+        seed1 = tf.random.uniform([], minval=0, maxval=pow(2,31)-1, dtype=tf.dtypes.int32, seed=init_seed)
+        seed2 = tf.random.uniform([], minval=0, maxval=pow(2,31)-1, dtype=tf.dtypes.int32, seed=init_seed)
         seed = [seed1,seed2]
 
         # Flips
@@ -231,7 +234,7 @@ class TFDataLoader(DataLoader):
         # image = tf.clip_by_value(image,0,1)
 
         # Rotate by 90 degrees only - if we rotate by an aribitrary -> road my disappear!
-        i = randint(0,3)
+        i = tf.random.uniform([], minval=0, maxval=3, dtype=tf.dtypes.int32, seed=init_seed)
         image = tf.image.rot90(image,i)
         label = tf.image.rot90(label,i)
         return image, label
