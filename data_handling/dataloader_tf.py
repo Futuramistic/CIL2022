@@ -215,12 +215,9 @@ class TFDataLoader(DataLoader):
 
     # Flip the image randomly (add possible augmentations later)
     def augmentation(self,image,label):
-
-        init_seed = random.seed(int(time.process_time()))
-        seed1 = tf.random.uniform([], minval=0, maxval=pow(2,31)-1, dtype=tf.dtypes.int32, seed=init_seed)
-        seed2 = tf.random.uniform([], minval=0, maxval=pow(2,31)-1, dtype=tf.dtypes.int32, seed=init_seed)
+        seed1 = tf.random.uniform([], minval=0, maxval=pow(2,31)-1, dtype=tf.dtypes.int32, seed=None)
+        seed2 = tf.random.uniform([], minval=0, maxval=pow(2,31)-1, dtype=tf.dtypes.int32, seed=None)
         seed = [seed1,seed2]
-
         # Flips
         image = tf.image.stateless_random_flip_left_right(image,seed=seed)
         label = tf.image.stateless_random_flip_left_right(label,seed=seed)
@@ -234,7 +231,7 @@ class TFDataLoader(DataLoader):
         # image = tf.clip_by_value(image,0,1)
 
         # Rotate by 90 degrees only - if we rotate by an aribitrary -> road my disappear!
-        i = tf.random.uniform([], minval=0, maxval=3, dtype=tf.dtypes.int32, seed=init_seed)
+        i = tf.random.uniform([], minval=0, maxval=3, dtype=tf.dtypes.int32, seed=None)
         image = tf.image.rot90(image,i)
         label = tf.image.rot90(label,i)
         return image, label
