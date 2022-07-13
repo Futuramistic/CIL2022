@@ -63,20 +63,20 @@ def main():
     model_type = options.model_type
     model_name = model_name.lower().replace('-', '').replace('_', '')
 
-    # if os.path.exists(checkpoints_output_dir):
-    #     answer = input(f'{checkpoints_output_dir} already exists. Do you want to overwrite it? [y/n]')
-    #     if answer.lower() == 'y':
-    #         shutil.rmtree(checkpoints_output_dir)
-    #     else:
-    #         print('Exiting...')
-    #         exit(-1)
-    # os.mkdir(checkpoints_output_dir)
-    #
-    # with open(sftp_paths_file) as file:
-    #     sftp_paths = file.readlines()
-    #
-    # for sftp_path in sftp_paths:
-    #     load_checkpoint(sftp_path, model_type=model_type)
+    if os.path.exists(checkpoints_output_dir):
+        answer = input(f'{checkpoints_output_dir} already exists. Do you want to overwrite it? [y/n]')
+        if answer.lower() == 'y':
+            shutil.rmtree(checkpoints_output_dir)
+        else:
+            print('Exiting...')
+            exit(-1)
+    os.mkdir(checkpoints_output_dir)
+
+    with open(sftp_paths_file) as file:
+        sftp_paths = file.readlines()
+
+    for sftp_path in sftp_paths:
+        load_checkpoint(sftp_path, model_type=model_type)
 
     if os.path.exists(output_predictions_dir):
         shutil.rmtree(output_predictions_dir)
