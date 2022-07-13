@@ -12,6 +12,7 @@ import tensorflow as tf
 import tensorflow.keras.callbacks as KC
 from urllib.parse import urlparse
 from blobs_remover import remove_blobs
+from threshold_optimizer import ThresholdOptimizer
 
 from requests.auth import HTTPBasicAuth
 
@@ -27,7 +28,7 @@ class TFTrainer(Trainer, abc.ABC):
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None, evaluation_interval=None,
                  num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
-                 segmentation_threshold=None, use_channelwise_norm=False, blobs_removal_threshold=0):
+                 segmentation_threshold=None, use_channelwise_norm=False, blobs_removal_threshold=0, hyper_seg_threshold=False):
         """
         Abstract class for TensorFlow-based model trainers.
         Args:
@@ -37,10 +38,15 @@ class TFTrainer(Trainer, abc.ABC):
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
-                         blobs_removal_threshold)
+                         blobs_removal_threshold, hyper_seg_threshold)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
+        
+        if hyper_seg_threshold:
+            self.seg_thresh_dataloader = self.dataloader.get_training_dataloader(split=0.2, batch_size=1,
+                                                                preprocessing=self.preprocessing)
+        
     # Subclassing tensorflow.keras.callbacks.Callback (here: KC.Callback) allows us to override various functions to be
     # called when specific events occur while fitting a model using TF's model.fit(...). An instance of the subclass
     # needs to be passed in the "callbacks" parameter (which, if specified, can either be a single instance, or a list
@@ -106,8 +112,8 @@ class TFTrainer(Trainer, abc.ABC):
 
         def on_train_batch_end(self, batch, logs=None):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                precision, recall, f1_score = self.trainer.get_precision_recall_F1_score_validation()
-                metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score}
+                precision, recall, f1_score, self.segmentation_threshold = self.trainer.get_precision_recall_F1_score_validation()
+                metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score, 'seg_threshold': self.segmentation_threshold}
                 print('\nMetrics at aggregate iteration %i (ep. %i, ep.-it. %i): %s'
                       % (self.iteration_idx, self.epoch_idx, batch, str(metrics)))
                 if mlflow_logger.logging_to_mlflow_enabled():
@@ -175,9 +181,29 @@ class TFTrainer(Trainer, abc.ABC):
                 output = np.expand_dims(output, axis=channel_dim_idx)
 
             preds = (output >= self.segmentation_threshold).astype(np.float)
-            # preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
             batch_ys = np.moveaxis(batch_ys, -1, 1)  # TODO only do this if we know the network uses HWC format
             preds = np.moveaxis(preds, -1, 1)
+
+            # preds = remove_blobs(preds, self.blobs_removal_threshold)
+
+            # print('shape', preds.shape)
+            preds_list = []
+            for i in range(preds.shape[0]):
+                # print('preds[i]', preds[i].shape)
+                pred_ = remove_blobs(preds[i], threshold=self.blobs_removal_threshold)
+                # print('pred_', pred_.shape)
+                if len(pred_.shape) == 2:
+                    preds_list.append(pred_[None, None, :, :])
+                elif len(pred_.shape) == 3:
+                    preds_list.append(pred_[None, :, :, :])
+                else:
+                    print('problem', pred_.shape)
+            # print('len', len(preds_list))
+            preds = np.concatenate(preds_list, axis=0)
+            # print(preds.shape)
+
+            # preds = np.expand_dims(preds, axis=1)  # so add it back, in CHW format
+
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
             self._fill_images_array(preds, batch_ys, images)
 
@@ -244,11 +270,14 @@ class TFTrainer(Trainer, abc.ABC):
                                     filepath=os.path.join(CHECKPOINTS_DIR, "cp_final.ckpt"))
 
     def get_F1_score_validation(self):
-        _, _, f1_score = self.get_precision_recall_F1_score_validation()
+        _, _, f1_score, _ = self.get_precision_recall_F1_score_validation()
         return f1_score
 
     def get_precision_recall_F1_score_validation(self):
         precisions, recalls, f1_scores = [], [], []
+        threshold = self.segmentation_threshold
+        if self.hyper_seg_threshold:
+            threshold = self.get_best_segmentation_threshold()
         _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
         for x, y in self.test_loader.take(test_dataset_size):
             output = self.model(x)
@@ -256,16 +285,18 @@ class TFTrainer(Trainer, abc.ABC):
             # More channels than needed - U^2-Net-style
             if(len(output.shape)==5):
                 output = output[0]
-                
-            preds = tf.cast(output >= self.segmentation_threshold, tf.dtypes.int8)
-            preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
+            preds = tf.cast(tf.squeeze(output) >= threshold, tf.dtypes.int8)
+            # print('tf preds', preds.shape)
+            blb_input = preds.numpy()
+            preds = remove_blobs(blb_input, threshold=self.blobs_removal_threshold)
+            # print('tf preds 2', preds.shape)
             precision, recall, f1_score = precision_recall_f1_score_tf(preds, y)
             precisions.append(precision.numpy().item())
             recalls.append(recall.numpy().item())
             f1_scores.append(f1_score.numpy().item())
-        return np.mean(precisions), np.mean(recalls), np.mean(f1_scores)
+        return np.mean(precisions), np.mean(recalls), np.mean(f1_scores), threshold
 
-    def find_best_segmentation_threshold(self,step=0.05):
+    ''' def find_best_segmentation_threshold(self,step=0.05):
         # Save original threshold
         original_threshold = self.segmentation_threshold
         best_threshold = None
@@ -279,4 +310,21 @@ class TFTrainer(Trainer, abc.ABC):
         # Restore to the original threshold
         self.segmentation_threshold = original_threshold
         print(f'F1 score: {best_f1:.4f} for threshold: {best_threshold:.4f}')
+        return best_threshold '''
+    
+    def get_best_segmentation_threshold(self):
+        predictions = []
+        targets = []
+        threshold_optimizer = ThresholdOptimizer()
+        dataloader_len, _, _ = self.dataloader.get_dataset_sizes(split=0.2)
+        for (x,y) in self.seg_thresh_dataloader.take(dataloader_len):
+            output = self.model(x)
+            # More channels than needed - U^2-Net-style
+            if(len(output.shape)==5):
+                output = output[0]
+            blb_input = tf.squeeze(output).numpy()
+            preds = remove_blobs(blb_input, threshold=self.blobs_removal_threshold)
+            predictions.append(preds)
+            targets.append(y)
+        best_threshold = threshold_optimizer.run(predictions, targets, f1_score_tf)
         return best_threshold

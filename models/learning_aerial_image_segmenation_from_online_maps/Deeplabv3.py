@@ -11,5 +11,3 @@ class Deeplabv3(nn.Module):
 
     def forward(self, x):
         return self.model(x)["out"]
-    
-    

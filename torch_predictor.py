@@ -10,7 +10,7 @@ from models.learning_aerial_image_segmenation_from_online_maps.Unet import UNet
 from data_handling.dataloader_torch import TorchDataLoader
 from trainers.u_net import UNetTrainer
 from utils import *
-
+from blobs_remover import remove_blobs
 
 from losses import *
 import numpy as np
@@ -62,9 +62,11 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=False):
                 output = output[0]
             if apply_sigmoid:
                 output = sigmoid(output)
-            pred = (output >= segmentation_threshold).cpu().detach().numpy().astype(int) * 255
+            pred = (output >= segmentation_threshold).cpu().detach().numpy().astype(int)
             while len(pred.shape) > 3:
                 pred = pred[0]
+            pred = remove_blobs(pred, threshold=blob_threshold)
+            pred *= 255
             K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred, data_format="channels_first")
             i += 1
             del x
@@ -145,8 +147,9 @@ dataset = 'original'
 sigmoid = torch.nn.Sigmoid()
 
 # Parameters
+blob_threshold = 250
 model_name = 'cranet'                               # <<<<<<<<<<<<<<<<<< Insert model type
-trained_model_path = 'cp_final_cra.pt'                      # <<<<<<<<<<<<<<<<<< Insert trained model name
+trained_model_path = 'cra_ext_aug_better_2720.pt'   # <<<<<<<<<<<<<<<<<< Insert trained model name
 apply_sigmoid = False                                   # <<<<<<<<<<<<<<<< Specify whether Sigmoid should
                                                             # be applied to the model's output
 
@@ -168,12 +171,14 @@ model.load_state_dict(model_data['model'])
 model.eval()
 
 preprocessing = trainer.preprocessing
-train_loader = dataloader.get_training_dataloader(split=1, batch_size=1, preprocessing=preprocessing)
+
+original_dataloader = factory.get_dataloader_class()(dataset='original')
+train_loader = original_dataloader.get_training_dataloader(split=0.174, batch_size=1, preprocessing=preprocessing)
 test_loader = dataloader.get_unlabeled_testing_dataloader(batch_size=1, preprocessing=preprocessing)
 
 create_or_clean_directory(OUTPUT_PRED_DIR)
 
-segmentation_threshold = 0.45  # compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
+segmentation_threshold = compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
 
 predict(segmentation_threshold, apply_sigmoid=apply_sigmoid, with_augmentation=False)
 
