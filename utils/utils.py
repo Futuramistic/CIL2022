@@ -164,7 +164,7 @@ def is_perfect_square(n):
 
 
 # Cross-platform SFTP directory downloading code adapted from https://stackoverflow.com/a/50130813
-def sftp_download_dir_portable(sftp, remote_dir, local_dir, preserve_mtime=False):
+def sftp_download_dir_portable(sftp, remote_dir, local_dir, preserve_mtime=False, callback=None):
     # sftp: pysftp connection object
     for entry in sftp.listdir_attr(remote_dir):
         remote_path = remote_dir + "/" + entry.filename
@@ -175,9 +175,9 @@ def sftp_download_dir_portable(sftp, remote_dir, local_dir, preserve_mtime=False
                 os.mkdir(local_path)
             except OSError:     
                 pass
-            sftp_download_dir_portable(sftp, remote_path, local_path, preserve_mtime)
+            sftp_download_dir_portable(sftp, remote_path, local_path, preserve_mtime, callback)
         elif S_ISREG(mode):
-            sftp.get(remote_path, local_path, preserve_mtime=preserve_mtime)
+            sftp.get(remote_path, local_path, preserve_mtime=preserve_mtime, callback=callback)
 
 
 # Create output directory if it does not exist, or clean it if it does

@@ -81,7 +81,8 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=False):
             pred *= 255
             while len(pred.shape) == 2:
                 pred = pred[None, :, :]
-            K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred, data_format="channels_first")
+            K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred,
+                                           data_format="channels_first")
             i += 1
             del x
 
@@ -169,16 +170,11 @@ def main():
     trained_model_path = options.checkpoint
     apply_sigmoid = options.apply_sigmoid
 
-    # model_name = 'deeplabv3'
-    # trained_model_path = 'cp_final_dlv.pt'
-    # apply_sigmoid = True
-
     # Parameters
     blob_threshold = 250
     # model_name = 'cranet'                               # <<<<<<<<<<<<<<<<<< Insert model type
     # trained_model_path = 'cra_ext_aug_better_2720.pt'   # <<<<<<<<<<<<<<<<<< Insert trained model name
-    # apply_sigmoid = False                               # <<<<<<<<<<<<<<<< Specify whether Sigmoid should
-    #                                                     # be applied to the model's output
+    # apply_sigmoid = False                               # <<<<<<<<<<<<<<<< Apply sigmoid or not to model's output
 
     # Create loader, trainer etc. from factory
     factory = Factory.get_factory(model_name)
@@ -205,7 +201,7 @@ def main():
 
     create_or_clean_directory(OUTPUT_PRED_DIR)
 
-    segmentation_threshold = 0.9  # compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
+    segmentation_threshold = compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
 
     predict(segmentation_threshold, apply_sigmoid=apply_sigmoid, with_augmentation=False)
 
