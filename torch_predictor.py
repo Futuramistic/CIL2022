@@ -2,6 +2,7 @@
 import torch
 from tqdm import tqdm
 import pexpect
+import argparse
 
 import torchvision.transforms.functional as TF
 from factory import Factory
@@ -16,6 +17,17 @@ from losses import *
 import numpy as np
 import tensorflow.keras as K
 from utils import *
+
+
+# Fixed constants
+offset = 144  # Numbering of first test image
+dataset = 'original'
+sigmoid = torch.nn.Sigmoid()
+
+device = None
+model = None
+test_loader = None
+blob_threshold = None
 
 
 # modify in tf_predictor.py as well!
@@ -67,6 +79,8 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=False):
                 pred = pred[0]
             pred = remove_blobs(pred, threshold=blob_threshold)
             pred *= 255
+            while len(pred.shape) == 2:
+                pred = pred[None, :, :]
             K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred, data_format="channels_first")
             i += 1
             del x
@@ -141,44 +155,60 @@ def _unify(images):
     return _ensemble(images)
 
 
-# Fixed constants
-offset = 144  # Numbering of first test image
-dataset = 'original'
-sigmoid = torch.nn.Sigmoid()
+def main():
+    parser = argparse.ArgumentParser(description='Predictions maker for torch models')
+    parser.add_argument('-m', '--model', type=str, required=True)
+    parser.add_argument('-c', '--checkpoint', type=str, required=True)
+    parser.add_argument('--apply_sigmoid', dest='apply_sigmoid', action='store_true', required=False)
+    parser.set_defaults(apply_sigmoid=False)
+    options = parser.parse_args()
 
-# Parameters
-blob_threshold = 250
-model_name = 'cranet'                               # <<<<<<<<<<<<<<<<<< Insert model type
-trained_model_path = 'cra_ext_aug_better_2720.pt'   # <<<<<<<<<<<<<<<<<< Insert trained model name
-apply_sigmoid = False                                   # <<<<<<<<<<<<<<<< Specify whether Sigmoid should
-                                                            # be applied to the model's output
+    global blob_threshold, test_loader, model, device
 
-# Create loader, trainer etc. from factory
-factory = Factory.get_factory(model_name)
-dataloader = factory.get_dataloader_class()(dataset=dataset)
-model = factory.get_model_class()()
-device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-model = model.to(device)
-trainer_class = factory.get_trainer_class()
-trainer = trainer_class(dataloader=dataloader, model=model)  # , load_checkpoint_path=trained_model_path)
+    model_name = options.model
+    trained_model_path = options.checkpoint
+    apply_sigmoid = options.apply_sigmoid
 
-# Load the trained model weights
-if torch.cuda.is_available():
-    model_data = torch.load(trained_model_path)
-else:
-    model_data = torch.load(trained_model_path, map_location=device)
-model.load_state_dict(model_data['model'])
-model.eval()
+    # model_name = 'deeplabv3'
+    # trained_model_path = 'cp_final_dlv.pt'
+    # apply_sigmoid = True
 
-preprocessing = trainer.preprocessing
+    # Parameters
+    blob_threshold = 250
+    # model_name = 'cranet'                               # <<<<<<<<<<<<<<<<<< Insert model type
+    # trained_model_path = 'cra_ext_aug_better_2720.pt'   # <<<<<<<<<<<<<<<<<< Insert trained model name
+    # apply_sigmoid = False                               # <<<<<<<<<<<<<<<< Specify whether Sigmoid should
+    #                                                     # be applied to the model's output
 
-original_dataloader = factory.get_dataloader_class()(dataset='original')
-train_loader = original_dataloader.get_training_dataloader(split=0.174, batch_size=1, preprocessing=preprocessing)
-test_loader = dataloader.get_unlabeled_testing_dataloader(batch_size=1, preprocessing=preprocessing)
+    # Create loader, trainer etc. from factory
+    factory = Factory.get_factory(model_name)
+    dataloader = factory.get_dataloader_class()(dataset=dataset)
+    model = factory.get_model_class()()
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    model = model.to(device)
+    trainer_class = factory.get_trainer_class()
+    trainer = trainer_class(dataloader=dataloader, model=model)  # , load_checkpoint_path=trained_model_path)
 
-create_or_clean_directory(OUTPUT_PRED_DIR)
+    # Load the trained model weights
+    if torch.cuda.is_available():
+        model_data = torch.load(trained_model_path)
+    else:
+        model_data = torch.load(trained_model_path, map_location=device)
+    model.load_state_dict(model_data['model'])
+    model.eval()
 
-segmentation_threshold = compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
+    preprocessing = trainer.preprocessing
 
-predict(segmentation_threshold, apply_sigmoid=apply_sigmoid, with_augmentation=False)
+    original_dataloader = factory.get_dataloader_class()(dataset='original')
+    train_loader = original_dataloader.get_training_dataloader(split=0.174, batch_size=1, preprocessing=preprocessing)
+    test_loader = dataloader.get_unlabeled_testing_dataloader(batch_size=1, preprocessing=preprocessing)
 
+    create_or_clean_directory(OUTPUT_PRED_DIR)
+
+    segmentation_threshold = 0.9  # compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
+
+    predict(segmentation_threshold, apply_sigmoid=apply_sigmoid, with_augmentation=False)
+
+
+if __name__ == '__main__':
+    main()

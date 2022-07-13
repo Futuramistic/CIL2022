@@ -1,0 +1,2 @@
+sftp://mlflow_user:waiMohu749@algvrithm.com:22/mlruns/161/bc5d868756274a949330033347299c8d/artifacts/checkpoints/cp_final.pt
+sftp://mlflow_user:waiMohu749@algvrithm.com:22/mlruns/161/bc5d868756274a949330033347299c8d/artifacts/checkpoints/cp_ep-00043_epit-00011_step-1000.pt
