@@ -9,10 +9,14 @@ import utils
 
 class TFDataLoader(DataLoader):
 
-    def __init__(self, dataset="original", pad32 = False, use_augmentation = False):
+    def __init__(self, dataset="original", pad32 = False, use_augmentation = False, contrast = [0.8,1.2], brightness = 0.2, saturation=[0.8,1.2]):
         super().__init__(dataset)
         self.pad32 = pad32
         self.use_augmentation = use_augmentation
+        self.contrast = contrast
+        self.saturation = saturation
+        # Symmetrical double
+        self.brightness = brightness
 
     # Get the sizes of the training, test and unlabeled datasets associated with this DataLoader.
     # Args:
@@ -225,10 +229,10 @@ class TFDataLoader(DataLoader):
         label = tf.image.stateless_random_flip_up_down(label,seed=seed)
 
         # Image colour changes
-        # image = tf.image.stateless_random_brightness(image,max_delta=0.2,seed=seed)
-        # image = tf.image.stateless_random_saturation(image,lower=0.8,upper=1.2,seed=seed)
-        # image = tf.image.stateless_random_contrast(image,lower=0.8,upper=1.2,seed=seed)
-        # image = tf.clip_by_value(image,0,1)
+        image = tf.image.random_brightness(image,max_delta=self.brightness,seed=None)
+        image = tf.image.random_saturation(image,lower=self.saturation[0],upper=self.saturation[1],seed=None)
+        image = tf.image.random_contrast(image,lower=self.contrast[0],upper=self.contrast[1],seed=None)
+        image = tf.clip_by_value(image,0.0,1.0)
 
         # Rotate by 90 degrees only - if we rotate by an aribitrary -> road my disappear!
         i = tf.random.uniform([], minval=0, maxval=3, dtype=tf.dtypes.int32, seed=None)
