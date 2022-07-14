@@ -248,7 +248,8 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'dropout': dropout,
             'kernel_init':kernel_init,
             'normalize':normalize,
-            'kernel_regularizer': kernel_regularizer
+            'kernel_regularizer': kernel_regularizer,
+            'activation':tf.nn.silu
         }
 
         out_args = {
