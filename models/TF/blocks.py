@@ -49,14 +49,14 @@ class ConvoRelu_Block(tf.keras.layers.Layer):
 
 class Convo_Block(tf.keras.layers.Layer):
     def __init__(self,name="convo-block",dropout=0.5,filters=64,kernel_init='he_normal',kernel_regularizer=K.regularizers.l2(),
-                 normalize=False,kernel_size=3,dilation_rate=1,**kwargs):
+                 normalize=False,kernel_size=3,dilation_rate=1,activation='leaky_relu',**kwargs):
         super(Convo_Block, self).__init__(name=name,**kwargs)     
         self.convorelu1 = ConvoRelu_Block(name=name+"-convoRelu-1",dropout=dropout,filters=filters,kernel_init=kernel_init,
                                           normalize=normalize,kernel_regularizer=kernel_regularizer,
-                                          kernel_size=kernel_size,dilation_rate=dilation_rate)
+                                          kernel_size=kernel_size,dilation_rate=dilation_rate,activation=activation)
         self.convorelu2 = ConvoRelu_Block(name=name+"-convoRelu-2",dropout=dropout,filters=filters,kernel_init=kernel_init,
                                           normalize=normalize,kernel_regularizer=kernel_regularizer,
-                                          kernel_size=kernel_size,dilation_rate=dilation_rate)
+                                          kernel_size=kernel_size,dilation_rate=dilation_rate,activation=activation)
 
     # Expose training:
     # - Dropout -> only performed while training
