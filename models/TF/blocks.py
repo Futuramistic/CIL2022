@@ -67,11 +67,11 @@ class Convo_Block(tf.keras.layers.Layer):
 
 class Down_Block(tf.keras.layers.Layer):
     def __init__(self,name="down-block",dropout=0.5,filters=64,kernel_init='he_normal',kernel_regularizer=K.regularizers.l2(),
-                 normalize=False,kernel_size=3,dilation_rate=1,**kwargs):
+                 normalize=False,kernel_size=3,dilation_rate=1,activation='leaky_relu',**kwargs):
         super(Down_Block,self).__init__(name=name,**kwargs)
         self.convo_block = Convo_Block(name+"-convo-block",dropout=dropout,filters=filters,kernel_init=kernel_init,
                                        normalize=normalize,kernel_regularizer=kernel_regularizer,
-                                       kernel_size=kernel_size,dilation_rate=dilation_rate)
+                                       kernel_size=kernel_size,dilation_rate=dilation_rate,activation=activation)
         self.pool = MaxPool2D(pool_size=(2,2),strides=2,padding='same',name=name+"-max-pool")
     
     # Expose training
