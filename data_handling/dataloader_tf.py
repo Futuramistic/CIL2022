@@ -9,14 +9,14 @@ import utils
 
 class TFDataLoader(DataLoader):
 
-    def __init__(self, dataset="original", pad32 = False, use_augmentation = False,use_color_augmentation=False,contrast=[0.8,1.2],brightness=0.2,saturation=[0.8,1.2]):
+    def __init__(self, dataset="original", pad32=False, use_geometric_augmentation=False, use_color_augmentation=False, aug_contrast=[0.8,1.2], aug_brightness=0.2, aug_saturation=[0.8,1.2]):
         super().__init__(dataset)
         self.pad32 = pad32
-        self.use_augmentation = use_augmentation
-        self.contrast = contrast
-        self.saturation = saturation
+        self.contrast = aug_contrast
+        self.saturation = aug_saturation
         # Symmetrical double
-        self.brightness = brightness
+        self.brightness = aug_brightness
+        self.use_geometric_augmentation = use_geometric_augmentation
         self.use_color_augmentation = use_color_augmentation
 
     # Get the sizes of the training, test and unlabeled datasets associated with this DataLoader.
@@ -145,7 +145,7 @@ class TFDataLoader(DataLoader):
         print(f'Train data consists of ({train_size}) samples')
         print(f'Test data consists of ({test_size}) samples')
 
-        if self.use_augmentation:
+        if self.use_geometric_augmentation:
             return self.training_data.batch(batch_size).map(self.augmentation,tf.data.AUTOTUNE).prefetch(tf.data.AUTOTUNE)
 
         return self.training_data.batch(batch_size).prefetch(tf.data.AUTOTUNE)

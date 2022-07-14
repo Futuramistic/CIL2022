@@ -34,7 +34,8 @@ def main():
                     'max_rollout_len', 'std', 'reward_discount_factor', 'num_policy_epochs', 'policy_batch_size',
                     'sample_from_action_distributions', 'visualization_interval', 'min_steps', 'rollout_len',
                     'blobs_removal_threshold', 'T', 'hyper_seg_threshold']
-    dataloader_args = ['dataset', 'd']
+    dataloader_args = ['dataset', 'd', 'use_geometric_augmentation', 'use_color_augmentation',
+                       'aug_brightness', 'aug_contrast', 'aug_saturation']
 
     # list of other arguments to avoid passing to constructor of model class
     filter_args = ['h', 'model', 'm', 'evaluate', 'eval', 'V']

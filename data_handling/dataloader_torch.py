@@ -1,15 +1,22 @@
 import warnings
 import torch
-from torch.utils.data import DataLoader as torchDL, Subset
+from torch.utils.data import DataLoader as torchDL, Dataset, Subset
 from .torchDataset import SegmentationDataset
 from .dataloader import DataLoader
+from torchvision import transforms
 import utils
 from models import *
 
 
 class TorchDataLoader(DataLoader):
-    def __init__(self, dataset="original"):
+    def __init__(self, dataset="original", use_geometric_augmentation=True, use_color_augmentation=True,
+                 aug_contrast=[0.8,1.2], aug_brightness=0.2, aug_saturation=[0.8,1.2]):
         super().__init__(dataset)
+        self.use_geometric_augmentation = use_geometric_augmentation
+        self.use_color_augmentation = use_color_augmentation
+        self.contrast = aug_contrast
+        self.brightness = aug_brightness
+        self.saturation = aug_saturation
 
     def get_dataset_sizes(self, split):
         """
@@ -62,10 +69,13 @@ class TorchDataLoader(DataLoader):
         # and may not be stochastic, so as to ensure comparability across models/runs
         # for the same reason, while the training set should be shuffled, the test set should not
 
-        dataset = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing)
-        training_data_len = int(len(dataset)*split)
-        testing_data_len = len(dataset)-training_data_len
-        
+        training_data_len = int(len(self.training_img_paths)*split)
+        testing_data_len = len(self.training_img_paths)-training_data_len
+
+        dataset = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing, training_data_len,
+                                      self.use_geometric_augmentation, self.use_color_augmentation, self.contrast,
+                                      self.brightness, self.saturation)
+
         self.training_data = Subset(dataset, list(range(training_data_len)))
         self.testing_data = Subset(dataset, list(range(training_data_len, len(dataset))))
         
@@ -95,9 +105,11 @@ class TorchDataLoader(DataLoader):
                     If groundtruth test data is explicitely available in the Dataset, this will be used, otherwise the complete training dataset will be used.\n \
                         Call <get_unlabeled_testing_dataloader()> in order to get the test data of a dataset without annotations.")
             if self.test_gt_dir is not None:
-                self.testing_data = SegmentationDataset(self.test_img_paths, self.test_gt_paths, preprocessing)
+                self.testing_data = SegmentationDataset(self.test_img_paths, self.test_gt_paths, preprocessing,
+                                                        use_color_augmentation=False, use_geometric_augmentation=False)
             else:
-                self.testing_data = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing)
+                self.testing_data = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing,
+                                                        use_color_augmentation=False, use_geometric_augmentation=False)
         
         ret = torchDL(self.testing_data, batch_size, shuffle=False, **args)
         ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)
@@ -119,7 +131,9 @@ class TorchDataLoader(DataLoader):
         if self.unlabeled_testing_data is None:
             # self.unlabeled_testing_data = SegmentationDataset(*utils.consistent_shuffling(self.test_img_paths), None,
             #                                                   preprocessing)
-            self.unlabeled_testing_data = SegmentationDataset(self.test_img_paths, None, preprocessing)
+            self.unlabeled_testing_data = SegmentationDataset(self.test_img_paths, None, preprocessing,
+                                                              use_color_augmentation=False,
+                                                              use_geometric_augmentation=False)
         ret = torchDL(self.unlabeled_testing_data, batch_size, shuffle=False, **args)
         ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)
         return ret

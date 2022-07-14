@@ -45,6 +45,8 @@ class TorchTrainer(Trainer, abc.ABC):
         if hyper_seg_threshold:
             self.seg_thresh_dataloader = self.dataloader.get_training_dataloader(split=0.2, batch_size=1,
                                                                 preprocessing=self.preprocessing)
+            # initialize again, else we will not use entire training dataset but only a split of 0.2 !
+            self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size, preprocessing=self.preprocessing)
         
         
         

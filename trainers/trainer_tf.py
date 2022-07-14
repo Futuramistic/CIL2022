@@ -42,10 +42,13 @@ class TFTrainer(Trainer, abc.ABC):
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
-        
+
         if hyper_seg_threshold:
             self.seg_thresh_dataloader = self.dataloader.get_training_dataloader(split=0.2, batch_size=1,
                                                                 preprocessing=self.preprocessing)
+
+            # initialize again, else we will not use entire training dataset but only a split of 0.2 !
+            self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size, preprocessing=self.preprocessing)
         
     # Subclassing tensorflow.keras.callbacks.Callback (here: KC.Callback) allows us to override various functions to be
     # called when specific events occur while fitting a model using TF's model.fit(...). An instance of the subclass
