@@ -9,8 +9,8 @@ from models import *
 
 
 class TorchDataLoader(DataLoader):
-    def __init__(self, dataset="original", use_geometric_augmentation=True, use_color_augmentation=True,
-                 aug_contrast=[0.8,1.2], aug_brightness=0.2, aug_saturation=[0.8,1.2]):
+    def __init__(self, dataset="original", use_geometric_augmentation=False, use_color_augmentation=False,
+                 aug_contrast=[0.8,1.2], aug_brightness=[0.8, 1.2], aug_saturation=[0.8,1.2]):
         super().__init__(dataset)
         self.use_geometric_augmentation = use_geometric_augmentation
         self.use_color_augmentation = use_color_augmentation
