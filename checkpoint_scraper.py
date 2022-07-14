@@ -1,14 +1,18 @@
-import os
-import sys
-import time
 import argparse
-import shutil
-import pysftp
 import hashlib
+import os
+import pysftp
 import requests
 from requests.auth import HTTPBasicAuth
-from utils import *
+import shutil
+import sys
+import time
 from urllib.parse import urlparse
+
+from data_handling import *
+from factory import *
+from utils import *
+
 
 os.environ['MLFLOW_TRACKING_USERNAME'] = MLFLOW_HTTP_USER
 os.environ['MLFLOW_TRACKING_PASSWORD'] = MLFLOW_HTTP_PASS
@@ -24,11 +28,11 @@ def sftp_url_to_command(url):
     return command
 
 
-def load_checkpoint(checkpoint_path, model_type):
+def load_checkpoint(checkpoint_path):
     load_from_sftp = checkpoint_path.lower().startswith('sftp://')
     if load_from_sftp:
         original_checkpoint_hash = hashlib.md5(str.encode(checkpoint_path)).hexdigest()
-        extension = 'pt' if model_type == 'torch' else 'ckpt'
+        extension = 'pt' if checkpoint_path.lower().endswith('.pt') else 'ckpt'
         final_checkpoint_path = f'{checkpoints_output_dir}/checkpoint_{original_checkpoint_hash}.{extension}'
         condition = os.path.isfile(final_checkpoint_path) if extension == 'pt' else os.path.isdir(final_checkpoint_path)
         if not condition:
@@ -52,16 +56,16 @@ def load_checkpoint(checkpoint_path, model_type):
             print(f'\nDownload successful')
         else:
             print(f'Checkpoint "{checkpoint_path}", to be downloaded to "{final_checkpoint_path}", found on disk\n')
+        return final_checkpoint_path
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Downloads the given checkpoints and create an ensembled prediction')
-    parser.add_argument('-m', '--model', type=str, required=True, help='Model name')
-    parser.add_argument('-t', '--model_type', type=str, required=True, help='Model type in [torch, tensorflow]')
+    parser = argparse.ArgumentParser(description='Downloads the given checkpoints and creates an ensembled prediction')
+    parser.add_argument('-m', '--model', type=str, default=None, help='Default model name (can specify different names in "sftp_paths.txt")')
     options = parser.parse_args()
     model_name = options.model
-    model_type = options.model_type
-    model_name = model_name.lower().replace('-', '').replace('_', '')
+    if model_name is not None:
+        model_name = model_name.lower().replace('-', '').replace('_', '')
 
     if os.path.exists(checkpoints_output_dir):
         answer = input(f'{checkpoints_output_dir} already exists. Do you want to overwrite it? [y/n]')
@@ -72,28 +76,44 @@ def main():
             exit(-1)
     os.mkdir(checkpoints_output_dir)
 
+    current_model_name = options.model
+    sftp_paths = []
+    sftp_path_model_names = []
     with open(sftp_paths_file) as file:
-        sftp_paths = file.readlines()
+        for line in map(lambda l: l.strip(), file.readlines()):
+            if '#' in line: 
+                line = line[:line.index('#')].strip()
+            if line == '':
+                continue
+            if line.endswith(':'):
+                current_model_name = line.replace(':', '')
+            else:
+                sftp_paths.append(line)
+                sftp_path_model_names.append(current_model_name)
 
+    checkpoint_paths = []
     for sftp_path in sftp_paths:
-        load_checkpoint(sftp_path, model_type=model_type)
+        checkpoint_paths.append(load_checkpoint(sftp_path))
 
     if os.path.exists(output_predictions_dir):
         shutil.rmtree(output_predictions_dir)
     os.mkdir(output_predictions_dir)
 
-    predictor_script = 'torch_predictor' if model_type == 'torch' else 'tf_predictor'
-    for i, checkpoint in enumerate(os.listdir(checkpoints_output_dir)):
+    for idx, checkpoint in enumerate(checkpoint_paths):
+        fact = Factory.get_factory(model_name=sftp_path_model_names[idx])
+        is_torch = issubclass(fact.get_dataloader_class(), TorchDataLoader)  # also captures torch RL models with different trainer
+        predictor_script = 'torch_predictor' if is_torch else 'tf_predictor'
         command = f"python {predictor_script}.py -m {model_name} -c {checkpoints_output_dir}/{checkpoint}"
-        if model_name == 'deeplabv3':
+        if model_name in ['deeplabv3', 'cranet']:
             command += ' --apply_sigmoid'
         os.system(command)
         os.system('python mask_to_submission.py')
         move_command = 'move' if os.name == 'nt' else 'mv'
-        os.system(f'{move_command} dummy_submission.csv {output_predictions_dir}/{i}.csv')
+        os.system(f'{move_command} dummy_submission.csv {output_predictions_dir}/{idx}.csv')
 
     os.system(f'python ensembled_submission_creator.py')
 
 
 if __name__ == '__main__':
     main()
+
