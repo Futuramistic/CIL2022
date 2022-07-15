@@ -1,5 +1,6 @@
 import math
 import numpy as np
+from datetime import datetime
 import random
 import torch
 import torch.cuda
@@ -25,16 +26,27 @@ from PIL import Image, ImageDraw
 # TODO: try letting the policy network output sigma parameters of distributions as well!
 
 EPSILON = 1e-5
+log_debug_indent = 0
+
+
+def log_debug(line, no_line_break=False, log_timestamp=True):
+    global log_debug_indent
+    to_print = ('[' + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + '] ' + log_debug_indent * '  ' + line) if log_timestamp else line
+    if no_line_break:
+        print(to_print, end='', flush=True)
+    else:
+        print( to_print)
+
 
 class TorchRLTrainerMinimal(TorchTrainer):
     def __init__(self, dataloader, model, preprocessing=None,
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, scheduler=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
-                 load_checkpoint_path=None, segmentation_threshold=None,
-                 rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), std=[1e-3, 1e-3], reward_discount_factor=0.99,
-                 num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20,
-                 rewards = None):
+                 load_checkpoint_path=None, segmentation_threshold=None, rollout_len=int(2*16e4),
+                 replay_memory_capacity=int(1e4), std=[1e-3, 1e-3], reward_discount_factor=0.99,
+                 num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False,
+                 visualization_interval=20, rewards = None):
         """
         Trainer for RL-based models.
         Args:
@@ -46,7 +58,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
             max_rollout_len (int): how large each rollout can get on maximum
                                    default value: 2 * 160000 (image size: 400*400; give agent chance to visit each pixel twice)
             replay_memory_capacity (int): capacity of the replay memory
-            std ([float, float, float, float, float]): standard deviation assumed on the predictions 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate' of the actor network to use on a Normal distribution as a policy to compute the next action
+            std ([float, float]): standard deviation assumed on the predictions 'delta_angle', 'brush_state' of the actor network to use on a Normal distribution as a policy to compute the next action
             reward_discount_factor (float): factor by which to discount the reward per timestep into the future, when calculating the accumulated future return
             num_policy_epochs (int): number of epochs for which to train the policy network during a single iteration (for a single sample)
             policy_batch_size (int): size of batches to sample from the replay memory of the policy per policy training epoch
@@ -109,7 +121,14 @@ class TorchRLTrainerMinimal(TorchTrainer):
             self.f1_score = None
 
         def on_train_batch_end(self):
+            global log_debug_indent
+            log_debug('entered on_train_batch_end')
+            log_debug_indent += 1
+
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
+                log_debug(f'on_train_batch_end: will evaluate (self.iteration_idx: {self.iteration_idx})')
+                log_debug_indent += 1
+
                 precision, recall, self.f1_score, reward_info = self.trainer.get_precision_recall_F1_score_validation()
 
                 # {'reward_stats_first_quantities': reward_stats_first_quantities,
@@ -134,8 +153,13 @@ class TorchRLTrainerMinimal(TorchTrainer):
                    and self.iteration_idx > 0:  # avoid creating checkpoints at iteration 0
                     self.trainer._save_checkpoint(self.trainer.model, self.epoch_idx, self.epoch_iteration_idx, self.iteration_idx)
 
+                log_debug_indent -= 1
+                log_debug(f'on_train_batch_end: evaluation complete')
+
             self.iteration_idx += 1
             self.epoch_iteration_idx += 1
+            log_debug_indent -= 1
+            log_debug('left on_train_batch_end')
     
         def on_epoch_end(self):
             self.epoch_idx += 1
@@ -168,6 +192,10 @@ class TorchRLTrainerMinimal(TorchTrainer):
             return random.sample(self.memory, min(batch_size, len(self.memory)))
 
         def compute_accumulated_discounted_returns(self, gamma):
+            global log_debug_indent
+            log_debug('entered compute_accumulated_discounted_returns')
+            log_debug_indent += 1
+
             # memory.push(observation, model_output, sampled_actions,
             #                   self.terminated, reward, torch.tensor(float('nan')))
             for step_idx in reversed(range(len(self.memory))):  # differs from tutorial code (but appears to be equivalent)
@@ -175,6 +203,10 @@ class TorchRLTrainerMinimal(TorchTrainer):
                 future_return = self.memory[step_idx + 1][-1] if step_idx < len(self.memory) - 1 else 0
                 current_reward = self.memory[step_idx][4]
                 self.memory[step_idx][-1] = current_reward + future_return * gamma * (1 - terminated)
+
+            log_debug_indent -= 1
+            log_debug('left compute_accumulated_discounted_returns')
+
 
         def __len__(self):
             return len(self.memory)
@@ -184,6 +216,10 @@ class TorchRLTrainerMinimal(TorchTrainer):
     # Specifically, the Trainer calls mlflow_logger's "log_visualizations" (e.g. in "on_train_batch_end" of the
     # tensorflow.keras.callbacks.Callback subclass), which in turn uses the Trainer's "create_visualizations".
     def create_visualizations(self, file_path, iteration_index, epoch_idx, epoch_iteration_idx):
+        global log_debug_indent
+        log_debug('entered create_visualizations')
+        log_debug_indent += 1
+
         num_to_visualize = self.num_samples_to_visualize
         num_fixed_samples = num_to_visualize // 2
         num_random_samples = num_to_visualize - num_fixed_samples
@@ -200,10 +236,14 @@ class TorchRLTrainerMinimal(TorchTrainer):
         subset_ds = Subset(self.test_loader.dataset, indices)
         subset_dl = DataLoader(subset_ds, batch_size=vis_batch_size, shuffle=False)
         
+
         predictions_nstepwise_rgb_test_set = []
         positions_nstepwise_test_set = []
 
         for (batch_xs, batch_ys) in subset_dl:
+            log_debug('create_visualizations: sampled new batch (batch_xs, batch_ys) from subset_dl')
+            log_debug_indent += 1
+        
             # batch_xs, batch_ys = batch_xs.to(self.device), batch_ys.numpy()
             # output = self.model(batch_xs)
             # if type(output) is tuple:
@@ -214,6 +254,8 @@ class TorchRLTrainerMinimal(TorchTrainer):
             longest_animation_length = 0
             
             for idx, sample_y in enumerate(batch_ys):
+                log_debug(f'create_visualizations: processing sample {idx} in batch')
+
                 sample_y_gpu =\
                     sample_y.to(self.device, dtype=torch.long)
                 # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
@@ -246,6 +288,10 @@ class TorchRLTrainerMinimal(TorchTrainer):
                 preds = env.get_unpadded_segmentation().float().detach().cpu()
                 preds_batch.append(preds)
 
+            log_debug_indent -= 1
+
+        log_debug(f'create_visualizations: all batches processed; generating GIF; longest_animation_length is {longest_animation_length}')
+
         # calculate grid size
         
         n = len(predictions_nstepwise_rgb_test_set)  # test_set_size
@@ -268,8 +314,12 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
             # 1, 10, 10, 10
 
+            log_debug(f'create_visualizations: generating GIF, looping over timesteps', no_line_break=True)
+
             gif_frames = []
             for timestep_idx in range(longest_animation_length):
+                log_debug('.', no_line_break=True, log_timestamp=False)
+
                 # fill with zeros to ensure background is black
                 uber_img = np.zeros((3, nb_rows * img_height, nb_cols * img_width), dtype=np.uint8) # shape(3, 3*img_height, 3*img_width)
                 for prediction_idx, prediction in enumerate(predictions_nstepwise_rgb_test_set):
@@ -319,18 +369,30 @@ class TorchRLTrainerMinimal(TorchTrainer):
                 draw.text((10, 10), str(timestep_idx * self.visualization_interval), fill=(137, 207, 240))  # baby blue
 
                 gif_frames.append(gif_frame) # height, width, rgb
-                        
             
+            log_debug('create_visualizations: left loop')
+            log_debug('create_visualizations: saving GIF')
+
             gif_frames[0].save(gif_path, save_all=True, append_images=gif_frames[1:], duration=100, loop=0) # duration is milliseconds between frames, loop=0 means loop infinite times
+
+            log_debug('create_visualizations: GIF saved')
+            
             # if not working, convert via: imageio.core.util.Array(numpy_array)
 
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
             # self._fill_images_array(torch.stack(preds_batch, dim=0).unsqueeze(1).float().detach().cpu().numpy(), batch_ys.numpy(), images)
 
         # return super().create_visualizations(file_path)
+        
+        log_debug_indent -= 1
+        log_debug('left create_visualizations')
         return gif_path
 
     def _train_step(self, model, device, train_loader, callback_handler):
+        global log_debug_indent
+        log_debug('entered _train_step')
+        log_debug_indent += 1
+
         # WARNING: some models subclassing TorchTrainer overwrite this function, so make sure any changes here are
         # reflected appropriately in these models' files
         
@@ -341,7 +403,11 @@ class TorchRLTrainerMinimal(TorchTrainer):
         train_loss = 0
 
         for (xs, ys) in train_loader:
+            log_debug('_train_step: sampled new batch (xs, ys) from train_loader')
+            log_debug_indent += 1
             for idx, sample_y in enumerate(ys):
+                log_debug(f'_train_step: processing sample {idx} in batch')
+                log_debug_indent += 1
                 # sample_y = ys[idx]
                 # sample_x, sample_y = sample_x.to(device, dtype=torch.float32), sample_y.to(device, dtype=torch.long)
                 sample_y = sample_y.to(device, dtype=torch.long)
@@ -374,9 +440,15 @@ class TorchRLTrainerMinimal(TorchTrainer):
                 memory.compute_accumulated_discounted_returns(gamma=self.reward_discount_factor)
 
                 for epoch_idx in range(self.num_policy_epochs):
+                    log_debug(f'_train_step: entered policy epoch {epoch_idx}')
+                    log_debug_indent += 1
+
                     loss_accumulator = []
                     policy_batch = memory.sample(self.policy_batch_size)
                     for sample_idx, sample in enumerate(policy_batch):
+                        log_debug(f'_train_step: processing sample {sample_idx} in policy epoch {epoch_idx}')
+                        log_debug_indent += 1
+
                         # memory.push(observation, model_output, action_log_probabilities, sampled_actions,
                         #                   self.terminated, reward, torch.tensor(float('nan')))
 
@@ -415,7 +487,13 @@ class TorchRLTrainerMinimal(TorchTrainer):
                         
                         with torch.no_grad():
                             train_loss += policy_loss.item()
-                
+                            
+                        log_debug_indent -= 1
+            
+                    log_debug_indent -= 1
+
+                log_debug_indent -= 1
+            log_debug_indent -= 1
             callback_handler.on_train_batch_end()
             
             train_loss /= (len(train_loader.dataset) * self.policy_batch_size * self.num_policy_epochs)
@@ -424,17 +502,33 @@ class TorchRLTrainerMinimal(TorchTrainer):
                 self.scheduler.step()
             except:
                 self.scheduler.step(train_loss)  # TODO: perform step in _eval_step and use validation loss instead of train loss
+        
+        log_debug_indent -= 1
+        log_debug('left _train_step')
         return train_loss
 
     def _eval_step(self, model, device, test_loader):
+        global log_debug_indent
+
+        log_debug('entered _eval_step')
+        log_debug_indent += 1
+
         if self.loss_function is None:
+            log_debug_indent -= 1
+            log_debug('left _eval_step because self.loss_function is None')
             return 0.0
 
         model.eval()
         test_loss = 0
 
         for (xs, ys) in test_loader:
+            log_debug('_eval_step: sampled batch (xs, ys) from test_loader')
+            log_debug_indent += 1
+
             for idx, sample_y in enumerate(ys):
+                log_debug(f'_train_step: processing sample {idx}')
+                log_debug_indent += 1
+
                 sample_y = sample_y.to(device, dtype=torch.long)
                 # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
                 # accordingly, sample_y must be of shape (H, W) not (1, H, W)
@@ -452,8 +546,14 @@ class TorchRLTrainerMinimal(TorchTrainer):
                 predictions_nsteps, positions_nsteps, reward, info = self.trajectory_step(env, sample_from_action_distributions=False)
                 preds = env.get_unpadded_segmentation().float()
                 test_loss += self.loss_function(preds, sample_y).item()
+                
+                log_debug_indent -= 1
 
+            log_debug_indent -= 1
+        
         test_loss /= len(test_loader.dataset)
+        log_debug_indent -= 1
+        log_debug('left _eval_step')
         return test_loss
 
     @staticmethod
@@ -487,6 +587,9 @@ class TorchRLTrainerMinimal(TorchTrainer):
         Returns:
             list of observations that can be used to generate animations of the agent's trajectory, or [] if visualization_interval <= 0 (List of torch.Tensor)
         """
+        global log_debug_indent
+        log_debug(f'entered trajectory_step')
+        log_debug_indent += 1
 
         # here, the reward information is aggregated over the *timesteps* (sum and average)
 
@@ -510,7 +613,12 @@ class TorchRLTrainerMinimal(TorchTrainer):
         if sample_from_action_distributions is None:
             sample_from_action_distributions = self.sample_from_action_distributions
 
+        log_debug(f'looping over range(self.rollout_len) == range({self.rollout_len})', no_line_break=True)
+
         for timestep_idx in range(self.rollout_len):  # loop until model terminates or max len reached
+            
+            log_debug(f'.', no_line_break=True, log_timestamp=False)
+
             model_output = self.model(observation.detach().unsqueeze(0).unsqueeze(0)).detach()
 
             # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate', all in [0,1]
@@ -553,10 +661,15 @@ class TorchRLTrainerMinimal(TorchTrainer):
                 predictions_nsteps.append((env.get_unpadded_segmentation().float().detach().cpu().numpy()).astype(int))
                 positions_nsteps.append(env.get_rounded_agent_pos())
         
+        log_debug('left loop')
+        
         info_avg = {'reward_decomp_quantities': {}, 'reward_decomp_sums': {}}
         # timestep_idx + 1 due to zero-based indexing; add another 1 due to initial timestep 
         info_avg['reward_decomp_quantities'] = {k: v / (timestep_idx + 2) for k, v in info_sum['reward_decomp_quantities'].items()}
         info_avg['reward_decomp_sums'] = {k: v / (timestep_idx + 2) for k, v in info_sum['reward_decomp_sums'].items()}
+
+        log_debug_indent -= 1
+        log_debug('left trajectory_step')
 
         return predictions_nsteps, positions_nsteps, reward, {'info_timestep_sum': info_sum, 'info_timestep_avg': info_avg}
 
@@ -565,6 +678,10 @@ class TorchRLTrainerMinimal(TorchTrainer):
         return f1_score
 
     def get_precision_recall_F1_score_validation(self):
+        global log_debug_indent
+        log_debug('entered get_precision_recall_F1_score_validation')
+        log_debug_indent += 1
+        
         # this function also returns reward statistics (averaged, summed, and for the first sample)
 
         reward_stats__first_sample__timestep_sum__reward_quantities = {}
@@ -583,7 +700,13 @@ class TorchRLTrainerMinimal(TorchTrainer):
         precisions, recalls, f1_scores = [], [], []
         num_samples = 0
         for (xs, ys) in self.test_loader:
+            log_debug('get_precision_recall_F1_score_validation: sampled new batch (xs, ys) from self.test_loader')
+            log_debug_indent += 1
+
             for idx, sample_y in enumerate(ys):
+                log_debug('get_precision_recall_F1_score_validation: processing sample {idx} in batch...')
+                log_debug_indent += 1
+
                 num_samples += 1
 
                 sample_y = sample_y.to(self.device, dtype=torch.long)
@@ -630,6 +753,12 @@ class TorchRLTrainerMinimal(TorchTrainer):
                 f1_scores.append(f1_score.cpu().numpy())
 
                 # print(f'Reward information for sample {idx}: {info}')
+                
+                log_debug_indent -= 1
+
+            log_debug_indent -= 1
+
+        log_debug('get_precision_recall_F1_score_validation: all batches processed')
 
         reward_stats__sample_avg__timestep_sum__reward_quantities = {k: v / num_samples for k, v in reward_stats__sample_sum__timestep_sum__reward_quantities.items()}
         reward_stats__sample_avg__timestep_sum__reward_sums = {k: v / num_samples for k, v in reward_stats__sample_sum__timestep_sum__reward_sums.items()}
@@ -653,6 +782,8 @@ class TorchRLTrainerMinimal(TorchTrainer):
         # aggregated reward information printed by evaluation logic calling this function
         # print(f'Aggregated reward information: {reward_info}')
 
+        log_debug_indent -= 1
+        log_debug('left get_precision_recall_F1_score_validation')
         return np.mean(precisions), np.mean(recalls), np.mean(f1_scores), reward_info
 
     def _get_hyperparams(self):
