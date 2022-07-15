@@ -14,7 +14,7 @@ from .trainer_torch import TorchTrainer
 from utils import *
 
 import gym
-from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
+# from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 
 import torch.distributions
 
@@ -43,10 +43,10 @@ class TorchRLTrainerMinimal(TorchTrainer):
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, scheduler=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
-                 load_checkpoint_path=None, segmentation_threshold=None, rollout_len=int(2*16e4),
-                 replay_memory_capacity=int(1e4), std=[1e-3, 1e-3], reward_discount_factor=0.99,
-                 num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False,
-                 visualization_interval=20, rewards = None):
+                 load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
+                 rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), std=[1e-3, 1e-3], reward_discount_factor=0.99,
+                 num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20,
+                 rewards = None, blobs_removal_threshold=0, hyper_seg_threshold=False):
         """
         Trainer for RL-based models.
         Args:
@@ -71,7 +71,21 @@ class TorchRLTrainerMinimal(TorchTrainer):
             raise RuntimeError('Custom losses not supported by TorchRLTrainer')
         
         if preprocessing is None:
-            preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
+            if use_channelwise_norm and dataloader.dataset in DATASET_STATS:
+                def channelwise_preprocessing(x, is_gt):
+                    if is_gt:
+                        return x[:1, :, :].float() / 255
+                    stats = DATASET_STATS[dataloader.dataset]
+                    x = x[:3, :, :].float()
+                    x[0] = (x[0] - stats['pixel_mean_0']) / stats['pixel_std_0']
+                    x[1] = (x[1] - stats['pixel_mean_1']) / stats['pixel_std_1']
+                    x[2] = (x[2] - stats['pixel_mean_2']) / stats['pixel_std_2']
+                    return x
+                preprocessing = channelwise_preprocessing
+            else:
+                # convert samples to float32 \in [0, 1] & remove A channel;
+                # convert ground truth to int \in {0, 1} & remove A channel
+                preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
 
         if optimizer_or_lr is None:
             optimizer_or_lr = TorchRLTrainerMinimal.get_default_optimizer_with_lr(1e-4, model)
@@ -88,7 +102,8 @@ class TorchRLTrainerMinimal(TorchTrainer):
                  experiment_name=experiment_name, run_name=run_name, split=split, num_epochs=num_epochs, batch_size=batch_size,
                  optimizer_or_lr=optimizer_or_lr, scheduler=scheduler, loss_function=loss_function, loss_function_hyperparams=loss_function_hyperparams,
                  evaluation_interval=evaluation_interval, num_samples_to_visualize=num_samples_to_visualize, checkpoint_interval=checkpoint_interval,
-                 load_checkpoint_path=load_checkpoint_path, segmentation_threshold=segmentation_threshold)
+                 load_checkpoint_path=load_checkpoint_path, segmentation_threshold=segmentation_threshold, use_channelwise_norm=use_channelwise_norm,
+                 blobs_removal_threshold=blobs_removal_threshold, hyper_seg_threshold=hyper_seg_threshold)
         self.rollout_len = int(rollout_len)
         self.replay_memory_capacity = int(replay_memory_capacity)
         self.std = torch.tensor(std, device=self.device).detach()

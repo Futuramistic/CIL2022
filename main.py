@@ -30,10 +30,12 @@ def main():
     trainer_args = ['experiment_name', 'E', 'run_name', 'R', 'split', 's', 'num_epochs', 'e', 'batch_size', 'b',
                     'optimizer_or_lr', 'l', 'loss_function', 'L', 'loss_function_hyperparams', 'H',
                     'evaluation_interval', 'i', 'num_samples_to_visualize', 'v', 'checkpoint_interval', 'c',
-                    'load_checkpoint_path', 'C', 'segmentation_threshold', 't', 'history_size',
+                    'load_checkpoint_path', 'C', 'segmentation_threshold', 't', 'use_channelwise_norm', 'history_size',
                     'max_rollout_len', 'std', 'reward_discount_factor', 'num_policy_epochs', 'policy_batch_size',
-                    'sample_from_action_distributions', 'visualization_interval', 'min_steps', 'rollout_len']
-    dataloader_args = ['dataset', 'd']
+                    'sample_from_action_distributions', 'visualization_interval', 'min_steps', 'rollout_len',
+                    'blobs_removal_threshold', 'T', 'hyper_seg_threshold']
+    dataloader_args = ['dataset', 'd', 'use_geometric_augmentation', 'use_color_augmentation',
+                       'aug_brightness', 'aug_contrast', 'aug_saturation']
 
     # list of other arguments to avoid passing to constructor of model class
     filter_args = ['h', 'model', 'm', 'evaluate', 'eval', 'V']
@@ -53,8 +55,10 @@ def main():
     parser.add_argument('-c', '--checkpoint_interval', type=int, required=False)
     parser.add_argument('-C', '--load_checkpoint_path', '--from_checkpoint', type=str, required=False)
     parser.add_argument('-t', '--segmentation_threshold', type=float, default=DEFAULT_SEGMENTATION_THRESHOLD, required=False)
+    parser.add_argument('-B', '--blobs_removal_threshold', type=int, default=DEFAULT_BLOBS_REMOVAL_THRESHOLD, required=False)
     parser.add_argument('-d', '--dataset', type=str, required=True)
     parser.add_argument('-V', '--evaluate', '--eval', action='store_true')
+    parser.add_argument('-T', '--hyper_seg_threshold', type=bool, help="If True, use hyperparameter search after evaluation to find the best segmentation threshold", required=False, default=True)
     known_args, unknown_args = parser.parse_known_args()
 
     remove_leading_dashes = lambda s: ''.join(itertools.dropwhile(lambda c: c == '-', s))

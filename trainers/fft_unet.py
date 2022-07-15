@@ -6,17 +6,18 @@ import math
 import torch
 from torch import optim
 
+
 # Some parameters taken from https://github.com/milesial/Pytorch-UNet/blob/master/train.py
-class UNetTrainer(TorchTrainer):
+class FFT_UNetTrainer(TorchTrainer):
     """
-    Trainer for the U-Net model.
+    Trainer for the FFT U-Net model.
     """
 
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
                  batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None,
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
-                 use_channelwise_norm=False, blobs_removal_threshold=0, hyper_seg_threshold=False):
+                 blobs_removal_threshold=0, hyper_seg_threshold=False):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
@@ -30,9 +31,9 @@ class UNetTrainer(TorchTrainer):
             num_epochs = 1  # 5
 
         if optimizer_or_lr is None:
-            optimizer_or_lr = UNetTrainer.get_default_optimizer_with_lr(1e-5, model)
+            optimizer_or_lr = FFT_UNetTrainer.get_default_optimizer_with_lr(1e-5, model)
         elif isinstance(optimizer_or_lr, int) or isinstance(optimizer_or_lr, float):
-            optimizer_or_lr = UNetTrainer.get_default_optimizer_with_lr(optimizer_or_lr, model)
+            optimizer_or_lr = FFT_UNetTrainer.get_default_optimizer_with_lr(optimizer_or_lr, model)
 
         if scheduler is None:
             scheduler = torch.optim.lr_scheduler.StepLR(optimizer_or_lr, step_size=1, gamma=1)
@@ -41,30 +42,18 @@ class UNetTrainer(TorchTrainer):
             loss_function = torch.nn.BCELoss()
 
         if evaluation_interval is None:
-            evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs, num_samples_to_visualize)
+            evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs,
+                                                                             num_samples_to_visualize)
 
-        preprocessing = None
-        if use_channelwise_norm and dataloader.dataset in DATASET_STATS:
-            def channelwise_preprocessing(x, is_gt):
-                if is_gt:
-                    return x[:1, :, :].float() / 255
-                stats = DATASET_STATS[dataloader.dataset]
-                x = x[:3, :, :].float()
-                x[0] = (x[0] - stats['pixel_mean_0']) / stats['pixel_std_0']
-                x[1] = (x[1] - stats['pixel_mean_1']) / stats['pixel_std_1']
-                x[2] = (x[2] - stats['pixel_mean_2']) / stats['pixel_std_2']
-                return x
-            preprocessing = channelwise_preprocessing
-        else:
-            # convert samples to float32 \in [0, 1] & remove A channel;
-            # convert ground truth to int \in {0, 1} & remove A channel
-            preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
+        # convert samples to float32 \in [0, 1] & remove A channel;
+        # convert ground truth to int \in {0, 1} & remove A channel
+        preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
 
         super().__init__(dataloader, model, preprocessing, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
-                         segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold)
-        
+                         segmentation_threshold, blobs_removal_threshold,hyper_seg_threshold)
+
     def _train_step(self, model, device, train_loader, callback_handler):
         # unet y may not be squeezed like in torch trainer, dtype is float for BCE
         model.train()
@@ -86,7 +75,7 @@ class UNetTrainer(TorchTrainer):
         callback_handler.on_epoch_end()
         self.scheduler.step()
         return train_loss
-    
+
     def _eval_step(self, model, device, test_loader):
         # unet y may not be squeezed like in torch trainer, dtype is float for BCE
         model.eval()
@@ -104,9 +93,9 @@ class UNetTrainer(TorchTrainer):
     def _get_hyperparams(self):
         return {**(super()._get_hyperparams()),
                 **({param: getattr(self.model, param)
-                   for param in ['n_channels', 'n_classes', 'bilinear']
-                   if hasattr(self.model, param)})}
-    
+                    for param in ['n_channels', 'n_classes', 'bilinear']
+                    if hasattr(self.model, param)})}
+
     @staticmethod
     def get_default_optimizer_with_lr(lr, model):
         return optim.RMSprop(model.parameters(), lr=1e-5, weight_decay=1e-8, momentum=0.9)

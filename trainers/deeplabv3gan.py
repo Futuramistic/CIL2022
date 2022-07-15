@@ -21,7 +21,7 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
                  batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None,
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
-                 adv_lambda=0.1, adv_lr=1e-4):
+                 use_channelwise_norm=False, adv_lambda=0.1, adv_lr=1e-4, blobs_removal_threshold=0, hyper_seg_threshold=False):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
@@ -60,21 +60,27 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
             evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs,
                                                                              num_samples_to_visualize)
 
-        mean, std = torch.tensor([0.485, 0.456, 0.406]), torch.tensor([0.229, 0.224, 0.225])
-        normalizer = transforms.Normalize(mean, std)
-        # convert samples to float32 \in [0, 1] & remove A channel;
-        # convert ground truth to int \in {0, 1} & remove A channel
-
-        def preprocessing(x, is_gt):
-            res = (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
-            if not is_gt:
-                res = normalizer(res)
-            return res
+        preprocessing = None
+        if use_channelwise_norm and dataloader.dataset in DATASET_STATS:
+            def channelwise_preprocessing(x, is_gt):
+                if is_gt:
+                    return x[:1, :, :].float() / 255
+                stats = DATASET_STATS[dataloader.dataset]
+                x = x[:3, :, :].float()
+                x[0] = (x[0] - stats['pixel_mean_0']) / stats['pixel_std_0']
+                x[1] = (x[1] - stats['pixel_mean_1']) / stats['pixel_std_1']
+                x[2] = (x[2] - stats['pixel_mean_2']) / stats['pixel_std_2']
+                return x
+            preprocessing = channelwise_preprocessing
+        else:
+            # convert samples to float32 \in [0, 1] & remove A channel;
+            # convert ground truth to int \in {0, 1} & remove A channel
+            preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
 
         super().__init__(dataloader, model, preprocessing, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
-                         segmentation_threshold)
+                         segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold)
 
     def _train_step(self, model, device, train_loader, callback_handler):
 

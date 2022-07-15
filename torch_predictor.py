@@ -2,97 +2,32 @@
 import torch
 from tqdm import tqdm
 import pexpect
+import argparse
 
+import torchvision.transforms.functional as TF
 from factory import Factory
 from losses.precision_recall_f1 import precision_recall_f1_score_torch
 from models.learning_aerial_image_segmenation_from_online_maps.Unet import UNet
 from data_handling.dataloader_torch import TorchDataLoader
 from trainers.u_net import UNetTrainer
-import tensorflow.keras as K
 from utils import *
+from blobs_remover import remove_blobs
 
-import abc
-import inspect
 from losses import *
-import mlflow
 import numpy as np
-import os
-import pexpect
-import paramiko
-import pysftp
-import requests
-import shutil
-import socket
 import tensorflow.keras as K
-import time
-
-from data_handling import DataLoader
-from requests.auth import HTTPBasicAuth
 from utils import *
-from utils.logging import mlflow_logger, optim_hyparam_serializer
 
 
-# mlflow_experiment_name = 'retrieval'
-# mlflow_experiment_id = None
+# Fixed constants
+offset = 144  # Numbering of first test image
+dataset = 'original'
+sigmoid = torch.nn.Sigmoid()
 
-
-# Doesn't work
-# def init_mlflow():
-#     is_windows = os.name == 'nt'
-#     def add_known_hosts(host, user, password, jump_host=None):
-#         spawn_str = \
-#             'ssh %s@%s' % (user, host) if jump_host is None else 'ssh -J %s %s@%s' % (jump_host, user, host)
-#         if is_windows:
-#             # pexpect.spawn not supported on windows
-#             import wexpect
-#             child = wexpect.spawn(spawn_str)
-#         else:
-#             child = pexpect.spawn(spawn_str)
-#         i = child.expect(['.*ssword.*', '.*(yes/no).*'])
-#         if i == 1:
-#             child.sendline('yes')
-#             child.expect('.*ssword.*')
-#         child.sendline(password)
-#         child.expect('.*')
-#         time.sleep(1)
-#         child.sendline('exit')
-#
-#     mlflow_init_successful = True
-#     MLFLOW_INIT_ERROR_MSG = 'MLflow initialization failed. Will not use MLflow for this run.'
-#
-#     try:
-#         os.environ['MLFLOW_TRACKING_USERNAME'] = MLFLOW_HTTP_USER
-#         os.environ['MLFLOW_TRACKING_PASSWORD'] = MLFLOW_HTTP_PASS
-#
-#         mlflow_ftp_pass = requests.get(MLFLOW_FTP_PASS_URL,
-#                                        auth=HTTPBasicAuth(os.environ['MLFLOW_TRACKING_USERNAME'],
-#                                                           os.environ['MLFLOW_TRACKING_PASSWORD'])).text
-#         try:
-#             add_known_hosts(MLFLOW_HOST, MLFLOW_FTP_USER, mlflow_ftp_pass)
-#         except:
-#             add_known_hosts(MLFLOW_HOST, MLFLOW_FTP_USER, mlflow_ftp_pass, MLFLOW_JUMP_HOST)
-#     except:
-#         mlflow_init_successful = False
-#         print(MLFLOW_INIT_ERROR_MSG)
-#
-#     if mlflow_init_successful:
-#         try:
-#             mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-#             experiment = mlflow.get_experiment_by_name(mlflow_experiment_name)
-#             global mlflow_experiment_id
-#             if experiment is None:
-#                 mlflow_experiment_id = mlflow.create_experiment(mlflow_experiment_name)
-#             else:
-#                 mlflow_experiment_id = experiment.experiment_id
-#         except:
-#             mlflow_init_successful = False
-#             print(MLFLOW_INIT_ERROR_MSG)
-#
-#     return mlflow_init_successful
-#
-#
-# if not init_mlflow():
-#     print('mlflow initialization failed')
+device = None
+model = None
+test_loader = None
+blob_threshold = None
 
 
 # modify in tf_predictor.py as well!
@@ -124,58 +59,152 @@ def compute_best_threshold(loader, apply_sigmoid):
     return best_thresh
 
 
-def predict(segmentation_threshold, apply_sigmoid):
+def predict(segmentation_threshold, apply_sigmoid, with_augmentation=False):
     # Prediction
     with torch.no_grad():
         i = 0
         for x in tqdm(test_loader):
             x = x.to(device, dtype=torch.float32)
+            if with_augmentation:
+                x = _augment(x)
             output = model(x)
+            if with_augmentation:
+                output = _unify(output)
             if type(output) is tuple:
                 output = output[0]
             if apply_sigmoid:
                 output = sigmoid(output)
-            pred = (output >= segmentation_threshold).cpu().detach().numpy().astype(int) * 255
+            pred = (output >= segmentation_threshold).cpu().detach().numpy().astype(int)
             while len(pred.shape) > 3:
                 pred = pred[0]
-            K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred, data_format="channels_first")
+            pred = remove_blobs(pred, threshold=blob_threshold)
+            pred *= 255
+            while len(pred.shape) == 2:
+                pred = pred[None, :, :]
+            K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred,
+                                           data_format="channels_first")
             i += 1
             del x
 
 
-# Fixed constants
-offset = 144  # Numbering of first test image
-dataset = 'original'
-sigmoid = torch.nn.Sigmoid()
-
-# Parameters
-model_name = 'unet'                                             # <<<<<<<<<<<<<<<<<< Insert model type
-trained_model_path = 'cp_final.pt'                                  # <<<<<<<<<<<<<<<<<< Insert trained model name
-apply_sigmoid = False                                                # <<<<<<<<<<<<<<<< Specify whether Sigmoid should
-                                                                    # be applied to the model's output
-
-# Create loader, trainer etc. from factory
-factory = Factory.get_factory(model_name)
-dataloader = factory.get_dataloader_class()(dataset=dataset)
-model = factory.get_model_class()()
-device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-model = model.to(device)
-trainer_class = factory.get_trainer_class()
-trainer = trainer_class(dataloader=dataloader, model=model)  # , load_checkpoint_path=trained_model_path)
-
-# Load the trained model weights
-model_data = torch.load(trained_model_path)
-model.load_state_dict(model_data['model'])
-model.eval()
-
-preprocessing = trainer.preprocessing
-train_loader = dataloader.get_training_dataloader(split=1, batch_size=1, preprocessing=preprocessing)
-test_loader = dataloader.get_unlabeled_testing_dataloader(batch_size=1, preprocessing=preprocessing)
-
-create_or_clean_directory(OUTPUT_PRED_DIR)
-
-segmentation_threshold = compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
-
-predict(segmentation_threshold, apply_sigmoid=apply_sigmoid)
+# Transformation functions
+def rotation_transform(image, angle, inverse=False):
+    if not inverse:
+        image = TF.rotate(image, angle)
+    else:
+        image = TF.rotate(image, -angle)
+    return image
 
 
+def v_flip_transform(image):
+    image = TF.vflip(image)
+    return image
+
+
+def h_flip_transform(image):
+    image = TF.hflip(image)
+    return image
+
+
+def _ensemble(images):
+    """
+    Average the input images along the first dimension
+    Args:
+        images (Tensor[..., ..., H, W])
+    Returns:
+        an ensembled image (Tensor[1, ..., H, W])
+    """
+    ensembled = torch.mean(images, dim=0, keepdim=True)
+    return ensembled
+
+
+def _augment(image):
+    """
+    Augment the input with the 90° rotated versions and the horizontal and vertical flipped versions
+    Args:
+        image (Tensor [1, ..., H, W])
+    Returns:
+        augmented tensor (Tensor [6, ..., H, W])
+    """
+    xs = []
+    for i in range(4):
+        xs.append(rotation_transform(image, i * 90, inverse=False))
+    flipped = v_flip_transform(image)
+    for i in range(4):
+        xs.append(rotation_transform(flipped, i * 90, inverse=False))
+    augmented = torch.cat(xs, dim=0)
+    return augmented
+
+
+def _unify(images):
+    """
+    Perform the inverse operation from augment. First the inverse transforms are applied,
+    then the predictions are ensembled into one image.
+    Args:
+        images (Tensor [6, ..., H, W])
+    Returns:
+        a single ensembled image (Tensor [1, ..., H, W])
+    """
+    ll = []
+    for i in range(4):
+        img_i = torch.unsqueeze(rotation_transform(images[i], i * 90, inverse=True), dim=0)
+        ll.append(img_i)
+    for i in range(4):
+        img_i = rotation_transform(images[i+4], i * 90, inverse=True)
+        ll.append(torch.unsqueeze(v_flip_transform(img_i), dim=0))
+    images = torch.cat(ll, dim=0)
+    return _ensemble(images)
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Predictions maker for torch models')
+    parser.add_argument('-m', '--model', type=str, required=True)
+    parser.add_argument('-c', '--checkpoint', type=str, required=True)
+    parser.add_argument('--apply_sigmoid', dest='apply_sigmoid', action='store_true', required=False)
+    parser.set_defaults(apply_sigmoid=False)
+    options = parser.parse_args()
+
+    global blob_threshold, test_loader, model, device
+
+    model_name = options.model
+    trained_model_path = options.checkpoint
+    apply_sigmoid = options.apply_sigmoid
+
+    # Parameters
+    blob_threshold = 250
+    # model_name = 'cranet'                               # <<<<<<<<<<<<<<<<<< Insert model type
+    # trained_model_path = 'cra_ext_aug_better_2720.pt'   # <<<<<<<<<<<<<<<<<< Insert trained model name
+    # apply_sigmoid = False                               # <<<<<<<<<<<<<<<< Apply sigmoid or not to model's output
+
+    # Create loader, trainer etc. from factory
+    factory = Factory.get_factory(model_name)
+    dataloader = factory.get_dataloader_class()(dataset=dataset)
+    model = factory.get_model_class()()
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    model = model.to(device)
+    trainer_class = factory.get_trainer_class()
+    trainer = trainer_class(dataloader=dataloader, model=model)  # , load_checkpoint_path=trained_model_path)
+
+    # Load the trained model weights
+    if torch.cuda.is_available():
+        model_data = torch.load(trained_model_path)
+    else:
+        model_data = torch.load(trained_model_path, map_location=device)
+    model.load_state_dict(model_data['model'])
+    model.eval()
+
+    preprocessing = trainer.preprocessing
+
+    original_dataloader = factory.get_dataloader_class()(dataset='original')
+    train_loader = original_dataloader.get_training_dataloader(split=0.174, batch_size=1, preprocessing=preprocessing)
+    test_loader = dataloader.get_unlabeled_testing_dataloader(batch_size=1, preprocessing=preprocessing)
+
+    create_or_clean_directory(OUTPUT_PRED_DIR)
+
+    segmentation_threshold = compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
+
+    predict(segmentation_threshold, apply_sigmoid=apply_sigmoid, with_augmentation=False)
+
+
+if __name__ == '__main__':
+    main()

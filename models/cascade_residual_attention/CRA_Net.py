@@ -8,6 +8,7 @@ from torchvision import models
 import torch.nn.functional as F
 
 from functools import partial
+from torch.autograd import Variable
 
 nonlinearity = partial(F.relu, inplace=True)
 
@@ -444,12 +445,29 @@ class OurDinkNet50(nn.Module):
     def __init__(self, num_classes=1, num_channels=3):
         super(OurDinkNet50, self).__init__()
 
+        # vgg = models.vgg16(pretrained=True)
+        # blocks = []
+        # blocks.append(vgg.features[:4].eval().cuda())
+        # blocks.append(vgg.features[4:9].eval().cuda())
+        # blocks.append(vgg.features[9:16].eval().cuda())
+        # blocks.append(vgg.features[16:23].eval().cuda())
+        # for bl in blocks:
+        #     for p in bl:
+        #         p.requires_grad = False
+
         filters = [256, 512, 1024, 128]
         resnet = models.resnet50(pretrained=True)
         self.firstconv = resnet.conv1
         self.firstbn = resnet.bn1
         self.firstrelu = resnet.relu
         self.firstmaxpool = resnet.maxpool
+        self._first_conv = nn.Sequential(nn.Conv2d(3, 16, kernel_size=3, padding='same'),
+                                         nn.BatchNorm2d(16),
+                                         nn.ReLU(),
+                                         nn.Conv2d(16, 32, kernel_size=3, padding='same'),
+                                         nn.BatchNorm2d(32),
+                                         nn.ReLU()
+                                         )
         self.first_conv = nn.Sequential(nn.Conv2d(64, 128, kernel_size=1),
                                         nn.BatchNorm2d(128),
                                         nn.ReLU(),
@@ -464,6 +482,7 @@ class OurDinkNet50(nn.Module):
         self.encoder3 = resnet.layer3
         self.encoder4 = resnet.layer4
 
+        self._dblock32 = Dblock(32)
         self.dblock = Dblock(1024)
         self.pam3 = PositionAttentionModule(in_channels=1024)
         self.cam = ChannelAttentionModule()
@@ -486,39 +505,60 @@ class OurDinkNet50(nn.Module):
 
         self.finaldeconv1 = nn.ConvTranspose2d(filters[3], 32, 4, 2, 1)
         self.finalrelu1 = nonlinearity
-        self.finalconv2 = nn.Conv2d(32, 32, 3, padding=1)
+        self.finalconv2 = nn.Conv2d(32, 32, 3, padding=1) # original 32, 32
         self.finalrelu2 = nonlinearity
         self.finalconv3 = nn.Conv2d(32, num_classes, 1)
 
+        self.lam1 = Variable(torch.rand([]), requires_grad=True)
+        self.lam2 = Variable(torch.rand([]), requires_grad=True)
+
     def forward(self, input):
         # Encoder
+        # print('input.shape:', input.shape)
         x = self.firstconv(input)
+        # print('x', x.shape)
         x = self.firstbn(x)
+        # print('x', x.shape)
         x = self.firstrelu(x)
+        # print('x', x.shape)
         x = self.firstmaxpool(x)
+        # print('after first max pool', x.shape)
+
+        # _x = self._first_conv(input)
+        # # print('_x', _x.shape)
+        # _x = self._dblock32(_x)
+        # print('_x', _x.shape)
 
         e1 = self.encoder1(x)
         e2 = self.encoder2(e1)
         e3 = self.encoder3(e2)
-        # e4 = self.encoder4(e3)
+        # print('e1 e2 e3', e1.shape, e2.shape, e3.shape)
 
         e3 = self.pam3(e3)
         e3 = self.dblock(e3)
         e4 = self.cam(e3)
-        # Center
-        # e4 = self.dblock(e3)
+        # print('e4', e4.shape)
 
         # Decoder
-        # d4 = self.decoder4(e4) + e3
-        d3 = self.decoder3(e4) + e2
-        d2 = self.decoder2(d3) + e1
+        d3 = self.decoder3(e4) + self.lam1 * e2
+        # print('d3', d3.shape)
+        d2 = self.decoder2(d3) + self.lam2 * e1
+        # print('d2', d2.shape)
         x = self.first_conv(x)
+        # print('x', x.shape)
         d1 = self.decoder1(d2+x)
+        # print('d1', d1.shape)
 
         out = self.finaldeconv1(d1)
-        out = self.finalrelu1(out)
+        # print('out', out.shape)
+        out = self.finalrelu1(out)  # torch.cat((out, _x), dim=1))  # original out
+        # print('out', out.shape)
         out = self.finalconv2(out)
+        # print('out', out.shape)
         out = self.finalrelu2(out)
+        # print('out', out.shape)
         res = self.finalconv3(out)
+        # print('res', res.shape)
         refine = self.sample_conv(out)
+        # print('refine', refine.shape)
         return res, refine

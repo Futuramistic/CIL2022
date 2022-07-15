@@ -27,9 +27,9 @@ from trainers.u_net import UNetTrainer
 
 # Parameters
 
-model = UNet()
-trained_model_path = 'cp_7.pt'
-dataset = 'original_256'
+model = DeepLab()
+trained_model_path = 'cp_final.pt'
+dataset = 'original'
 
 
 # Transformation functions
@@ -62,8 +62,11 @@ def _augment(image):
     xs = []
     for i in range(4):
         xs.append(rotation_transform(image, i * 90, inverse=False))
-    xs.append(v_flip_transform(image))
-    xs.append(h_flip_transform(image))
+    flipped = v_flip_transform(image)
+    for i in range(4):
+        xs.append(rotation_transform(flipped, i * 90, inverse=False))
+    # xs.append(v_flip_transform(image))
+    # xs.append(h_flip_transform(image))
     augmented = torch.cat(xs, dim=0)
     return augmented
 
@@ -81,8 +84,11 @@ def _unify(images):
     for i in range(images.shape[0]):
         img_i = torch.unsqueeze(rotation_transform(images[i], i * 90, inverse=True), dim=0)
         ll.append(img_i)
-    ll.append(torch.unsqueeze(v_flip_transform(images[4]), dim=0))
-    ll.append(torch.unsqueeze(v_flip_transform(images[5]), dim=0))
+    for i in range(images.shape[0]):
+        img_i = torch.unsqueeze(rotation_transform(images[i+4], i * 90, inverse=True), dim=0)
+        ll.append(torch.unsqueeze(v_flip_transform(img_i), dim=0))
+    # ll.append(torch.unsqueeze(v_flip_transform(images[4]), dim=0))
+    # ll.append(torch.unsqueeze(v_flip_transform(images[5]), dim=0))
     images = torch.cat(ll, dim=0)
     return _ensemble(images)
 
