@@ -12,9 +12,12 @@ import tensorflow.keras as K
 from utils import *
 import numpy as np
 from losses.loss_harmonizer import DEFAULT_TF_DIM_LAYOUT
+import argparse
 
 
+model = None
 compute_best_threshold_split = 0.99  # ensure validation dataset has at least 1 sample
+
 
 # modify in tf_predictor.py as well!
 def compute_best_threshold(loader, apply_sigmoid):
@@ -48,50 +51,66 @@ offset = 144  # Numbering of first test image
 dataset = 'original'
 test_set_size = 144
 
-# Parameters
-model_name = 'gldenseunet'                                           # <<<<<<<<<<<<<<<<<< Insert model type
-trained_model_path = 'original_checkpoint_0cddd7aeff8408184874efc38e60ae52.ckpt'       # <<<<<<<<<<<<<<<<<< Insert trained model name
-apply_sigmoid = False                                                # <<<<<<<<<<<<<<<< Specify whether Sigmoid should
-                                                                    # be applied to the model's output
 
-# Create loader, trainer etc. from factory
-factory = Factory.get_factory(model_name)
-dataloader = factory.get_dataloader_class()(dataset=dataset)
-model = factory.get_model_class()(input_shape=[400,400,3])
-trainer = factory.get_trainer_class()(dataloader=dataloader, model=model)
+def main():
+    parser = argparse.ArgumentParser(description='Predictions maker for tensorflow models')
+    parser.add_argument('-m', '--model', type=str, required=True)
+    parser.add_argument('-c', '--checkpoint', type=str, required=True)
+    parser.add_argument('--apply_sigmoid', dest='apply_sigmoid', action='store_true', required=False)
+    parser.set_defaults(apply_sigmoid=False)
+    options = parser.parse_args()
 
-# Load the trained model weights
-model.load_weights(trained_model_path)
+    model_name = options.model
+    trained_model_path = options.checkpoint
+    apply_sigmoid = options.apply_sigmoid
 
-preprocessing = trainer.preprocessing
-train_loader = dataloader.get_training_dataloader(split=0.99, batch_size=1, preprocessing=preprocessing)
-test_loader = dataloader.get_unlabeled_testing_dataloader(batch_size=1, preprocessing=preprocessing)
+    # Parameters
+    # model_name = 'gldenseunet'                                           # <<<<<<<<<<<<<<<<<< Insert model type
+    # trained_model_path = 'original_checkpoint_0cddd7aeff8408184874efc38e60ae52.ckpt'       # <<<<<<<<<<<<<<<<<< Insert trained model name
+    # apply_sigmoid = False                                                # <<<<<<<<<<<<<<<< Specify whether Sigmoid should
+                                                                        # be applied to the model's output
 
-create_or_clean_directory(OUTPUT_PRED_DIR)
+    global model
+    # Create loader, trainer etc. from factory
+    factory = Factory.get_factory(model_name)
+    dataloader = factory.get_dataloader_class()(dataset=dataset)
+    model = factory.get_model_class()(input_shape=[400, 400, 3])
+    trainer = factory.get_trainer_class()(dataloader=dataloader, model=model)
 
-train_bs = 16
-train_dataset_size, _, _ = dataloader.get_dataset_sizes(split=compute_best_threshold_split)
-segmentation_threshold = compute_best_threshold(train_loader.take((train_dataset_size // train_bs) * train_bs),
-                                                apply_sigmoid=apply_sigmoid)
-# segmentation_threshold = 0.5
+    # Load the trained model weights
+    model.load_weights(trained_model_path)
 
-# Prediction
-i = 0
-for x in tqdm(test_loader):
-    output = model.predict(x)
-    channel_dim_idx = DEFAULT_TF_DIM_LAYOUT.find('C')
-    data_format = "channels_last" if channel_dim_idx == 3 else "channels_first"
-    if output.shape[channel_dim_idx] > 1:
-        output = np.argmax(output, axis=channel_dim_idx)
-        output = np.expand_dims(output, axis=channel_dim_idx)
-    while len(output.shape) > 3:
-        output = output[0]
-    pred = (output >= segmentation_threshold).astype(int) * 255
-    K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred, data_format=data_format)
-    del x
-    if i >= test_set_size - 1:
-        break
-    i += 1
+    preprocessing = trainer.preprocessing
+    train_loader = dataloader.get_training_dataloader(split=0.99, batch_size=1, preprocessing=preprocessing)
+    test_loader = dataloader.get_unlabeled_testing_dataloader(batch_size=1, preprocessing=preprocessing)
+
+    create_or_clean_directory(OUTPUT_PRED_DIR)
+
+    train_bs = 16
+    train_dataset_size, _, _ = dataloader.get_dataset_sizes(split=compute_best_threshold_split)
+    segmentation_threshold = compute_best_threshold(train_loader.take((train_dataset_size // train_bs) * train_bs),
+                                                    apply_sigmoid=apply_sigmoid)
+    # segmentation_threshold = 0.5
+
+    # Prediction
+    i = 0
+    for x in tqdm(test_loader):
+        output = model.predict(x)
+        channel_dim_idx = DEFAULT_TF_DIM_LAYOUT.find('C')
+        data_format = "channels_last" if channel_dim_idx == 3 else "channels_first"
+        if output.shape[channel_dim_idx] > 1:
+            output = np.argmax(output, axis=channel_dim_idx)
+            output = np.expand_dims(output, axis=channel_dim_idx)
+        while len(output.shape) > 3:
+            output = output[0]
+        pred = (output >= segmentation_threshold).astype(int) * 255
+        K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred, data_format=data_format)
+        del x
+        if i >= test_set_size - 1:
+            break
+        i += 1
 
 
+if __name__ == '__main__':
+    main()
 

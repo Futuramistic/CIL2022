@@ -14,6 +14,7 @@ checkpoints/
 archive/models/*
 archive/trials/*
 logs/
+final_output_masks/
 *.pt
 pb_token.txt
 output_preds/

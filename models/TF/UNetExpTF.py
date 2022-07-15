@@ -242,13 +242,14 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
            **kwargs):
 
     def __build_model(inputs):
-        nb_filters = [32,64,128,256,512]
+        nb_filters = [32,64,128,256,512,64,320]
 
         down_args = {
             'dropout': dropout,
             'kernel_init':kernel_init,
             'normalize':normalize,
-            'kernel_regularizer': kernel_regularizer
+            'kernel_regularizer': kernel_regularizer,
+            'activation':tf.nn.silu
         }
 
         out_args = {
@@ -260,13 +261,13 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         }
 
         convo_trans_args = {
-            'kernel_size':(2, 2),
+            'kernel_size':(4, 4),
             'strides':(2, 2),
             'padding':'same',
             'kernel_initializer':kernel_init,
             'kernel_regularizer':kernel_regularizer
         }
-
+        nb_filters_concat = [32,128,256,448]
         pretrained = None
         if(architecture=="vgg"):
             layer_names = ['block2_conv2','block3_conv4','block4_conv4','block5_conv4']
@@ -276,15 +277,18 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             outputs = [vgg.get_layer(name).output for name in layer_names]
             model = K.Model([vgg.input], outputs)
             pretrained = model(inputs)
+            # Fully add vgg convolutions
+            nb_filters_concat = [96,192,320,512]
 
         pool_fct = Down_Block_LearnablePool if use_learnable_pool else Down_Block
 
         convo1,pool1 = pool_fct(name=name+"-down-block-1",filters=nb_filters[0],**down_args)(inputs)
 
         if(architecture is not None):
+            pretrained[0] = Convo_Block(name=name+"maxpool_vgg_1", filters=nb_filters[1], **down_args)(pretrained[0])
             pool1 = Concatenate(axis=3)([pool1,pretrained[0]])
 
-        pool1 = Convo_Block(name=name+"pool1", filters=nb_filters[0], **down_args)(pool1)
+        pool1 = Convo_Block(name=name+"pool1", filters=nb_filters_concat[0], **down_args)(pool1)
 
         convo2,pool2 = pool_fct(name=name+"-down-block-2",filters=nb_filters[1],**down_args)(pool1)
 
@@ -296,105 +300,108 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         pool2 = Concatenate(axis=3)([pool1_1,pool0_1])
 
         if(architecture is not None):
+            pretrained[1] = Convo_Block(name=name+"maxpool_vgg_2", filters=nb_filters[1], **down_args)(pretrained[1])
             pool2 = Concatenate(axis=3)([pool2,pretrained[1]])
 
-        pool2 = Convo_Block(name=name+"pool2", filters=nb_filters[1], **down_args)(pool2)
+        pool2 = Convo_Block(name=name+"pool2", filters=nb_filters_concat[1], **down_args)(pool2)
 
         convo3,pool3 = pool_fct(name=name+"-down-block-3",filters=nb_filters[2],**down_args)(pool2)
 
         pool0_2 = MaxPool2D((8,8),8,'same')(convo1)
-        pool0_2 = Convo_Block(name=name+"maxpool0_2", filters=nb_filters[2], **down_args)(pool0_2)
+        pool0_2 = Convo_Block(name=name+"maxpool0_2", filters=nb_filters[1], **down_args)(pool0_2)
         pool1_2 = MaxPool2D((4,4),4,'same')(convo2)
-        pool1_2 = Convo_Block(name=name+"maxpool1_2", filters=nb_filters[2], **down_args)(pool1_2)
+        pool1_2 = Convo_Block(name=name+"maxpool1_2", filters=nb_filters[1], **down_args)(pool1_2)
 
         pool2_2 = Convo_Block(name=name+"maxpool2_2", filters=nb_filters[2], **down_args)(pool3)
 
         pool3 = Concatenate(axis=3)([pool2_2,pool0_2,pool1_2])
 
         if(architecture is not None):
+            pretrained[2] = Convo_Block(name=name+"maxpool_vgg_3", filters=nb_filters[1], **down_args)(pretrained[2])
             pool3 = Concatenate(axis=3)([pool3,pretrained[2]])
 
-        pool3 = Convo_Block(name=name+"pool3", filters=nb_filters[2], **down_args)(pool3)
+        pool3 = Convo_Block(name=name+"pool3", filters=nb_filters_concat[2], **down_args)(pool3)
 
         convo4,pool4 = pool_fct(name=name+"-down-block-4",filters=nb_filters[3],**down_args)(pool3)
 
         pool0_3 = MaxPool2D((16,16),16,'same')(convo1)
-        pool0_3 = Convo_Block(name=name+"maxpool0_3", filters=nb_filters[3], **down_args)(pool0_3)
+        pool0_3 = Convo_Block(name=name+"maxpool0_3", filters=nb_filters[1], **down_args)(pool0_3)
         pool1_3 = MaxPool2D((8,8),8,'same')(convo2)
-        pool1_3 = Convo_Block(name=name+"maxpool1_3", filters=nb_filters[3], **down_args)(pool1_3)
+        pool1_3 = Convo_Block(name=name+"maxpool1_3", filters=nb_filters[1], **down_args)(pool1_3)
         pool2_3 = MaxPool2D((4,4),4,'same')(convo3)
-        pool2_3 = Convo_Block(name=name+"maxpool2_3", filters=nb_filters[3], **down_args)(pool2_3)
+        pool2_3 = Convo_Block(name=name+"maxpool2_3", filters=nb_filters[1], **down_args)(pool2_3)
 
         pool3_3 = Convo_Block(name=name+"maxpool3_3", filters=nb_filters[3], **down_args)(pool4)
 
         pool4 = Concatenate(axis=3)([pool3_3,pool0_3,pool1_3,pool2_3])
 
         if(architecture is not None):
+            pretrained[3] = Convo_Block(name=name+"maxpool_vgg_4", filters=nb_filters[1], **down_args)(pretrained[3])
             pool4 = Concatenate(axis=3)([pool4,pretrained[3]])
 
-        pool4 = Convo_Block(name=name+"pool4", filters=nb_filters[3], **down_args)(pool4)
+        pool4 = Convo_Block(name=name+"pool4", filters=nb_filters_concat[3], **down_args)(pool4)
 
         convo5 = Convo_Block(name=name+"-convo-block",filters=nb_filters[4],**down_args)(pool4)
 
         convo3_4 = MaxPool2D((2,2),2,'same')(convo3)
-        convo3_4 = Convo_Block(name=name+"-convo3_4",filters=nb_filters[3],**down_args)(convo3_4)
+        convo3_4 = Convo_Block(name=name+"-convo3_4",filters=nb_filters[5],**down_args)(convo3_4)
 
         convo2_4 = MaxPool2D((4,4),4,'same')(convo2)
-        convo2_4 = Convo_Block(name=name+"-convo2_4",filters=nb_filters[3],**down_args)(convo2_4)
+        convo2_4 = Convo_Block(name=name+"-convo2_4",filters=nb_filters[5],**down_args)(convo2_4)
 
         convo1_4 = MaxPool2D((8,8),8,'same')(convo1)
-        convo1_4 = Convo_Block(name=name+"-convo1_4",filters=nb_filters[3],**down_args)(convo1_4)
+        convo1_4 = Convo_Block(name=name+"-convo1_4",filters=nb_filters[5],**down_args)(convo1_4)
 
-        convo4_4 = Convo_Block(name=name+"-convo4_4",filters=nb_filters[3],**down_args)(convo4)
+        convo4_4 = Convo_Block(name=name+"-convo4_4",filters=nb_filters[5],**down_args)(convo4)
 
-        up_convo5 = Conv2DTranspose(name=name+"-up_convo5",filters=nb_filters[3],**convo_trans_args)(convo5)
+        up_convo5 = Conv2DTranspose(name=name+"-up_convo5",filters=nb_filters[5],**convo_trans_args)(convo5)
         up1 = Concatenate(axis=3)([up_convo5,convo4_4,convo3_4,convo2_4,convo1_4])
-        up1 = Convo_Block(name=name+"-up-1",filters=nb_filters[3],**down_args)(up1)
+        up1 = Convo_Block(name=name+"-up-1",filters=nb_filters[6],**down_args)(up1)
 
         convo5_3 = UpSampling2D(name=name+"-up5_3",size=(4,4),interpolation='bilinear')(convo5)
-        convo5_3 = Convo_Block(name=name+"-convo5_3",filters=nb_filters[2],**down_args)(convo5_3)
+        convo5_3 = Convo_Block(name=name+"-convo5_3",filters=nb_filters[5],**down_args)(convo5_3)
 
         convo2_3 = MaxPool2D((2,2),2,'same')(convo2)
-        convo2_3 = Convo_Block(name=name+"-convo2_3",filters=nb_filters[2],**down_args)(convo2_3)
+        convo2_3 = Convo_Block(name=name+"-convo2_3",filters=nb_filters[5],**down_args)(convo2_3)
 
         convo1_3 = MaxPool2D((4,4),4,'same')(convo1)
-        convo1_3 = Convo_Block(name=name+"-convo1_3",filters=nb_filters[2],**down_args)(convo1_3)
+        convo1_3 = Convo_Block(name=name+"-convo1_3",filters=nb_filters[5],**down_args)(convo1_3)
 
-        convo3_3 = Convo_Block(name=name+"-convo3_3",filters=nb_filters[2],**down_args)(convo3)
+        convo3_3 = Convo_Block(name=name+"-convo3_3",filters=nb_filters[5],**down_args)(convo3)
 
-        up_convo4 = Conv2DTranspose(name=name+"-up_convo4",filters=nb_filters[2],**convo_trans_args)(up1)
+        up_convo4 = Conv2DTranspose(name=name+"-up_convo4",filters=nb_filters[5],**convo_trans_args)(up1)
         up2 = Concatenate(axis=3)([up_convo4,convo3_3,convo2_3,convo1_3,convo5_3])
-        up2 = Convo_Block(name=name+"-up-2",filters=nb_filters[2],**down_args)(up2)
+        up2 = Convo_Block(name=name+"-up-2",filters=nb_filters[6],**down_args)(up2)
 
         convo5_2 = UpSampling2D(name=name+"-up5_2",size=(8,8),interpolation='bilinear')(convo5)
-        convo5_2 = Convo_Block(name=name+"-convo5_2",filters=nb_filters[1],**down_args)(convo5_2)
+        convo5_2 = Convo_Block(name=name+"-convo5_2",filters=nb_filters[5],**down_args)(convo5_2)
 
         convo4_2 = UpSampling2D(name=name+"-up4_2",size=(4,4),interpolation='bilinear')(up1)
-        convo4_2 = Convo_Block(name=name+"-convo4_2",filters=nb_filters[1],**down_args)(convo4_2)
+        convo4_2 = Convo_Block(name=name+"-convo4_2",filters=nb_filters[5],**down_args)(convo4_2)
 
         convo1_2 = MaxPool2D((2,2),2,'same')(convo1)
-        convo1_2 = Convo_Block(name=name+"-convo1_2",filters=nb_filters[1],**down_args)(convo1_2)
+        convo1_2 = Convo_Block(name=name+"-convo1_2",filters=nb_filters[5],**down_args)(convo1_2)
 
-        convo2_2 = Convo_Block(name=name+"-convo2_2",filters=nb_filters[1],**down_args)(convo2)
+        convo2_2 = Convo_Block(name=name+"-convo2_2",filters=nb_filters[5],**down_args)(convo2)
 
-        up_convo3 = Conv2DTranspose(name=name+"-up_convo3",filters=nb_filters[1],**convo_trans_args)(up2)
+        up_convo3 = Conv2DTranspose(name=name+"-up_convo3",filters=nb_filters[5],**convo_trans_args)(up2)
         up3 = Concatenate(axis=3)([up_convo3,convo2_2,convo1_2,convo4_2,convo5_2])
-        up3 =  Convo_Block(name=name+"-up-3",filters=nb_filters[1],**down_args)(up3)
+        up3 =  Convo_Block(name=name+"-up-3",filters=nb_filters[6],**down_args)(up3)
 
         convo5_1 = UpSampling2D(name=name+"-up5_1",size=(16,16),interpolation='bilinear')(convo5)
-        convo5_1 = Convo_Block(name=name+"-convo5_1",filters=nb_filters[0],**down_args)(convo5_1)
+        convo5_1 = Convo_Block(name=name+"-convo5_1",filters=nb_filters[5],**down_args)(convo5_1)
 
         convo4_1 = UpSampling2D(name=name+"-up4_1",size=(8,8),interpolation='bilinear')(up1)
-        convo4_1 = Convo_Block(name=name+"-convo4_1",filters=nb_filters[0],**down_args)(convo4_1)
+        convo4_1 = Convo_Block(name=name+"-convo4_1",filters=nb_filters[5],**down_args)(convo4_1)
 
         convo3_1 = UpSampling2D(name=name+"-up3_1",size=(4,4),interpolation='bilinear')(up2)
-        convo3_1 = Convo_Block(name=name+"-convo3_1",filters=nb_filters[0],**down_args)(convo3_1)
+        convo3_1 = Convo_Block(name=name+"-convo3_1",filters=nb_filters[5],**down_args)(convo3_1)
 
-        convo1_1 = Convo_Block(name=name+"-convo1_1",filters=nb_filters[0],**down_args)(convo1)
+        convo1_1 = Convo_Block(name=name+"-convo1_1",filters=nb_filters[5],**down_args)(convo1)
 
-        up_convo2 = Conv2DTranspose(name=name+"-up_convo2",filters=nb_filters[0],**convo_trans_args)(up3)
+        up_convo2 = Conv2DTranspose(name=name+"-up_convo2",filters=nb_filters[5],**convo_trans_args)(up3)
         up4 = Concatenate(axis=3)([up_convo2,convo1_1,convo5_1,convo4_1,convo3_1])
-        up4 = Convo_Block(name=name+"-up-4",filters=nb_filters[0],**down_args)(up4)
+        up4 = Convo_Block(name=name+"-up-4",filters=nb_filters[6],**down_args)(up4)
 
         outconvo = Conv2D(name=name+"-final-convo",**out_args)(up4)
         sigmoid = K.activations.sigmoid

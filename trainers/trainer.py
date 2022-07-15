@@ -23,7 +23,8 @@ class Trainer(abc.ABC):
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
                  batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
-                 load_checkpoint_path=None, segmentation_threshold=None):
+                 load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
+                 blobs_removal_threshold=0, hyper_seg_threshold=False):
         """
         Abstract class for model trainers.
         Args:
@@ -52,6 +53,7 @@ class Trainer(abc.ABC):
                                   resume training from (None to start training from scratch instead)
             segmentation_threshold: threshold >= which to consider the model's prediction for a given pixel to
                                     correspond to class 1 rather than class 0 (None to use default)
+            hyper_seg_threshold: whether to use hyperopt to calculate the optimal threshold on the evaluation data (measured by F1 score)
         """
         self.dataloader = dataloader
         self.model = model
@@ -63,6 +65,7 @@ class Trainer(abc.ABC):
         self.batch_size = batch_size
         self.optimizer_or_lr = optimizer_or_lr
         self.loss_function_hyperparams = loss_function_hyperparams if loss_function_hyperparams is not None else {}
+        self.hyper_seg_threshold = hyper_seg_threshold
 
         self.loss_function_name = str(loss_function)
         if isinstance(loss_function, str):
@@ -88,6 +91,8 @@ class Trainer(abc.ABC):
         self.do_checkpoint = self.checkpoint_interval is not None and self.checkpoint_interval > 0
         self.segmentation_threshold =\
             segmentation_threshold if segmentation_threshold is not None else DEFAULT_SEGMENTATION_THRESHOLD
+        self.use_channelwise_norm = use_channelwise_norm
+        self.blobs_removal_threshold = blobs_removal_threshold
         self.is_windows = os.name == 'nt'
         self.load_checkpoint_path = load_checkpoint_path
         self.mlflow_initialized = False
@@ -200,12 +205,20 @@ class Trainer(abc.ABC):
             'split': self.split,
             'epochs': self.num_epochs,
             'batch_size': self.batch_size,
-            'loss_function': self.loss_function_name if hasattr(self, 'loss_function_name') else self.loss_function,
+            'loss_function': getattr(self, 'loss_function_name', self.loss_function),
             'seg_threshold': self.segmentation_threshold,
-            'model': self.model.name if hasattr(self.model, 'name') else type(self.model).__name__,
+            'use_channelwise_norm': self.use_channelwise_norm,
+            'blobs_removal_threshold': getattr(self, 'blobs_removal_threshold', 0),
+            'model': getattr(self.model, 'name', type(self.model).__name__),
             'dataset': self.dataloader.dataset,
+            'dl_use_geometric_augmentation': getattr(self.dataloader, 'use_geometric_augmentation', False),
+            'dl_use_color_augmentation': getattr(self.dataloader, 'use_color_augmentation', False),
+            'dl_aug_contrast': getattr(self.dataloader, 'contrast', None),
+            'dl_aug_brightness': getattr(self.dataloader, 'brightness', None),
+            'dl_aug_saturation': getattr(self.dataloader, 'saturation', None),
             'from_checkpoint': self.load_checkpoint_path if self.load_checkpoint_path is not None else '',
             'session_id': SESSION_ID,
+            'use_hyperopt_for_optimal_threshold': self.hyper_seg_threshold,
             **(optim_hyparam_serializer.serialize_optimizer_hyperparams(self.optimizer_or_lr)),
             **({f'loss_{k}': v for k, v in self.loss_function_hyperparams.items()})
         }
@@ -240,8 +253,8 @@ class Trainer(abc.ABC):
     @abc.abstractmethod
     def get_precision_recall_F1_score_validation(self):
         """
-        Calculate and return the precision, recall and F1 score on the validation split of the current dataset.
-        Returns: Tuple of (float, float, float) containing (precision, recall, f1_score)
+        Calculate and return the precision, recall and F1 score on the validation split of the current dataset, as well as the segmentation threshold used to calculate these metrics.
+        Returns: Tuple of (float, float, float, float) containing (precision, recall, f1_score, segmentation_threshold)
         """
         raise NotImplementedError('Must be defined for trainer.')
 
@@ -297,8 +310,8 @@ class Trainer(abc.ABC):
                     mlflow_logger.log_codebase()  # log codebase before training, to be invariant to training crashes and stops
                     mlflow_logger.log_command_line()  # log command line used to execute the script, if available
                     
-                    precision, recall, f1_score = self.get_precision_recall_F1_score_validation()
-                    metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score}
+                    precision, recall, f1_score, threshold = self.get_precision_recall_F1_score_validation()
+                    metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score, 'seg_threshold': threshold}
                     print(f'Evaluation metrics: {metrics}')
                     if mlflow_logger.logging_to_mlflow_enabled():
                         mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=0)
@@ -314,8 +327,8 @@ class Trainer(abc.ABC):
                         pushbullet_logger.send_pushbullet_message(err_msg)
                     raise e
         else:
-            precision, recall, f1_score = self.get_precision_recall_F1_score_validation()
-            metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score}
+            precision, recall, f1_score, threshold = self.get_precision_recall_F1_score_validation()
+            metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score, 'seg_threshold': threshold}
             print(f'Evaluation metrics: {metrics}')
 
         return metrics
@@ -325,6 +338,13 @@ class Trainer(abc.ABC):
         Create visualizations for the validation dataset and save them into "vis_file_path".
         """
         raise NotImplementedError('Must be defined for trainer.')
+    
+    def get_best_segmentation_threshold(self):
+        """Uses Hyperopt to get the segmentation threshold with the best F1 score based on a subset of the training data
+        Returns:
+            float: best segmentation threshold of the current model
+        """
+        raise NotImplementedError('Must be defined for trainer')
 
     @staticmethod
     def _fill_images_array(preds, batch_ys, images):

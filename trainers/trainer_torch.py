@@ -17,14 +17,16 @@ from losses.precision_recall_f1 import *
 from utils.logging import mlflow_logger
 from .trainer import Trainer
 from utils import *
-
+from blobs_remover import remove_blobs
+from threshold_optimizer import ThresholdOptimizer
 
 class TorchTrainer(Trainer, abc.ABC):
     def __init__(self, dataloader, model, preprocessing,
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, scheduler=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
-                 load_checkpoint_path=None, segmentation_threshold=None):
+                 load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
+                 blobs_removal_threshold=0, hyper_seg_threshold=False):
         """
         Abstract class for Torch-based model trainers.
         Args:
@@ -32,13 +34,22 @@ class TorchTrainer(Trainer, abc.ABC):
             model: the model to train
         """
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
-                         checkpoint_interval, load_checkpoint_path, segmentation_threshold)
+                         checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
+                         blobs_removal_threshold, hyper_seg_threshold)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.scheduler = scheduler
+        
+        if hyper_seg_threshold:
+            self.seg_thresh_dataloader = self.dataloader.get_training_dataloader(split=0.2, batch_size=1,
+                                                                preprocessing=self.preprocessing)
+            # initialize again, else we will not use entire training dataset but only a split of 0.2 !
+            self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size, preprocessing=self.preprocessing)
+        
+        
+        
 
     # This class is a mimicry of TensorFlow's "Callback" class behavior, used not out of necessity (as we write the
     # training loop explicitly in Torch, instead of using the "all-inclusive" model.fit(...) in TF, and can thus just
@@ -58,18 +69,23 @@ class TorchTrainer(Trainer, abc.ABC):
             self.do_visualize = self.trainer.num_samples_to_visualize is not None and \
                                 self.trainer.num_samples_to_visualize > 0
             self.f1_score = None
+            self.best_f1_score = -1.0
 
         def on_train_batch_end(self):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                precision, recall, self.f1_score = self.trainer.get_precision_recall_F1_score_validation()
-                metrics = {'precision': precision, 'recall': recall, 'f1_score': self.f1_score}
+                precision, recall, self.f1_score, self.segmentation_threshold = self.trainer.get_precision_recall_F1_score_validation()
+                metrics = {'precision': precision, 'recall': recall, 'f1_score': self.f1_score, 'seg_threshold': self.segmentation_threshold}
                 print('Metrics at aggregate iteration %i (ep. %i, ep.-it. %i): %s'
                       % (self.iteration_idx, self.epoch_idx, self.epoch_iteration_idx, str(metrics)))
                 if mlflow_logger.logging_to_mlflow_enabled():
                     mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=self.iteration_idx)
                     if self.do_visualize:
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx, self.epoch_idx, self.epoch_iteration_idx)
-                
+
+                if self.trainer.do_checkpoint and self.best_f1_score < self.f1_score:
+                    self.best_f1_score = self.f1_score
+                    self.trainer._save_checkpoint(self.trainer.model,None,None,None,best="f1")
+
                 if self.trainer.do_checkpoint\
                    and self.iteration_idx % self.trainer.checkpoint_interval == 0\
                    and self.iteration_idx > 0:  # avoid creating checkpoints at iteration 0
@@ -117,15 +133,33 @@ class TorchTrainer(Trainer, abc.ABC):
             if type(output) is tuple:
                 output = output[0]
             preds = (output >= self.segmentation_threshold).float().cpu().detach().numpy()
+            # print('shape', preds.shape)
+            preds_list = []
+            for i in range(preds.shape[0]):
+                # print('preds[i]', preds[i].shape)
+                # print('THRESHOLD', self.blobs_removal_threshold)
+                pred_ = remove_blobs(preds[i], threshold=self.blobs_removal_threshold)
+                # print('pred_', pred_.shape)
+                if len(pred_.shape) == 2:
+                    preds_list.append(pred_[None, None, :, :])
+                elif len(pred_.shape) == 3:
+                    preds_list.append(pred_[None, :, :, :])
+                else:
+                    print('problem', pred_.shape)
+            # print('len', len(preds_list))
+            preds = np.concatenate(preds_list, axis=0)
+            # print(preds.shape)
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
             self._fill_images_array(preds, batch_ys, images)
 
         self._save_image_array(images, file_path)
 
-    def _save_checkpoint(self, model, epoch, epoch_iteration, total_iteration):
+    def _save_checkpoint(self, model, epoch, epoch_iteration, total_iteration,best=None):
         if None not in [epoch, epoch_iteration, total_iteration]:
             checkpoint_path = f'{CHECKPOINTS_DIR}/cp_ep-{"%05i" % epoch}_epit-{"%05i" % epoch_iteration}' +\
                               f'_step-{total_iteration}.pt'
+        elif best is not None:
+            checkpoint_path = f'{CHECKPOINTS_DIR}/cp_best_{best}.pt'
         else:
             checkpoint_path = f'{CHECKPOINTS_DIR}/cp_final.pt'
         torch.save({
@@ -167,6 +201,7 @@ class TorchTrainer(Trainer, abc.ABC):
         checkpoint = torch.load(final_checkpoint_path, map_location=self.device)
         self.model.load_state_dict(checkpoint['model'])
         self.optimizer_or_lr.load_state_dict(checkpoint['optimizer'])
+        self.optimizer_or_lr.param_groups[0]['capturable'] = True
         print('Checkpoint loaded\n')
         # os.remove(final_checkpoint_path)
 
@@ -180,8 +215,7 @@ class TorchTrainer(Trainer, abc.ABC):
 
         self.train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                                     preprocessing=self.preprocessing)
-        self.test_loader = self.dataloader.get_testing_dataloader(batch_size=1,
-                                                                  preprocessing=self.preprocessing)
+        self.test_loader = self.dataloader.get_testing_dataloader(batch_size=1, preprocessing=self.preprocessing)
         print(f'Using device: {self.device}\n')
 
         self.model = self.model.to(self.device)
@@ -191,12 +225,14 @@ class TorchTrainer(Trainer, abc.ABC):
 
         # use self.Callback instead of TorchTrainer.Callback, to allow subclasses to overwrite the callback handler
         callback_handler = self.Callback(self, mlflow_run, self.model)
-        print(self.num_epochs)
+        best_val_loss = 1e12
         for epoch in range(self.num_epochs):
             last_train_loss = self._train_step(self.model, self.device, self.train_loader, callback_handler=callback_handler)
             last_test_loss = self._eval_step(self.model, self.device, self.test_loader)
             metrics = {'train_loss': last_train_loss, 'test_loss': last_test_loss}
-
+            if(self.do_checkpoint and best_val_loss > last_test_loss):
+                best_val_loss = last_test_loss
+                self._save_checkpoint(self.model,None,None,None,best="test_loss")
             print('\nEpoch %i finished at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()) % epoch)
             print('Metrics: %s\n' % str(metrics))
 
@@ -249,11 +285,14 @@ class TorchTrainer(Trainer, abc.ABC):
         return test_loss
 
     def get_F1_score_validation(self):
-        _, _, f1_score = self.get_precision_recall_F1_score_validation()
+        _, _, f1_score, _ = self.get_precision_recall_F1_score_validation()
         return f1_score
 
     def get_precision_recall_F1_score_validation(self):
         self.model.eval()
+        threshold = self.segmentation_threshold
+        if self.hyper_seg_threshold:
+            threshold = self.get_best_segmentation_threshold()
         precisions, recalls, f1_scores = [], [], []
         for (x, y) in self.test_loader:
             x = x.to(self.device, dtype=torch.float32)
@@ -261,11 +300,31 @@ class TorchTrainer(Trainer, abc.ABC):
             output = self.model(x)
             if type(output) is tuple:
                 output = output[0]
-            preds = (output >= self.segmentation_threshold).float()
+            preds = (output.squeeze() >= threshold).float()
+            preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
             precision, recall, f1_score = precision_recall_f1_score_torch(preds, y)
             precisions.append(precision.cpu().numpy())
             recalls.append(recall.cpu().numpy())
             f1_scores.append(f1_score.cpu().numpy())
             del x
             del y
-        return np.mean(precisions), np.mean(recalls), np.mean(f1_scores)
+        return np.mean(precisions), np.mean(recalls), np.mean(f1_scores), threshold
+    
+    def get_best_segmentation_threshold(self):
+        # use hyperopt search space to get the best segmentation threshold based on a subset of the training data
+        threshold_optimizer = ThresholdOptimizer()
+        predictions = []
+        targets = []
+        with torch.no_grad():
+            for (sample_x,sample_y) in self.seg_thresh_dataloader: # batch size is 1
+                x, y = sample_x.to(self.device, dtype=torch.float32), sample_y.to(self.device, dtype=torch.long)
+                y = torch.squeeze(y, dim=1)  # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
+                output = self.model(x)
+                if type(output) is tuple:
+                    output = output[0]
+                preds = remove_blobs(output.squeeze(), threshold=self.blobs_removal_threshold)
+                predictions.append(preds)
+                targets.append(y)
+            best_threshold = threshold_optimizer.run(predictions, targets,
+                                                     lambda thresholded_prediction, targets: f1_score_torch(thresholded_prediction, targets).cpu().numpy())
+        return best_threshold
