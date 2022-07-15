@@ -22,7 +22,7 @@ def split_image_gt(input_dir, output_dir):
         width = img_and_gt.shape[1]
         img = img_and_gt[:, :width//2, :]
         gt = img_and_gt[:, width//2:, :]
-        cv2.imwrite(os.path.join(output_dir, f'images/{file_no_extension}.jpg'), img)
+        cv2.imwrite(os.path.join(output_dir, f'images/{file_no_extension}.png'), img)
         cv2.imwrite(os.path.join(output_dir, f'groundtruth/{file_no_extension}.png'), gt)
 
 
