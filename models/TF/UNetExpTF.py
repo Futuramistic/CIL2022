@@ -3,11 +3,11 @@ import tensorflow as tf
 import tensorflow.keras as K
 from tensorflow.keras.layers import *
 
-from .blocks import *
-from utils import *
+from blocks import *
+#from utils import *
 
 
-def UNetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
+def UNetTF(input_shape=(400,400,3),
            name="UNetTF",
            dropout=0.5,
            kernel_init='he_normal',
@@ -75,7 +75,7 @@ def UNetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
     model.kernel_regularizer = kernel_regularizer
     return model
 
-def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
+def UNet3PlusTF(input_shape=(400,400,3),
            name="UNet3PlusTF",
            dropout=0.5,
            kernel_init='he_normal',
@@ -228,7 +228,7 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
 
 # Extend the Unet3+ architecture on the decoder side
 # * Added non-standard skip connections on the decoder side
-def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
+def UNetExpTF(input_shape=(400,400,3),
            name="UNetEXPTF",
            dropout=0.5,
            kernel_init='he_normal',
@@ -261,7 +261,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         }
 
         convo_trans_args = {
-            'kernel_size':(2, 2),
+            'kernel_size':(5, 5),
             'strides':(2, 2),
             'padding':'same',
             'kernel_initializer':kernel_init,
