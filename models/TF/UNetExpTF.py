@@ -261,7 +261,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         }
 
         convo_trans_args = {
-            'kernel_size':(5, 5),
+            'kernel_size':(4, 4),
             'strides':(2, 2),
             'padding':'same',
             'kernel_initializer':kernel_init,
