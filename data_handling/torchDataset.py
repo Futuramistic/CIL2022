@@ -35,7 +35,7 @@ class SegmentationDataset(Dataset):
         image_np = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
         image = torch.from_numpy(image_np)
         image = torch.permute(image, (2, 0, 1))  # channel dim first
-        image = image[[2, 1, 0, 3] if image.shape[0] == 4 else [2, 1, 0] if gt.shape[0] == 3 else [0]]  # BGR to RGB
+        image = image[[2, 1, 0, 3] if image.shape[0] == 4 else [2, 1, 0] if image.shape[0] == 3 else [0]]  # BGR to RGB
 
         # torchvision.io.read_image has problems with some PNG files
         # image = read_image(img_path)

@@ -249,7 +249,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_init':kernel_init,
             'normalize':normalize,
             'kernel_regularizer': kernel_regularizer,
-            'activation':tf.nn.leaky_relu
+            'activation':tf.nn.silu
         }
 
         out_args = {
@@ -281,7 +281,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             nb_filters_concat = [96,192,320,512]
 
         pool_fct = Down_Block_LearnablePool if use_learnable_pool else Down_Block
-
+        inputs = K.applications.vgg19.preprocess_input(inputs)
         convo1,pool1 = pool_fct(name=name+"-down-block-1",filters=nb_filters[0],**down_args)(inputs)
 
         if(architecture is not None):
