@@ -195,73 +195,6 @@ class DinkNet34_less_pool(nn.Module):
         return F.sigmoid(out)
 
 
-# class DinkNet34(nn.Module):
-#     def __init__(self, num_classes=1, num_channels=3):
-#         super(DinkNet34, self).__init__()
-#
-#         filters = [64, 128, 256, 512]
-#
-#         resnet = models.resnet34(pretrained=True)
-#         self.firstconv = resnet.conv1
-#         self.firstbn = resnet.bn1
-#         self.firstrelu = resnet.relu
-#         self.firstmaxpool = resnet.maxpool
-#         self.encoder1 = resnet.layer1
-#         self.encoder2 = resnet.layer2
-#         self.encoder3 = resnet.layer3
-#         self.encoder4 = resnet.layer4
-#         self.deep_conv = nn.Sequential(nn.Conv2d(256, 64, kernel_size=1),
-#                                          nn.BatchNorm2d(64),
-#                                          nn.ReLU(),
-#                                          nn.Conv2d(64, 1, kernel_size=3, stride=1, padding=1))
-#         self.sample_conv = nn.Sequential(nn.Conv2d(32, 32, kernel_size=1),
-#                                           nn.BatchNorm2d(32),
-#                                           nn.ReLU(),
-#                                           nn.Conv2d(32, 1, kernel_size=3, stride=1, padding=1))
-#         self.dblock = Dblock(256)
-#
-#         self.decoder4 = DecoderBlock(filters[3], filters[2])
-#         self.decoder3 = DecoderBlock(filters[2], filters[1])
-#         self.decoder2 = DecoderBlock(filters[1], filters[0])
-#         self.decoder1 = DecoderBlock(filters[0], filters[0])
-#
-#         self.finaldeconv1 = nn.ConvTranspose2d(filters[0], 32, 4, 2, 1)
-#         self.finalrelu1 = nonlinearity
-#         # self.finalconv2 = nn.ConvTranspose2d(64, 32, 2, 2, 1)
-#         # self.finalrelu2 = nonlinearity
-#         self.finalconv3 = nn.Conv2d(32, num_classes, 3, padding=1)
-#
-#     def forward(self, x):
-#         # Encoder
-#         x = self.firstconv(x)
-#         # x = self.firstconv(x[:, 0:3, :, :])
-#         x = self.firstbn(x)
-#         x = self.firstrelu(x)
-#         x = self.firstmaxpool(x)
-#         e1 = self.encoder1(x)
-#         e2 = self.encoder2(e1)
-#         e3 = self.encoder3(e2)
-#         # e4 = self.encoder4(e3)
-#         deep = self.deep_conv(e3)
-#         deep = F.upsample(deep, size=(512,512), mode='bilinear', align_corners=True)
-#         # Center
-#         # e4 = self.dblock(e4)
-#         e3 = self.dblock(e3)
-#         # Decoder
-#         # d4 = self.decoder4(e4) + e3
-#         d3 = self.decoder3(e3) + e2
-#         d2 = self.decoder2(d3) + e1
-#         d1 = self.decoder1(d2+x)
-#
-#         out = self.finaldeconv1(d1)
-#         out = self.finalrelu1(out)
-#         # out = self.finalconv2(out)
-#         # out = self.finalrelu2(out)
-#         res = self.finalconv3(out)
-#         lower = self.sample_conv(out)
-#         return deep, res, lower
-
-
 class DinkNet34(nn.Module):
     def __init__(self, num_classes=1, num_channels=3):
         super(DinkNet34, self).__init__()
@@ -441,9 +374,11 @@ class SelfAttention(nn.Module):
         output = response + xs
         return output
 
+
 class OurDinkNet50(nn.Module):
     def __init__(self, num_classes=1, num_channels=3):
         super(OurDinkNet50, self).__init__()
+
 
         # vgg = models.vgg16(pretrained=True)
         # blocks = []
@@ -513,52 +448,84 @@ class OurDinkNet50(nn.Module):
         self.lam2 = Variable(torch.rand([]), requires_grad=True)
 
     def forward(self, input):
-        # Encoder
-        # print('input.shape:', input.shape)
+        intermediate_outputs = []
         x = self.firstconv(input)
-        # print('x', x.shape)
+        intermediate_outputs.append(x)
         x = self.firstbn(x)
-        # print('x', x.shape)
+        intermediate_outputs.append(x)
         x = self.firstrelu(x)
-        # print('x', x.shape)
+        intermediate_outputs.append(x)
         x = self.firstmaxpool(x)
-        # print('after first max pool', x.shape)
-
-        # _x = self._first_conv(input)
-        # # print('_x', _x.shape)
-        # _x = self._dblock32(_x)
-        # print('_x', _x.shape)
-
+        intermediate_outputs.append(x)
         e1 = self.encoder1(x)
+        intermediate_outputs.append(e1)
         e2 = self.encoder2(e1)
+        intermediate_outputs.append(e2)
         e3 = self.encoder3(e2)
-        # print('e1 e2 e3', e1.shape, e2.shape, e3.shape)
-
+        intermediate_outputs.append(e3)
         e3 = self.pam3(e3)
         e3 = self.dblock(e3)
         e4 = self.cam(e3)
-        # print('e4', e4.shape)
-
-        # Decoder
-        d3 = self.decoder3(e4) + self.lam1 * e2
-        # print('d3', d3.shape)
-        d2 = self.decoder2(d3) + self.lam2 * e1
-        # print('d2', d2.shape)
+        d3 = self.decoder3(e4) + e2
+        d2 = self.decoder2(d3) + e1
         x = self.first_conv(x)
-        # print('x', x.shape)
         d1 = self.decoder1(d2+x)
-        # print('d1', d1.shape)
-
         out = self.finaldeconv1(d1)
-        # print('out', out.shape)
-        out = self.finalrelu1(out)  # torch.cat((out, _x), dim=1))  # original out
-        # print('out', out.shape)
+        out = self.finalrelu1(out)
         out = self.finalconv2(out)
-        # print('out', out.shape)
         out = self.finalrelu2(out)
-        # print('out', out.shape)
         res = self.finalconv3(out)
-        # print('res', res.shape)
+        intermediate_outputs.append(res)
         refine = self.sample_conv(out)
-        # print('refine', refine.shape)
-        return res, refine
+        return res, refine, intermediate_outputs
+
+    # def forward(self, input):
+    #     # Encoder
+    #     # print('input.shape:', input.shape)
+    #     x = self.firstconv(input)
+    #     # print('x', x.shape)
+    #     x = self.firstbn(x)
+    #     # print('x', x.shape)
+    #     x = self.firstrelu(x)
+    #     # print('x', x.shape)
+    #     x = self.firstmaxpool(x)
+    #     # print('after first max pool', x.shape)
+    #
+    #     # _x = self._first_conv(input)
+    #     # # print('_x', _x.shape)
+    #     # _x = self._dblock32(_x)
+    #     # print('_x', _x.shape)
+    #
+    #     e1 = self.encoder1(x)
+    #     e2 = self.encoder2(e1)
+    #     e3 = self.encoder3(e2)
+    #     # print('e1 e2 e3', e1.shape, e2.shape, e3.shape)
+    #
+    #     e3 = self.pam3(e3)
+    #     e3 = self.dblock(e3)
+    #     e4 = self.cam(e3)
+    #     # print('e4', e4.shape)
+    #
+    #     # Decoder
+    #     d3 = self.decoder3(e4) + e2
+    #     # print('d3', d3.shape)
+    #     d2 = self.decoder2(d3) + e1
+    #     # print('d2', d2.shape)
+    #     x = self.first_conv(x)
+    #     # print('x', x.shape)
+    #     d1 = self.decoder1(d2+x)
+    #     # print('d1', d1.shape)
+    #
+    #     out = self.finaldeconv1(d1)
+    #     # print('out', out.shape)
+    #     out = self.finalrelu1(out)  # torch.cat((out, _x), dim=1))  # original out
+    #     # print('out', out.shape)
+    #     out = self.finalconv2(out)
+    #     # print('out', out.shape)
+    #     out = self.finalrelu2(out)
+    #     # print('out', out.shape)
+    #     res = self.finalconv3(out)
+    #     # print('res', res.shape)
+    #     refine = self.sample_conv(out)
+    #     # print('refine', refine.shape)
+    #     return res, refine
