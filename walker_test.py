@@ -29,7 +29,10 @@ if __name__ == '__main__':
     trajectory_dir = os.path.join(dataset_path, 'training', 'trajectories')
     new_dir(trajectory_dir)
 
-    for file_name in imgs_to_process:
+    for file_idx, file_name in enumerate(imgs_to_process):
+        if file_idx < 2:
+            continue
+
         image = cv2.imread(os.path.join(dataset_path, 'training', 'groundtruth', file_name))[..., 0]
 
         # load associated optimal brush radius map
@@ -81,6 +84,9 @@ if __name__ == '__main__':
                 distance_map[visited > 0] = np.inf
                 
                 # closest_y, closest_x = np.unravel_index(np.argmin(distance_map), distance_map.shape)
+
+                if distance_map.min() == np.inf:
+                    break
 
                 closest_ys, closest_xs = np.where(distance_map == distance_map.min())
 
