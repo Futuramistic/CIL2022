@@ -2,7 +2,7 @@
 
 This repository contains the implementation of our solution for the Road Segmentation task of the Computational Intelligence Lab.
 
-Please refer to the accompanying [paper](https://arxiv.org/abs/2030.12345) for an in-depth description of our 
+Please refer to the accompanying [<insert_link_to_pdf>](https://arxiv.org/abs/2030.12345) for an in-depth description of our 
 research process and results.
 
 >📋  Optional: include a graphic explaining your approach/main result, bibtex entry, link to demos, blog posts and tutorials
@@ -14,13 +14,48 @@ research process and results.
 * Noureddine Gueddach
 
 ## Code structure
->📋  TODO: put the code structure here
+
+```
+.
+├── data_handling                   # Scripts for loading datasets
+└── dataset                         # Folder containing the datasets
+    ├── <dataset-name-1>
+    ├── <dataset-name-2>  
+    └── ...     
+├── factory                         # Helper for Loading models
+├── hyperopt_                       # Utilities for hyperparameter searches (using the HyperOpt framework)
+├── losses                          # Folder with losses used across models
+├── models                          # Folder with our various models
+    └── cascade_residual_attention  # CRA Model
+    └── custom                      # Custom architectures
+    └── learning_aerial_image_...   # TODO why were these grouped together? Bc torch models?
+    └── reinforcement               # RL models
+    └── road_extraction_from_...    # GL_Dense_UNet model
+    └── TF                          # Tensorflow models
+├── trainers                        # Custom trainers for each model
+├── utils                           # Utility functions and constants
+└── processing                      # TODO put all processing files here
+torch_predictor.py                  # Script for making predictions on a torch model
+tf_predictor.py                     # Script for making predictions on a tf model
+mask_to_submission.py               # Script from the Kaggle competition page
+submission_to_mask.py               # Script from the Kaggle competition page
+main_hyperopt.py                    # Script for launching HyperOpt experiments
+main.py                             # Script for training models
+...
+```
 
 ## Requirements
 
 The implementation works both on Linux and Windows.
 
-To install requirements:
+To setup an environment, run:
+```setup
+conda create -n CIL2022 python==3.7
+conda activate CIL2022
+conda install cmake
+```
+
+To install the requirements, run:
 
 ```setup
 pip install -r requirements.txt
@@ -43,57 +78,22 @@ dataset names are:
 > * new_ext_original_oversampled: "ext_original" dataset, with second city class oversampled, and 
 first 25 sample moved to end to form the validation split
 > * original_gt: dataset used in the ETHZ CIL Road Segmentation 2022 Kaggle competition, 
->but with images replaced by ground truth
+but with images replaced by ground truth
 > * original_128: "original" dataset, patchified into 128x128 patches and augmented using Preprocessor
 > * original_256: "original" dataset, patchified into 256x256 patches and augmented using Preprocessor
-
-    # "additional_maps_1": dataset retrieved from http://efrosgans.eecs.berkeley.edu/pix2pix/datasets/ -> maps.tar.gz
-    # and processed to convert the RGB masks to B/W. The resulting masks are not perfect and could definitely
-    # use some better processing, but they seem to be good enough visually
-    "new_maps": "https://polybox.ethz.ch/index.php/s/QTxb24YMpL1Rs66/download",
-
-    # Massachusetts Road dataset (256x256)
-    # WARNING: EXTRA LARGE dataset (!!!) 
-    # Training: 25,328 Images
-    # Testing: 1,293 Images
-    # WARNING: some images have white or black outer values due to processing (mostly bottom or right side)
-    "massachusetts_256":"https://polybox.ethz.ch/index.php/s/WnctKQV89H6W7KT/download",
-
-    # Massachusetts Road dataset (128x128)
-    # WARNING: EXTRA LARGE dataset (!!!) 
-    # Training: 81,669 Images
-    # Testing: 4,176 Images
-    # WARNING: some images have white or black outer values due to processing (mostly bottom or right side)
-    "massachusetts_128":"https://polybox.ethz.ch/index.php/s/XjSto2pXCeZydiH/download",
-
-    # Massachusetts Road dataset (400x400) + the original (400x400)
-    # WARNING: EXTRA LARGE dataset (!!!) 
-    # Training: 12,982 Images - Massachusetts (testing+training) + original trainig
-    # Testing: 144 Images - only original testing images
-    # WARNING: Some images have white or black outer values due to processing (mostly bottom or right side)!
-    #          However, the number of "partial" images is limited
-    "large":"https://polybox.ethz.ch/index.php/s/uXJgQrQazhrn5gA/download",
-
-    # "original_aug_6": "original" dataset, 400x400 but with augmented training set using Preprocessor (x6)
-    # I usually use a 0.975 split for this dataset
-    "original_aug_6": "https://polybox.ethz.ch/index.php/s/ICjaUr4ayCNwySJ/download",
-
-    # Recreation of "original_aug_6" dataset, but with 25 samples from original dataset excluded from augmentation
-    # procedure to avoid data leakage; same 25 samples as in "new_original", "new_ext_original" and "ext_original_aug_6" datasets
-    # use split of 0.971 to use exactly these 25 samples as the validation set
-    "new_original_aug_6": "https://polybox.ethz.ch/index.php/s/LJZ0InoG6GwyGsC/download",
-
-    # Recreation of "original_aug_6" dataset, but with 80 additional samples scraped from Google Maps added before
-    # augmentation procedure, and with 25 samples from original dataset excluded from augmentation procedure
-    # to avoid data leakage; same 25 samples as in "new_original", "new_ext_original" and "new_original_aug_6" datasets
-    # use split of 0.9825 to use exactly these 25 samples as the validation set
-    "ext_original_aug_6": "https://polybox.ethz.ch/index.php/s/9hDXLlX7mB5Xljq/download",
-    
-    # Recreation of "original_aug_6" dataset, but with 80 additional samples scraped from Google Maps added before
-    # augmentation procedure, the second city class oversampled, and with 25 samples from original dataset excluded from
-    # augmentation procedure to avoid data leakage; same 25 samples as in "new_original", "new_ext_original" and
-    # "new_original_aug_6" datasets; use split of 0.9875 to use exactly these 25 samples as the validation set
-    "ext_original_aug_6_oversampled": "https://polybox.ethz.ch/index.php/s/9hDXLlX7mB5Xljq/download"
+> * additional_maps_1: dataset retrieved from http://efrosgans.eecs.berkeley.edu/pix2pix/datasets/
+> * massachusetts_400: Massachusetts Road dataset (400x400)
+> * massachusetts_256: Massachusetts Road dataset (256x256)
+> * massachusetts_128: Massachusetts Road dataset (128x128)
+> * original_aug_6: "original" dataset, 400x400 but with augmented training set using Preprocessor (x6)
+> * new_original_aug_6: Recreation of "original_aug_6" dataset, but with 25 samples from original dataset excluded from augmentation
+procedure to avoid data leakage
+> * ext_original_aug_6: Recreation of "original_aug_6" dataset, but with 80 additional samples scraped from Google Maps added before
+augmentation procedure, and with 25 samples from original dataset excluded from augmentation procedure 
+to avoid data leakage
+> * new_original_aug_6: Recreation of "original_aug_6" dataset, but with 80 additional samples scraped from Google Maps added before
+augmentation procedure, the second city class oversampled, and with 25 samples from original dataset excluded from
+augmentation procedure to avoid data leakage
 
 #### Custom datasets
 If you want to setup a custom dataset, simply place it in the 'dataset' folder,
@@ -120,29 +120,30 @@ command-line below under the `model-name` argument):
 * UNet (name: 'unettf')
 * UNet++ (name: 'unet++')
 * UNetExp (name: 'unetexp')
-* U2Net (name: 'u2net')
+* UNet3+ (name: 'unet3+')
 * Attention UNet ('attunet')
 * Attention UNet++ ('attunet++')
 * GL Dense UNet ('gldenseunet')
-
 ```
 
 *Torch models*
 ```
-* UNet (Torch implementation - name: 'unet')
+* UNet (name: 'unet')
 * CRA-Net (name: 'cranet')
 * DeepLabV3 (name: 'deeplabv3')
-* Fast SCNN (name: 'fastscnn')
 ```
 
 >📋  TODO: Only keep the models that have been tested
 
 *Reinforcement Learning models (Torch)*
->📋  TODO: How should we call our RL model?
+```
+* SimpleRLCNN (name: 'simplerlcnn')
+* SimpleRLCNNMinimal (name: 'simplerlcnnminimal')
+```
 
 ## Training
 
-To train our models in the paper, run this command:
+To train the available models, run this command:
 
 ```train
 python main.py -d <dataset-name> -m <model-name> -E <experiment-name> 
@@ -156,7 +157,7 @@ python main.py -d original -m deeplabv3 -E training_run
 --batch_size 4 --num_epochs 30
 ```
 
->📋  TODO put commands for our final models
+>📋  TODO put commands for our final models/RL models
 
 ## Evaluation
 
