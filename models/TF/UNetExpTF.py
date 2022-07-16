@@ -249,7 +249,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_init':kernel_init,
             'normalize':normalize,
             'kernel_regularizer': kernel_regularizer,
-            'activation':tf.nn.silu
+            'activation':tf.nn.leaky_relu
         }
 
         out_args = {
