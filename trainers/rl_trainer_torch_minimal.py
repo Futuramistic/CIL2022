@@ -270,6 +270,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
             
             for idx, sample_y in enumerate(batch_ys):
                 log_debug(f'create_visualizations: processing sample {idx} in batch')
+                log_debug_indent += 1
 
                 sample_y_gpu =\
                     sample_y.to(self.device, dtype=torch.long)
@@ -302,6 +303,8 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
                 preds = env.get_unpadded_segmentation().float().detach().cpu()
                 preds_batch.append(preds)
+
+                log_debug_indent -= 1
 
             log_debug_indent -= 1
 
@@ -357,7 +360,6 @@ class TorchRLTrainerMinimal(TorchTrainer):
                     # ...
 
                     # prediction[:, timestep_idx]*255): shape(rgb, height, width)
-
 
                     agent_pos = positions_nstepwise_test_set[prediction_idx][min(timestep_idx, prediction_len-1)] # x, y
                     agent_pos_patch_size = 3
