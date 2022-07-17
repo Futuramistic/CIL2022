@@ -25,8 +25,8 @@ class cra_loss(nn.Module):
 
     def __init__(self):
         super(cra_loss, self).__init__()
-        self.criterion1 = dice_bce_loss_with_logits1().cuda()
-        self.criterion2 = dice_bce_loss_with_logits().cuda()
+        self.criterion1 = dice_bce_loss_with_logits1().cuda() if torch.cuda.is_available() else dice_bce_loss_with_logits1()
+        self.criterion2 = dice_bce_loss_with_logits().cuda()if torch.cuda.is_available() else dice_bce_loss_with_logits()
 
     def __call__(self, labels, lower, outputs):
         lossr = self.criterion1(labels, lower)
