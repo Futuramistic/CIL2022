@@ -268,6 +268,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_regularizer':kernel_regularizer
         }
         nb_filters_concat = [32,128,256,448]
+        inputs = K.applications.vgg19.preprocess_input(inputs)
         pretrained = None
         if(architecture=="vgg"):
             layer_names = ['block2_conv2','block3_conv4','block4_conv4','block5_conv4']
@@ -281,7 +282,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             nb_filters_concat = [96,192,320,512]
 
         pool_fct = Down_Block_LearnablePool if use_learnable_pool else Down_Block
-        inputs = K.applications.vgg19.preprocess_input(inputs)
+
         convo1,pool1 = pool_fct(name=name+"-down-block-1",filters=nb_filters[0],**down_args)(inputs)
 
         if(architecture is not None):
