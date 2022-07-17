@@ -1,6 +1,5 @@
 import keras
 import keras.backend
-import numpy as np
 import tensorflow as tf
 import torch
 
@@ -10,6 +9,15 @@ DEFAULT_TF_DIM_LAYOUT = 'NHWC'
 
 
 def collapse_channel_dim_torch(tensor, take_argmax, dim_layout=DEFAULT_TORCH_DIM_LAYOUT):
+    """
+    Collapse/Remove the channel dimension
+    Args:
+        tensor (Torch Tensor): Input tensor
+        take_argmax (bool): Whether to take the argmax of the channel dimension
+        dim_layout (str): Name of the dimensions layout ('NCHW' or 'NHWC')
+    Returns:
+        Collapsed tensor (Torch Tensor)
+    """
     shape = tensor.shape
     if len(shape) < 4:
         return tensor  # assume channel dim already collapsed
@@ -27,13 +35,21 @@ def collapse_channel_dim_torch(tensor, take_argmax, dim_layout=DEFAULT_TORCH_DIM
 
 
 def expand_channel_dim_torch(tensor, channel_starts, dim_layout=DEFAULT_TORCH_DIM_LAYOUT):
-    # channel_starts simultaneously determines the number of channels to add, and the starting thresholds of these
-    # channels
-    # * for a two-channel output, use channel_starts=(0.0, segmentation_threshold), e.g. (0.0, 0.5)
-    # * for a rounded single-channel output (with 0.0 and 1.0), use channel_starts=(segmentation_threshold,)
-    #   (a comma is needed for Python to interpret the channel_starts argument as a tuple)
-    # * for a non-rounded single-channel output (equivalent to torch.unsqueeze with dim equal to the channel dimension),
-    #   set channel_starts=None
+    """
+    Expand/Create the channel dim for an input tensor
+    Args:
+        tensor (Torch Tensor): Input tensor
+        dim_layout (str): Name of the dimensions layout ('NCHW' or 'NHWC')
+        channel_starts (list): simultaneously determines the number of channels to add,
+        and the starting thresholds of these channels:
+            * for a two-channel output, use channel_starts=(0.0, segmentation_threshold), e.g. (0.0, 0.5)
+            * for a rounded single-channel output (with 0.0 and 1.0), use channel_starts=(segmentation_threshold,)
+              (a comma is needed for Python to interpret the channel_starts argument as a tuple)
+            * for a non-rounded single-channel output (equivalent to torch.unsqueeze with dim equal to the
+              channel dimension), set channel_starts=None
+    Returns:
+        Tensor with expanded channel dimension (Torch Tensor)
+    """
 
     channel_dim_idx = dim_layout.strip().upper().index('C')
     # if channel_starts is None, prevent rounding
@@ -62,13 +78,23 @@ def expand_channel_dim_torch(tensor, channel_starts, dim_layout=DEFAULT_TORCH_DI
 
 
 def collapse_channel_dim_tf(tensor, take_argmax, dim_layout=DEFAULT_TF_DIM_LAYOUT):
+    """
+    Collapse/Remove the channel dimension
+    Args:
+        tensor (Tensorflow Tensor): Input tensor
+        take_argmax (bool): Whether to take the argmax of the channel dimension
+        dim_layout (str): Name of the dimensions layout ('NCHW' or 'NHWC')
+    Returns:
+        Collapsed tensor (Tensorflow Tensor)
+    """
     shape = tensor.shape
     if len(shape) < 4:
         return tensor  # assume channel dim already collapsed
     channel_dim_idx = dim_layout.strip().upper().index('C')
     num_channels = shape[channel_dim_idx]
     if take_argmax and num_channels > 1:
-        return tf.cast(keras.backend.argmax(tensor, axis=channel_dim_idx), dtype=tensor.dtype)  # preserve original dtype
+        # preserve original dtype
+        return tf.cast(keras.backend.argmax(tensor, axis=channel_dim_idx), dtype=tensor.dtype)
     else:
         # remove the channel dimension
         selector = [0 if dim_idx == channel_dim_idx else slice(0, shape[dim_idx]) for dim_idx in range(len(shape))]
@@ -79,8 +105,18 @@ def collapse_channel_dim_tf(tensor, take_argmax, dim_layout=DEFAULT_TF_DIM_LAYOU
 
 
 def expand_channel_dim_tf(tensor, channel_starts, dim_layout=DEFAULT_TF_DIM_LAYOUT):
-    # the behavior of this function is identical to that of expand_channel_dim_torch; see there for a detailed
-    # explanation of how to use this function
+    """
+    Expand/Create the channel dim for an input tensor.
+    The behavior of this function is identical to that of expand_channel_dim_torch; see there for a detailed
+    explanation of how to use this function
+    Args:
+        tensor (Torch Tensor): Input tensor
+        dim_layout (str): Name of the dimensions layout ('NCHW' or 'NHWC')
+        channel_starts (list): simultaneously determines the number of channels to add,
+        and the starting thresholds of these channels.
+    Returns:
+        Tensor with expanded channel dimension (Torch Tensor)
+    """
 
     channel_dim_idx = dim_layout.strip().upper().index('C')
     # if channel_starts is None, prevent rounding
