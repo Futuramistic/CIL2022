@@ -1,17 +1,28 @@
 import abc
-import datetime, os, shutil, urllib3, zipfile
-import warnings
+import datetime
 import errno
+import os
+import shutil
+import urllib3
+import warnings
+import zipfile
 import numpy as np
+
 from utils import ACCEPTED_IMAGE_EXTENSIONS, DATASET_ZIP_URLS, ROOT_DIR
 
 
 class DataLoader(abc.ABC):
-    """Args:
-            dataset (string): type of Dataset ("original" [from CIL2022 Competition], "Massachusets")
-        """
+    """
+    Abstract DataLoader, subclassed by TorchDataLoader and TFDataLoader
+    Used to load a dataset from disk
+    """
 
     def __init__(self, dataset="original"):
+        """
+        Args:
+            dataset (string): type of Dataset ("original" [from CIL2022 Competition], "Massachusets", ...)
+            Refer to util.py for all the dataset names
+        """
         self.dataset = dataset
         check = self.__download_data(dataset)
         if check == -1:
@@ -29,26 +40,34 @@ class DataLoader(abc.ABC):
         if os.path.exists(test_gt_dir):
             self.test_gt_dir = test_gt_dir
 
-        self.training_img_paths, self.training_gt_paths = DataLoader.get_img_gt_paths(self.training_img_dir, self.training_gt_dir,
-                                                                                      initial_shuffle=False)
-        
+        self.training_img_paths, self.training_gt_paths = \
+            DataLoader.get_img_gt_paths(self.training_img_dir, self.training_gt_dir, initial_shuffle=False)
+
         # WARNING: test dataset must be ordered alphabetically by filename for tf_predictor.py to work!
-        self.test_img_paths, self.test_gt_paths = DataLoader.get_img_gt_paths(self.test_img_dir, self.test_gt_dir,
-                                                                              initial_shuffle=False)
+        self.test_img_paths, self.test_gt_paths = \
+            DataLoader.get_img_gt_paths(self.test_img_dir, self.test_gt_dir, initial_shuffle=False)
 
         # define dataset variables for later usage
         self.training_data = None
         self.testing_data = None
         self.unlabeled_testing_data = None
-    
-    
+
     @staticmethod
     def get_img_gt_paths(img_dir, gt_dir, initial_shuffle=True):
+        """
+        Create a list of of paths from the image and groundtruth directories
+        Args:
+            img_dir (string): Path to the images directory
+            gt_dir (string): Path to the groundtruths directory
+            initial_shuffle (bool): whether to shuffle the data at load time
+        Returns:
+            Tuple of (list(str), list(str))
+        """
         img_paths, gt_paths = None, None
         img_idxs = None  # match corresponding image<>gt pairs
         have_samples = img_dir is not None
         have_gt = gt_dir is not None
-        if have_samples:
+        if have_samples:  # images available
             img_paths = []
             img_idxs = {}
             for img_name in sorted(os.listdir(img_dir)):
@@ -57,7 +76,7 @@ class DataLoader(abc.ABC):
                     pth = f"{img_dir}/{img_name}"
                     img_idxs[img_name] = len(img_paths)
                     img_paths.append(pth)
-        if have_gt:
+        if have_gt:  # groundtruths available
             gt_paths = [""] * len(img_paths) if have_samples else []
             for img_name in sorted(os.listdir(gt_dir)):
                 if have_samples and img_name not in img_idxs:
@@ -79,7 +98,7 @@ class DataLoader(abc.ABC):
                 gt_paths = np.array(gt_paths)[shuffler]
 
         return img_paths, gt_paths
-    
+
     @abc.abstractmethod
     def get_img_val_min_max(self, preprocessing):
         """
@@ -92,8 +111,7 @@ class DataLoader(abc.ABC):
             Tuple of (int, int)
         """
         raise NotImplementedError('must be defined for torch or tensorflow loader')
-    
-    
+
     @abc.abstractmethod
     def get_dataset_sizes(self, split):
         """
@@ -154,9 +172,14 @@ class DataLoader(abc.ABC):
         """
         raise NotImplementedError('must be defined for torch or tensorflow loader')
 
-    def get_default_evaluation_interval(self, split, batch_size, num_epochs, num_samples_to_visualize):
-        train_dataset_size, test_dataset_size, _ = self.get_dataset_sizes(split)
-        iterations_per_epoch = train_dataset_size // batch_size
+    @staticmethod
+    def get_default_evaluation_interval(batch_size):
+        """
+        Args:
+            batch_size (int): Size of a batch
+        Returns:
+            Default evaluation interval (int)
+        """
         # every time EVALUATE_AFTER_PROCESSING_SAMPLES samples are processed, perform an evaluation
         # cap frequency at one evaluation per MIN_EVALUATION_INTERVAL iterations
         EVALUATE_AFTER_PROCESSING_SAMPLES = 200
@@ -166,13 +189,33 @@ class DataLoader(abc.ABC):
 
     @abc.abstractmethod
     def load_model(self, path):
+        """
+        Load a model from path
+        Args:
+            path (string): Path to the model data
+        Returns:
+            The loaded model
+        """
         raise NotImplementedError('must be defined for torch or tensorflow loader')
 
     @abc.abstractmethod
     def save_model(self, model, path):
+        """
+        Save a model to disk
+        Args:
+            path (string): Path where to save the model
+        """
         raise NotImplementedError('must be defined for torch or tensorflow loader')
 
-    def __download_data(self, dataset_name):
+    @staticmethod
+    def __download_data(dataset_name):
+        """
+        Given a dataset name, download it from the network
+        Args:
+            dataset_name (str): Name of the dataset
+        Returns:
+            1 if completed successfully else returns an error code
+        """
         destination_path = os.path.join(*[ROOT_DIR, "dataset", dataset_name.lower()])
         ts_path = os.path.join(destination_path, "download_timestamp.txt")
         zip_path = f"{destination_path}.zip"
@@ -217,10 +260,9 @@ class DataLoader(abc.ABC):
 
         return 1
 
-    def __create_file_structure(self, destination_path):
+    @staticmethod
+    def __create_file_structure(destination_path):
         # create paths
-        # --> useful if dataset is not in required format, currently not needed anymore
-        #####TODO: test this method#####
         try:
             os.makedirs(destination_path)
             os.makedirs(f"{destination_path}/training")
@@ -238,14 +280,14 @@ class DataLoader(abc.ABC):
                 return 1
         except:
             warnings.warn(
-                f"Ooops, there has been an error while creating the folder structure in {destination_path} in the Dataloader")
+                f"Ooops, there has been an error while creating the folder structure in"
+                f" {destination_path} in the Dataloader")
             return -1
 
-    def __move_files(self, destination_path, image_path_initial, gt_path_initial, test_image_path_initial,
+    @staticmethod
+    def __move_files(destination_path, image_path_initial, gt_path_initial, test_image_path_initial,
                      test_gt_path_initial):
-        # move all files into the wanted folder structure 
-        # --> might be useful later for other datasets, currently not needed anymore
-        #####TODO: test this method#####
+        # move all files into the wanted folder structure
         print("Moving Data into required folder structure...")
         for file_name in os.listdir(image_path_initial):
             shutil.move(src=os.path.join(image_path_initial, file_name), dst=f"{destination_path}/training/images")

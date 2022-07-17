@@ -1,16 +1,28 @@
 import warnings
 import torch
-from torch.utils.data import DataLoader as torchDL, Dataset, Subset
+
+from torch.utils.data import DataLoader as torchDL, Subset
 from .torchDataset import SegmentationDataset
 from .dataloader import DataLoader
-from torchvision import transforms
-import utils
-from models import *
 
 
 class TorchDataLoader(DataLoader):
+    """
+    Dataloader for Torch models
+    """
+
     def __init__(self, dataset="original", use_geometric_augmentation=False, use_color_augmentation=False,
-                 aug_contrast=[0.8,1.2], aug_brightness=[0.8, 1.2], aug_saturation=[0.8,1.2]):
+                 aug_contrast=[0.8, 1.2], aug_brightness=[0.8, 1.2], aug_saturation=[0.8, 1.2]):
+        """
+        Args:
+            dataset (string): type of Dataset ("original" [from CIL2022 Competition], "Massachusets", ...)
+                Refer to util.py for all the dataset names
+            use_geometric_augmentation (bool): whether to augment the data on the fly with geometric augmentations
+            use_color_augmentation (bool): whether to augment the data on the fly with color augmentations
+            aug_contrast (list): range of values for the contrast augmentation
+            aug_brightness (list): range of values for the brightness augmentation
+            aug_saturation (list): range of values for the saturation augmentation
+        """
         super().__init__(dataset)
         self.use_geometric_augmentation = use_geometric_augmentation
         self.use_color_augmentation = use_color_augmentation
@@ -22,7 +34,7 @@ class TorchDataLoader(DataLoader):
         """
         Get the sizes of the training, test and unlabeled datasets associated with this DataLoader.
         Args:
-            split: training/test splitting ratio \in [0,1]
+            split: training/test splitting ratio in [0,1]
 
         Returns:
             Tuple of (int, int, int): sizes of training, test and unlabeled test datasets, respectively,
@@ -45,7 +57,7 @@ class TorchDataLoader(DataLoader):
             Tuple of (int, int)
         """
         if preprocessing is None:
-            preprocessing = lambda x: x
+            preprocessing = lambda x, is_gt: x
         min_img = torch.zeros((3, 1, 1), dtype=torch.uint8)
         min_img_val = preprocessing(min_img, is_gt=False).min()
         max_img = torch.ones((3, 1, 1), dtype=torch.uint8) * 255
@@ -63,14 +75,12 @@ class TorchDataLoader(DataLoader):
         Returns:
             Torch Dataloader
         """
-        #load training data and possibly split
         
         # WARNING: the train/test splitting behavior must be consistent across TFDataLoader and TorchDataLoader,
         # and may not be stochastic, so as to ensure comparability across models/runs
         # for the same reason, while the training set should be shuffled, the test set should not
 
         training_data_len = int(len(self.training_img_paths)*split)
-        testing_data_len = len(self.training_img_paths)-training_data_len
 
         dataset = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing, training_data_len,
                                       self.use_geometric_augmentation, self.use_color_augmentation, self.contrast,
@@ -82,8 +92,7 @@ class TorchDataLoader(DataLoader):
         ret = torchDL(self.training_data, batch_size, shuffle=True, **args)
         ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)
         return ret
-        
-    
+
     def get_testing_dataloader(self, batch_size, preprocessing=None, **args):
         """
         Args:
@@ -102,8 +111,10 @@ class TorchDataLoader(DataLoader):
         if self.testing_data is None:
             warnings.warn("You called test dataloader before training dataloader. \
                 Usually the test data is created by splitting the training data when calling get_training_dataloader. \
-                    If groundtruth test data is explicitely available in the Dataset, this will be used, otherwise the complete training dataset will be used.\n \
-                        Call <get_unlabeled_testing_dataloader()> in order to get the test data of a dataset without annotations.")
+                If groundtruth test data is explicitely available in the Dataset, this will be used, otherwise the \
+                complete training dataset will be used.\n Call <get_unlabeled_testing_dataloader()> in order \
+                to get the test data of a dataset without annotations.")
+
             if self.test_gt_dir is not None:
                 self.testing_data = SegmentationDataset(self.test_img_paths, self.test_gt_paths, preprocessing,
                                                         use_color_augmentation=False, use_geometric_augmentation=False)
@@ -127,10 +138,9 @@ class TorchDataLoader(DataLoader):
             Torch Dataloader
         """
         if self.test_gt_dir is not None:
-            warnings.warn(f"The dataset {self.dataset} doesn't contain unlabeled test data. The test data will simply be used without loading the groundtruth")
+            warnings.warn(f"The dataset {self.dataset} doesn't contain unlabeled test data. The test data will "
+                          f"simply be used without loading the groundtruth")
         if self.unlabeled_testing_data is None:
-            # self.unlabeled_testing_data = SegmentationDataset(*utils.consistent_shuffling(self.test_img_paths), None,
-            #                                                   preprocessing)
             self.unlabeled_testing_data = SegmentationDataset(self.test_img_paths, None, preprocessing,
                                                               use_color_augmentation=False,
                                                               use_geometric_augmentation=False)

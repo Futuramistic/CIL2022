@@ -45,8 +45,7 @@ class CRANetTrainer(TorchTrainer):
             loss_function = cra_loss()
 
         if evaluation_interval is None:
-            evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs,
-                                                                             num_samples_to_visualize)
+            evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)
 
         if blobs_removal_threshold is None:
             blobs_removal_threshold = 0
