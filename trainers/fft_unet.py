@@ -42,8 +42,7 @@ class FFT_UNetTrainer(TorchTrainer):
             loss_function = torch.nn.BCELoss()
 
         if evaluation_interval is None:
-            evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs,
-                                                                             num_samples_to_visualize)
+            evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)
 
         # convert samples to float32 \in [0, 1] & remove A channel;
         # convert ground truth to int \in {0, 1} & remove A channel

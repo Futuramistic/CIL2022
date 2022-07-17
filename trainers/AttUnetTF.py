@@ -46,7 +46,7 @@ class AttUNetTrainer(TFTrainer):
             loss_function = DiceLoss
 
         if evaluation_interval is None:
-            evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs, num_samples_to_visualize)
+            evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)
 
         preprocessing = None
         if use_channelwise_norm and dataloader.dataset in DATASET_STATS:
