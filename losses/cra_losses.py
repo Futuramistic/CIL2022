@@ -121,7 +121,8 @@ class dice_bce_loss_with_logits(nn.Module):
     def __call__(self, y_true, y_pred):
         # a = F.binary_cross_entropy_with_logits(y_pred, y_true)
         # a = SoftBCEWithLogitsLoss(y_pred, y_true)
-        a = F.binary_cross_entropy_with_logits(y_pred, y_true, pos_weight=torch.Tensor([5.5]).cuda())
+        weight = torch.Tensor([5.5]).cuda() if torch.cuda.is_available() else torch.Tensor([5.5])
+        a = F.binary_cross_entropy_with_logits(y_pred, y_true, pos_weight=weight)
         # a = nn.BCEWithLogitsLoss(y_pred, y_true, pos_weight=torch.Tensor([1.5]).cuda())
         # a = self.bce_loss(y_pred, y_true)
 
@@ -145,8 +146,8 @@ class binary_cross_logits(nn.Module):
 class cra_loss(nn.Module):
     def __init__(self):
         super(cra_loss, self).__init__()
-        self.criterion1 = dice_bce_loss_with_logits1().cuda()
-        self.criterion2 = dice_bce_loss_with_logits().cuda()
+        self.criterion1 = dice_bce_loss_with_logits1().cuda() if torch.cuda.is_available() else dice_bce_loss_with_logits1()
+        self.criterion2 = dice_bce_loss_with_logits().cuda()if torch.cuda.is_available() else dice_bce_loss_with_logits()
 
     def __call__(self, labels, lower, outputs):
         lossr = self.criterion1(labels, lower)
@@ -198,7 +199,8 @@ class dice_bce_loss_with_logits1(nn.Module):
         return loss
 
     def __call__(self, y_true, y_pred):
-        a = F.binary_cross_entropy_with_logits(y_pred, y_true,weight=torch.Tensor([2.5]).cuda())
+        weight = torch.Tensor([2.5]).cuda() if torch.cuda.is_available() else torch.Tensor([2.5])
+        a = F.binary_cross_entropy_with_logits(y_pred, y_true,weight=weight)
 
         # a = F.binary_cross_entropy_with_logits(y_pred, y_true)
         # a = nn.BCEWithLogitsLoss(y_pred, y_true, pos_weight=torch.Tensor([0.7]).cuda())

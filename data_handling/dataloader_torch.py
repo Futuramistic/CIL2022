@@ -85,8 +85,8 @@ class TorchDataLoader(DataLoader):
             self.testing_data = Subset(self.dataset, list(range(training_data_len, len(self.dataset))))
             ret = torchDL(self.training_data, batch_size, shuffle=True, **args)
         else:
-            sampler = WeightedRandomSampler(weights, len(training_data_len), replacement=True)
-            ret = torchDL(self.training_data, batch_size, sampler = sampler, shuffle=True, **args)
+            sampler = WeightedRandomSampler(weights, training_data_len, replacement=True)
+            ret = torchDL(self.training_data, batch_size, sampler = sampler, **args) # shuffling is mutually exclusive with sampler
         ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)
         return ret
         

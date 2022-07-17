@@ -127,7 +127,7 @@ class TorchTrainer(Trainer, abc.ABC):
         subset_ds = Subset(self.test_loader.dataset, indices)
         subset_dl = DataLoader(subset_ds, batch_size=vis_batch_size, shuffle=False)
         
-        for (batch_xs, batch_ys) in subset_dl:
+        for (batch_xs, batch_ys, _) in subset_dl:
             batch_xs, batch_ys = batch_xs.to(self.device), batch_ys.numpy()
             output = self.model(batch_xs)
             if type(output) is tuple:
@@ -226,7 +226,7 @@ class TorchTrainer(Trainer, abc.ABC):
         # use self.Callback instead of TorchTrainer.Callback, to allow subclasses to overwrite the callback handler
         callback_handler = self.Callback(self, mlflow_run, self.model)
         best_val_loss = 1e12
-        self.weights = np.zeros(len(self.train_loader), dtype= np.float16) # init all samples with the same weight, is overwritten in _train_step()
+        self.weights = np.zeros((len(self.train_loader.dataset)), dtype= np.float16) # init all samples with the same weight, is overwritten in _train_step()
         for epoch in range(self.num_epochs):
             if self.use_sample_weighting and epoch != 0:
                 self.train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
@@ -238,7 +238,7 @@ class TorchTrainer(Trainer, abc.ABC):
                 normalized = weights_set_during_training / (2*np.max(np.absolute(weights_set_during_training))) # between -0.5 and +0.5
                 self.weights[self.weights != 0] = normalized + 0.5 # between 0 and 1
                 # probability of zero is not wished for
-                self.weights[self.weights == 0] = np.minimum(self.weights[self.weights != 0])
+                self.weights[self.weights == 0] = np.min(self.weights[self.weights != 0])
                 # weights don't have to add up to 1 --> Done
             last_test_loss = self._eval_step(self.model, self.device, self.test_loader)
             metrics = {'train_loss': last_train_loss, 'test_loss': last_test_loss}
