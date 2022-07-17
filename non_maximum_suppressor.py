@@ -81,7 +81,7 @@ if __name__ == '__main__':
 
     files_to_process = list(filter(lambda fn: fn.lower().endswith('.pkl'), os.listdir(optimal_brush_radius_dir)))
     task_files = []
-    num_tasks = 4  #  cpu_count() - 1  # probably bad idea to use all cores, as numpy also parallelizes some computations
+    num_tasks = 10  #  cpu_count() - 1  # probably bad idea to use all cores, as numpy also parallelizes some computations
     files_per_task_rounded = int(np.ceil(len(files_to_process) / num_tasks))
     num_handled_files = 0
     num_remaining_files = len(files_to_process)

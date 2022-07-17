@@ -8,6 +8,7 @@ import torch.nn.functional as F
 import numpy as np
 from scipy.signal.windows import gaussian
 
+
 class RefinementQ(nn.Module):
     def __init__(self, num_conv_layer, patch_size=10):
         super(RefinementQ, self).__init__()
@@ -50,6 +51,7 @@ class RefinementQ(nn.Module):
         brush = torch.round(torch.sigmoid(linear_out))
         return torch.concat((vel_angle, brush), dim=1)
 
+
 class SimpleRLCNN(nn.Module):
     def __init__(self, patch_size, in_channels=10):
         super(SimpleRLCNN, self).__init__()
@@ -80,11 +82,13 @@ class SimpleRLCNN(nn.Module):
         head_in = torch.flatten(conv_out, start_dim=1)
         return torch.sigmoid(self.head(head_in))
 
+
 class SimpleRLCNNMinimal(nn.Module):
-    def __init__(self, patch_size, in_channels=1):
+    def __init__(self, patch_size, in_channels=1, out_channels=2):
         super(SimpleRLCNNMinimal, self).__init__()
         self.patch_size = patch_size
         self.in_channels = in_channels
+        self.out_channels = out_channels
         
         layers = []
         curr_output_dims = patch_size
@@ -101,7 +105,7 @@ class SimpleRLCNNMinimal(nn.Module):
             
         self.convs = nn.Sequential(*layers)
         flattened_dims = functools.reduce(lambda x, y: x*y, curr_output_dims)*in_channels
-        self.head = nn.Linear(flattened_dims, 2) # brush state and delta_angle
+        self.head = nn.Linear(flattened_dims, self.out_channels) # brush state and delta_angle
         
     # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate', for which we return the mean of the beta distribution
     # the action is then sampled in the trainer from that distribution --> we only need values between 0 and 1 --> sigmoid everything
@@ -110,6 +114,13 @@ class SimpleRLCNNMinimal(nn.Module):
         conv_out = self.convs(x)
         head_in = torch.flatten(conv_out, start_dim=1)
         return torch.sigmoid(self.head(head_in))
+
+
+class SimpleRLCNNMinimalSupervised(SimpleRLCNNMinimal):
+    # simply uses different default values than SimpleRLCNNMinimal
+    def __init__(self, patch_size, in_channels=4, out_channels=3):
+        super(SimpleRLCNNMinimalSupervised, self).__init__(patch_size, in_channels, out_channels)
+
 
 # adapted from https://github.com/DCurro/CannyEdgePytorch to process batches
 class Canny(nn.Module):

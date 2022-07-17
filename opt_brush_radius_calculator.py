@@ -18,13 +18,6 @@ def run_cpu_tasks_in_parallel(tasks):
         running_task.join()
 
 
-def new_dir(dir_name):
-    if dir_name is not None:
-        if os.path.exists(dir_name):
-            shutil.rmtree(dir_name)
-        os.makedirs(dir_name)
-
-
 def process_imgs(file_names, dataset_path):
     for file_name in file_names:
         image = cv2.imread(os.path.join(dataset_path, 'training', 'groundtruth', file_name))
@@ -93,12 +86,13 @@ if __name__ == '__main__':
     dataset_dir = options.dataset_dir
     dataset_path = os.path.join('dataset', dataset_dir)
     optimal_brush_radius_dir = os.path.join(dataset_path, 'training', 'opt_brush_radius')
-    new_dir(optimal_brush_radius_dir)
+    os.makedirs(optimal_brush_radius_dir, exist_ok=True)
 
-    imgs_to_process = list(filter(lambda fn: fn.lower().endswith('.png'), os.listdir(os.path.join(dataset_path, 'training', 'groundtruth'))))
+    imgs_to_process = list(filter(lambda fn: fn.lower().endswith('.png') and not os.path.exists(os.path.join(optimal_brush_radius_dir, fn.replace('.png', '.pkl'))),
+                                  os.listdir(os.path.join(dataset_path, 'training', 'groundtruth'))))
     task_imgs = []
-    num_tasks = 4  #  cpu_count() - 1  # probably bad idea to use all cores, as numpy also parallelizes some computations
-    imgs_per_task_rounded = len(imgs_to_process) // num_tasks
+    num_tasks = 10  #  cpu_count() - 1  # probably bad idea to use all cores, as numpy also parallelizes some computations
+    imgs_per_task_rounded = int(np.ceil(len(imgs_to_process) / num_tasks))
     num_handled_imgs = 0
     num_remaining_imgs = len(imgs_to_process)
     for task_idx in range(num_tasks):

@@ -2,7 +2,9 @@
 # https://pyimagesearch.com/2021/11/08/u-net-training-image-segmentation-models-in-pytorch/ and pytorch Data Tutorial
 
 import cv2
+import os
 import random
+import pickle
 import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
@@ -12,7 +14,7 @@ import torchvision.transforms.functional as FT
 class SegmentationDataset(Dataset):
     def __init__(self, img_paths, gt_paths=None, preprocessing=None, training_data_len=None,
                  use_geometric_augmentation=False, use_color_augmentation=False, contrast=[0.8,1.2], brightness=0.2,
-                 saturation=[0.8,1.2]):
+                 saturation=[0.8,1.2], use_rl_supervision=False):
         self.img_paths = img_paths
         self.gt_paths = gt_paths
         self.preprocessing = preprocessing
@@ -22,6 +24,7 @@ class SegmentationDataset(Dataset):
         self.contrast = contrast
         self.brightness = brightness
         self.saturation = saturation
+        self.use_rl_supervision = use_rl_supervision
 
     def __len__(self):
         # return the number of total samples contained in the dataset
@@ -88,5 +91,28 @@ class SegmentationDataset(Dataset):
             # apply the transformations to both image and its mask
             image = self.preprocessing(x=image, is_gt=False)
             gt = self.preprocessing(x=gt, is_gt=True)
-        # return a tuple of the image and its mask
-        return image, gt
+
+        if not self.use_rl_supervision:
+            # return a tuple of the image and its mask
+            return image, gt
+        else:
+            # return a tuple of (the image, the optimal brush radius map, a non-maximum-suppressed version of the brush radius map) and its mask
+            
+            sample_filename = os.path.basename(img_path)
+            sample_dir_parent_dir = os.path.dirname(os.path.dirname(img_path))
+            opt_brush_radius_path = os.path.join(sample_dir_parent_dir, 'opt_brush_radius', sample_filename.replace('.png', '.pkl'))
+            
+            if os.path.isfile(opt_brush_radius_path):
+                with open(opt_brush_radius_path, 'rb') as f:
+                    opt_brush_radii = torch.from_numpy(pickle.load(f))
+            else:
+                opt_brush_radii = None
+            
+            non_max_supp_path = os.path.join(sample_dir_parent_dir, 'non_max_suppressed', sample_filename.replace('.png', '.pkl'))
+            if os.path.isfile(non_max_supp_path):
+                with open(non_max_supp_path, 'rb') as f:
+                    non_max_suppressed = torch.from_numpy(pickle.load(f))
+            else:
+                non_max_suppressed = None
+
+            return torch.cat((image, opt_brush_radii.unsqueeze(0), non_max_suppressed.unsqueeze(0)), axis=0), gt

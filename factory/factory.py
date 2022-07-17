@@ -57,6 +57,8 @@ class Factory(abc.ABC):
             return SimpleRLCNNFactory()
         elif model_name_lower_no_sep == "simplerlcnnminimal":
             return SimpleRLCNNMinimalFactory()
+        elif model_name_lower_no_sep == "simplerlcnnminimalsupervised":
+            return SimpleRLCNNMinimalSupervisedFactory()
         elif model_name_lower_no_sep == "fftunet":
             return FFT_UNetFactory()
         else:
@@ -193,7 +195,18 @@ class SimpleRLCNNMinimalFactory(Factory):
         return SimpleRLCNNMinimal
 
     def get_dataloader_class(self):
-        return TorchDataLoader
+        return TorchDataLoaderRL
+
+
+class SimpleRLCNNMinimalSupervisedFactory(Factory):
+    def get_trainer_class(self):
+        return TorchRLTrainerMinimal
+
+    def get_model_class(self):
+        return SimpleRLCNNMinimalSupervised
+
+    def get_dataloader_class(self):
+        return TorchDataLoaderRL
 
 
 class UNetExpFactory(Factory):

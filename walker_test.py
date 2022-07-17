@@ -6,6 +6,7 @@ import numpy as np
 import os
 import pickle
 import random
+import torch
 from PIL import Image, ImageDraw
 from tqdm import tqdm
 import shutil
@@ -30,10 +31,10 @@ if __name__ == '__main__':
     new_dir(trajectory_dir)
 
     for file_idx, file_name in enumerate(imgs_to_process):
-        if file_idx < 2:
+        if file_idx < 5:
             continue
 
-        image = cv2.imread(os.path.join(dataset_path, 'training', 'groundtruth', file_name))[..., 0]
+        image = torch.from_numpy(cv2.imread(os.path.join(dataset_path, 'training', 'groundtruth', file_name))[..., 0])
 
         # load associated optimal brush radius map
         opt_brush_radius_path = os.path.join(dataset_path, 'training', 'opt_brush_radius', file_name.replace('.png', '.pkl'))
@@ -44,7 +45,7 @@ if __name__ == '__main__':
         with open(opt_brush_radius_path, 'rb') as f:
             opt_brush_radii = pickle.load(f)
 
-        # load associated non-max-suppressed 
+        # load associated non-max-suppressed optimal brush radius map
         non_max_supp_path = os.path.join(dataset_path, 'training', 'non_max_suppressed', file_name.replace('.png', '.pkl'))
         with open(non_max_supp_path, 'rb') as f:
             non_max_suppressed = pickle.load(f)
@@ -53,7 +54,7 @@ if __name__ == '__main__':
             continue
         
         dims = (image.shape[0], image.shape[1])
-        grid_x, grid_y = np.meshgrid(np.arange(dims[0]), np.arange(dims[1]), indexing='xy')
+        grid_x, grid_y = torch.meshgrid(torch.arange(dims[0]), torch.arange(dims[1]), indexing='xy')
 
         frame_store = []
 
@@ -62,7 +63,7 @@ if __name__ == '__main__':
         last_angle = 0.0
 
         for trajectory_idx in range(num_trajectories):
-            y, x = float(random.randint(0, dims[0])), float(random.randint(0, dims[1]))
+            y, x = float(random.randint(0, dims[0]-1)), float(random.randint(0, dims[1]-1))
 
             last_y_int, last_x_int = int(np.round(y)), int(np.round(x))
             
@@ -71,7 +72,7 @@ if __name__ == '__main__':
             image[last_y_int, last_x_int] = 100
             current_is_visited = False
 
-            visited = np.zeros_like(image)
+            visited = torch.zeros_like(image)
 
             for step_idx in range(trajectory_length):
                 current_opt_brush_radius = opt_brush_radii[last_y_int, last_x_int]
@@ -79,21 +80,21 @@ if __name__ == '__main__':
                 #if not is_on_max or current_is_visited:
                 # calculate closest max position
 
-                distance_map = np.square(grid_y - y) + np.square(grid_x - x)
-                distance_map[non_max_suppressed == 0] = np.inf
-                distance_map[visited > 0] = np.inf
+                distance_map = torch.square(grid_y - y) + torch.square(grid_x - x)
+                distance_map[non_max_suppressed == 0] = torch.inf
+                distance_map[visited > 0] = torch.inf
                 
                 # closest_y, closest_x = np.unravel_index(np.argmin(distance_map), distance_map.shape)
 
-                if distance_map.min() == np.inf:
+                if distance_map.min() == torch.inf:
                     break
 
-                closest_ys, closest_xs = np.where(distance_map == distance_map.min())
+                closest_ys, closest_xs = torch.where(distance_map == distance_map.min())
 
-                lowest_delta_angle = np.nan
-                lowest_delta_magnitude = np.nan
+                lowest_delta_angle = torch.nan
+                lowest_delta_magnitude = torch.nan
                 for closest_y, closest_x in zip(closest_ys, closest_xs):
-                    tmp_angle = np.arctan2(closest_y - y, closest_x - x)
+                    tmp_angle = torch.arctan2(closest_y - y, closest_x - x)
                     if np.isnan(lowest_delta_angle) or np.abs(tmp_angle - last_angle) < np.abs(lowest_delta_angle - last_angle):
                         lowest_delta_angle = tmp_angle
                         lowest_delta_magnitude = np.sqrt( (closest_y - y)**2.0 + (closest_x - x)**2.0 )
@@ -121,23 +122,22 @@ if __name__ == '__main__':
                 if is_on_road:
                     # paint on road 
 
-                    distance_map_paint = np.square(grid_y - y) + np.square(grid_x - x) - current_opt_brush_radius ** 2.0
+                    distance_map_paint = torch.square(grid_y - y) + torch.square(grid_x - x) - current_opt_brush_radius ** 2.0
                     image[distance_map_paint <= 0] = 200
                     visited[distance_map_paint <= 0] = 1
-
 
                 # take a step in that direction (at least one pixel in x, and one pixel in y direction?)
                 
                 angle = lowest_delta_angle
                 magnitude = min(5, lowest_delta_magnitude)
                 
-                delta_y = np.sin(angle) * magnitude
-                if np.abs(delta_y) < 0.1:
-                    delta_y = np.sign(delta_y) * 0.1
+                delta_y = torch.sin(angle) * magnitude
+                if torch.abs(delta_y) < 0.1:
+                    delta_y = torch.sign(delta_y) * 0.1
 
-                delta_x = np.cos(angle) * magnitude
-                if np.abs(delta_x) < 0.1:
-                    delta_x = np.sign(delta_x) * 0.1
+                delta_x = torch.cos(angle) * magnitude
+                if torch.abs(delta_x) < 0.1:
+                    delta_x = torch.sign(delta_x) * 0.1
 
                 y = max(0.0, min(y + delta_y, float(distance_map.shape[0] - 1)))
                 x = max(0.0, min(x + delta_x, float(distance_map.shape[1] - 1)))
@@ -157,9 +157,9 @@ if __name__ == '__main__':
 
                 last_y_int, last_x_int = new_y_int, new_x_int
                     
-                curr_pos_mask = np.zeros_like(image)
+                curr_pos_mask = torch.zeros_like(image)
                 curr_pos_mask[new_y_int, new_x_int] = 1 # mark current position
-                gif_frame = Image.fromarray((image * (1-visited) + visited * 100) * (1-curr_pos_mask) + curr_pos_mask * 150)
+                gif_frame = Image.fromarray(((image * (1-visited) + visited * 100) * (1-curr_pos_mask) + curr_pos_mask * 150).cpu().numpy())
                 draw = ImageDraw.Draw(gif_frame)
                 draw.text((10, 10), str(step_idx), fill=255)
                 draw.text((10, 40), f'y: {"%.1f" % y}; x: {"%.1f" % x}, r: {1 if is_on_road else 0}, m: {1 if is_on_max else 0}', fill=150)

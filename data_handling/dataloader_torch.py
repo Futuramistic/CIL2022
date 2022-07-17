@@ -10,13 +10,14 @@ from models import *
 
 class TorchDataLoader(DataLoader):
     def __init__(self, dataset="original", use_geometric_augmentation=False, use_color_augmentation=False,
-                 aug_contrast=[0.8,1.2], aug_brightness=[0.8, 1.2], aug_saturation=[0.8,1.2]):
+                 aug_contrast=[0.8,1.2], aug_brightness=[0.8, 1.2], aug_saturation=[0.8,1.2], use_rl_supervision=False):
         super().__init__(dataset)
         self.use_geometric_augmentation = use_geometric_augmentation
         self.use_color_augmentation = use_color_augmentation
         self.contrast = aug_contrast
         self.brightness = aug_brightness
         self.saturation = aug_saturation
+        self.use_rl_supervision = use_rl_supervision
 
     def get_dataset_sizes(self, split):
         """
@@ -74,7 +75,7 @@ class TorchDataLoader(DataLoader):
 
         dataset = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing, training_data_len,
                                       self.use_geometric_augmentation, self.use_color_augmentation, self.contrast,
-                                      self.brightness, self.saturation)
+                                      self.brightness, self.saturation, self.use_rl_supervision)
 
         self.training_data = Subset(dataset, list(range(training_data_len)))
         self.testing_data = Subset(dataset, list(range(training_data_len, len(dataset))))
@@ -106,10 +107,12 @@ class TorchDataLoader(DataLoader):
                         Call <get_unlabeled_testing_dataloader()> in order to get the test data of a dataset without annotations.")
             if self.test_gt_dir is not None:
                 self.testing_data = SegmentationDataset(self.test_img_paths, self.test_gt_paths, preprocessing,
-                                                        use_color_augmentation=False, use_geometric_augmentation=False)
+                                                        use_color_augmentation=False, use_geometric_augmentation=False,
+                                                        use_rl_supervision=self.use_rl_supervision)
             else:
                 self.testing_data = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing,
-                                                        use_color_augmentation=False, use_geometric_augmentation=False)
+                                                        use_color_augmentation=False, use_geometric_augmentation=False,
+                                                        use_rl_supervision=self.use_rl_supervision)
         
         ret = torchDL(self.testing_data, batch_size, shuffle=False, **args)
         ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)
@@ -133,7 +136,8 @@ class TorchDataLoader(DataLoader):
             #                                                   preprocessing)
             self.unlabeled_testing_data = SegmentationDataset(self.test_img_paths, None, preprocessing,
                                                               use_color_augmentation=False,
-                                                              use_geometric_augmentation=False)
+                                                              use_geometric_augmentation=False,
+                                                              use_rl_supervision=self.use_rl_supervision)
         ret = torchDL(self.unlabeled_testing_data, batch_size, shuffle=False, **args)
         ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)
         return ret

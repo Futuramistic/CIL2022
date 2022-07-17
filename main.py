@@ -33,7 +33,7 @@ def main():
                     'load_checkpoint_path', 'C', 'segmentation_threshold', 't', 'use_channelwise_norm', 'history_size',
                     'max_rollout_len', 'std', 'reward_discount_factor', 'num_policy_epochs', 'policy_batch_size',
                     'sample_from_action_distributions', 'visualization_interval', 'min_steps', 'rollout_len',
-                    'blobs_removal_threshold', 'T', 'hyper_seg_threshold']
+                    'blobs_removal_threshold', 'T', 'hyper_seg_threshold', 'use_supervision']
     dataloader_args = ['dataset', 'd', 'use_geometric_augmentation', 'use_color_augmentation',
                        'aug_brightness', 'aug_contrast', 'aug_saturation']
 
