@@ -60,7 +60,7 @@ class UNetTFTrainer(TFTrainer):
         # note: no batch dim
         if pre_process == "vgg":
             preprocessing =\
-                lambda x, is_gt: K.applications.vgg19.preprocess_input(tf.cast(x[:, :, :3], dtype=tf.float32)) if not is_gt \
+                lambda x, is_gt: tf.cast(x[:, :, :3], dtype=tf.float32) if not is_gt \
                 else x[:, :, :1] // 255
         # Expect some preprocessing on the model side (VGG architecture preprocessing or other)
         else:
