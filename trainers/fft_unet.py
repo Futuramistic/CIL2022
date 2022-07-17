@@ -17,7 +17,7 @@ class FFT_UNetTrainer(TorchTrainer):
                  batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None,
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
-                 blobs_removal_threshold=0, hyper_seg_threshold=False):
+                 blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
@@ -42,8 +42,7 @@ class FFT_UNetTrainer(TorchTrainer):
             loss_function = torch.nn.BCELoss()
 
         if evaluation_interval is None:
-            evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs,
-                                                                             num_samples_to_visualize)
+            evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)
 
         # convert samples to float32 \in [0, 1] & remove A channel;
         # convert ground truth to int \in {0, 1} & remove A channel
@@ -52,14 +51,14 @@ class FFT_UNetTrainer(TorchTrainer):
         super().__init__(dataloader, model, preprocessing, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
-                         segmentation_threshold, blobs_removal_threshold,hyper_seg_threshold)
+                         segmentation_threshold, blobs_removal_threshold,hyper_seg_threshold, use_sample_weighting)
 
     def _train_step(self, model, device, train_loader, callback_handler):
         # unet y may not be squeezed like in torch trainer, dtype is float for BCE
         model.train()
         opt = self.optimizer_or_lr
         train_loss = 0
-        for (x, y) in train_loader:
+        for (x, y, sample_idx) in train_loader:
             x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
             preds = model(x)
             loss = self.loss_function(preds, y)
@@ -71,6 +70,8 @@ class FFT_UNetTrainer(TorchTrainer):
             callback_handler.on_train_batch_end()
             del x
             del y
+            if self.use_sample_weighting:
+                self.weights[sample_idx] = loss.item()
         train_loss /= len(train_loader.dataset)
         callback_handler.on_epoch_end()
         self.scheduler.step()
@@ -81,7 +82,7 @@ class FFT_UNetTrainer(TorchTrainer):
         model.eval()
         test_loss = 0
         with torch.no_grad():
-            for (x, y) in test_loader:
+            for (x, y, _) in test_loader:
                 x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
                 preds = model(x)
                 test_loss += self.loss_function(preds, y).item()

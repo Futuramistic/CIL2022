@@ -15,6 +15,7 @@ archive/models/*
 archive/trials/*
 logs/
 final_output_masks/
+gray_test_ds/
 *.pt
 pb_token.txt
 output_preds/
