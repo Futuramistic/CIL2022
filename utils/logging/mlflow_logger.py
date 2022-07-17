@@ -1,14 +1,17 @@
-from utils import *
-from zipfile import ZipFile
 import mlflow
 import tempfile
 import shutil
-import time
-from typing import Dict, Any
 import shlex
+
+from utils import *
+from zipfile import ZipFile
+from typing import Dict, Any
 
 
 def logging_to_mlflow_enabled():
+    """
+    Returns whether or not it is possible to log to MLFlow
+    """
     return mlflow.active_run() is not None
 
 
@@ -17,6 +20,11 @@ def log_visualizations(trainer, iteration_index, epoch_idx, epoch_iteration_idx)
     Log the segmentations to MLFlow as images.
     Called by a Trainer, and calls that Trainer's "create_visualizations" (which contains ML framework-specific code).
     See the documentation of "create_visualizations" for more information.
+    Args:
+        trainer (Trainer): The trainer we are using
+        iteration_index (int): The current iteration (global)
+        epoch_idx (int): The current epoch
+        epoch_iteration_idx (int): The current iteration in the current epoch
     """
     if not logging_to_mlflow_enabled():
         return False
@@ -30,7 +38,9 @@ def log_visualizations(trainer, iteration_index, epoch_idx, epoch_iteration_idx)
     # MLFlow does not have the functionality to log artifacts per training step,
     # so we have to incorporate the training step (iteration_idx) into the filename
     vis_file_path = os.path.join(temp_dir, 'iteration_%07i.png' % iteration_index)
-    vis_file_path = next(filter(lambda x: x is not None, [trainer.create_visualizations(vis_file_path, iteration_index, epoch_idx, epoch_iteration_idx), vis_file_path]))
+    vis_file_path = next(filter(lambda x: x is not None,
+                                [trainer.create_visualizations(vis_file_path, iteration_index, epoch_idx,
+                                                               epoch_iteration_idx), vis_file_path]))
     eval_inference_end = time.time()
 
     eval_mlflow_start = time.time()
@@ -148,6 +158,9 @@ def log_logfiles():
 
 
 def log_command_line():
+    """
+    Log the command line that was executed to run the script
+    """
     if logging_to_mlflow_enabled():
         cmdline = " ".join(map(shlex.quote, sys.argv[1:]))
         mlflow.log_text(cmdline, COMMAND_LINE_FILE_NAME)
