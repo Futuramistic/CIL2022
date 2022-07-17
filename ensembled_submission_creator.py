@@ -1,8 +1,15 @@
 import os
 from tqdm import tqdm
 
+
+"""
+Given a set of submissions in CSV format, ensemble them into a single submission
+"""
+
+
 pred_dir = "submissions_to_ensemble/"
 output_filename = "ensembled_submission.csv"
+
 
 def main():
     if not os.path.isdir(pred_dir):
@@ -39,6 +46,7 @@ def main():
     with open(output_filename, 'w') as file:
         file.write('\n'.join(out_lines))
     print(f'Ensembled {len(csv_filenames)} submissions into "{output_filename}"')
+
 
 if __name__ == '__main__':
     main()

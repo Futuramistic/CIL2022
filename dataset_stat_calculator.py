@@ -1,15 +1,21 @@
 import numpy as np
 import os
 from PIL import Image
-from tqdm import tqdm
+
+
+"""
+Compute the statistics of a given dataset (mean and standard deviation for each channel)
+"""
 
 
 ds_name = 'ext_original_aug_6_oversampled'
 ds_images_dir = f'dataset/{ds_name}/training/images'
 
+
 def main():
     if not os.path.isdir(ds_images_dir):
-        print(f'Directory "{ds_images_dir}" (supposed to contain images from which to compute dataset stats) does not exist')
+        print(f'Directory "{ds_images_dir}" (supposed to contain images from which to compute '
+              f'dataset stats) does not exist')
         return
     
     png_filenames = []
@@ -55,7 +61,6 @@ def main():
     pixel_std_0 = np.sqrt(pixel_sq_sum_0 / num_pixels)
     pixel_std_1 = np.sqrt(pixel_sq_sum_1 / num_pixels)
     pixel_std_2 = np.sqrt(pixel_sq_sum_2 / num_pixels)
-    
 
     vals = {'pixel_mean_0': pixel_mean_0, 'pixel_mean_1': pixel_mean_1, 'pixel_mean_2': pixel_mean_2,
             'pixel_std_0': pixel_std_0, 'pixel_std_1': pixel_std_1, 'pixel_std_2': pixel_std_2}
