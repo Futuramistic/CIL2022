@@ -24,7 +24,7 @@ class Trainer(abc.ABC):
                  batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
-                 blobs_removal_threshold=0, hyper_seg_threshold=False):
+                 blobs_removal_threshold=0, hyper_seg_threshold=False,use_sample_weighting=False):
         """
         Abstract class for model trainers.
         Args:
@@ -66,6 +66,7 @@ class Trainer(abc.ABC):
         self.optimizer_or_lr = optimizer_or_lr
         self.loss_function_hyperparams = loss_function_hyperparams if loss_function_hyperparams is not None else {}
         self.hyper_seg_threshold = hyper_seg_threshold
+        self.use_sample_weighting = use_sample_weighting
 
         self.loss_function_name = str(loss_function)
         if isinstance(loss_function, str):

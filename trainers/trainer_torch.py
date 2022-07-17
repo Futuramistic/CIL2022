@@ -26,7 +26,7 @@ class TorchTrainer(Trainer, abc.ABC):
                  optimizer_or_lr=None, scheduler=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
-                 blobs_removal_threshold=0, hyper_seg_threshold=False):
+                 blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False):
         """
         Abstract class for Torch-based model trainers.
         Args:
@@ -37,7 +37,7 @@ class TorchTrainer(Trainer, abc.ABC):
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
-                         blobs_removal_threshold, hyper_seg_threshold)
+                         blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.scheduler = scheduler
@@ -226,8 +226,20 @@ class TorchTrainer(Trainer, abc.ABC):
         # use self.Callback instead of TorchTrainer.Callback, to allow subclasses to overwrite the callback handler
         callback_handler = self.Callback(self, mlflow_run, self.model)
         best_val_loss = 1e12
+        self.weights = np.zeros(len(self.train_loader), dtype= np.float16) # init all samples with the same weight, is overwritten in _train_step()
         for epoch in range(self.num_epochs):
+            if self.use_sample_weighting and epoch != 0:
+                self.train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
+                                                                            weights = self.weights, preprocessing=self.preprocessing)
             last_train_loss = self._train_step(self.model, self.device, self.train_loader, callback_handler=callback_handler)
+            if self.use_sample_weighting: # update sample weight
+                # normalize
+                weights_set_during_training = self.weights[self.weights != 0]
+                normalized = weights_set_during_training / (2*np.max(np.absolute(weights_set_during_training))) # between -0.5 and +0.5
+                self.weights[self.weights != 0] = normalized + 0.5 # between 0 and 1
+                # probability of zero is not wished for
+                self.weights[self.weights == 0] = np.minimum(self.weights[self.weights != 0])
+                # weights don't have to add up to 1 --> Done
             last_test_loss = self._eval_step(self.model, self.device, self.test_loader)
             metrics = {'train_loss': last_train_loss, 'test_loss': last_test_loss}
             if(self.do_checkpoint and best_val_loss > last_test_loss):
@@ -252,7 +264,7 @@ class TorchTrainer(Trainer, abc.ABC):
         model.train()
         opt = self.optimizer_or_lr
         train_loss = 0
-        for (x, y) in train_loader:
+        for (x, y, sample_idx) in train_loader:
             x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.long)
             y = torch.squeeze(y, dim=1)  # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
             preds = model(x)
@@ -265,6 +277,8 @@ class TorchTrainer(Trainer, abc.ABC):
             callback_handler.on_train_batch_end()
             del x
             del y
+            if self.use_sample_weighting:
+                self.weights[sample_idx] = loss.item()
         train_loss /= len(train_loader.dataset)
         callback_handler.on_epoch_end()
         self.scheduler.step()
@@ -274,7 +288,7 @@ class TorchTrainer(Trainer, abc.ABC):
         model.eval()
         test_loss = 0
         with torch.no_grad():
-            for (x, y) in test_loader:
+            for (x, y, _) in test_loader:
                 x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.long)
                 y = torch.squeeze(y, dim=1)
                 preds = model(x)
@@ -294,7 +308,7 @@ class TorchTrainer(Trainer, abc.ABC):
         if self.hyper_seg_threshold:
             threshold = self.get_best_segmentation_threshold()
         precisions, recalls, f1_scores = [], [], []
-        for (x, y) in self.test_loader:
+        for (x, y, _) in self.test_loader:
             x = x.to(self.device, dtype=torch.float32)
             y = y.to(self.device, dtype=torch.float32)
             output = self.model(x)
@@ -316,7 +330,7 @@ class TorchTrainer(Trainer, abc.ABC):
         predictions = []
         targets = []
         with torch.no_grad():
-            for (sample_x,sample_y) in self.seg_thresh_dataloader: # batch size is 1
+            for (sample_x,sample_y, _) in self.seg_thresh_dataloader: # batch size is 1
                 x, y = sample_x.to(self.device, dtype=torch.float32), sample_y.to(self.device, dtype=torch.long)
                 y = torch.squeeze(y, dim=1)  # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
                 output = self.model(x)

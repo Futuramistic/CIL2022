@@ -1,6 +1,6 @@
 import warnings
 import torch
-from torch.utils.data import DataLoader as torchDL, Dataset, Subset
+from torch.utils.data import DataLoader as torchDL, Dataset, Subset, WeightedRandomSampler
 from .torchDataset import SegmentationDataset
 from .dataloader import DataLoader
 from torchvision import transforms
@@ -52,11 +52,15 @@ class TorchDataLoader(DataLoader):
         max_img_val = preprocessing(max_img, is_gt=False).max()
         return min_img_val.detach().cpu().numpy().item(), max_img_val.detach().cpu().numpy().item()
 
-    def get_training_dataloader(self, split, batch_size, preprocessing=None, **args):
+    def get_training_dataloader(self, split, batch_size, weights=None, preprocessing=None, **args):
         """
         Args:
             split (float): training/test splitting ratio, e.g. 0.8 for 80"%" training and 20"%" test data
             batch_size (int): training batch size
+            weights (list of floats): weights for sampling probability of each datapoint, 
+                if None: don't use any weights
+                if empty list: first run with equal weighting
+                if not empty: list of weights for each data sample
             preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
                                       constructing the native dataloader
             **args: parameters for torch dataloader, e.g. shuffle (boolean)
@@ -71,15 +75,18 @@ class TorchDataLoader(DataLoader):
 
         training_data_len = int(len(self.training_img_paths)*split)
         testing_data_len = len(self.training_img_paths)-training_data_len
-
-        dataset = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing, training_data_len,
-                                      self.use_geometric_augmentation, self.use_color_augmentation, self.contrast,
-                                      self.brightness, self.saturation)
-
-        self.training_data = Subset(dataset, list(range(training_data_len)))
-        self.testing_data = Subset(dataset, list(range(training_data_len, len(dataset))))
         
-        ret = torchDL(self.training_data, batch_size, shuffle=True, **args)
+        if weights is None or len(weights) == 0:
+            # if weighting is not used / has not been used yet, self.dataset is not yet set
+            self.dataset = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing, training_data_len,
+                                        self.use_geometric_augmentation, self.use_color_augmentation, self.contrast,
+                                        self.brightness, self.saturation)
+            self.training_data = Subset(self.dataset, list(range(training_data_len)))
+            self.testing_data = Subset(self.dataset, list(range(training_data_len, len(self.dataset))))
+            ret = torchDL(self.training_data, batch_size, shuffle=True, **args)
+        else:
+            sampler = WeightedRandomSampler(weights, len(training_data_len), replacement=True)
+            ret = torchDL(self.training_data, batch_size, sampler = sampler, shuffle=True, **args)
         ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)
         return ret
         

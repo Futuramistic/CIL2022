@@ -88,5 +88,5 @@ class SegmentationDataset(Dataset):
             # apply the transformations to both image and its mask
             image = self.preprocessing(x=image, is_gt=False)
             gt = self.preprocessing(x=gt, is_gt=True)
-        # return a tuple of the image and its mask
-        return image, gt
+        # return a tuple of the image, its mask and its index in order to calculate weighting for this sample
+        return image, gt, idx
