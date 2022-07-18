@@ -5,6 +5,8 @@ import argparse
 from contextlib import redirect_stderr, redirect_stdout
 import itertools
 import json
+import numpy as np
+import random
 import re
 
 from factory import Factory
@@ -19,6 +21,7 @@ import torch
 import torch.nn
 import torch.optim
 import torch.nn.functional as F
+
 
 
 def main():
@@ -37,10 +40,11 @@ def main():
                        'aug_brightness', 'aug_contrast', 'aug_saturation']
 
     # list of other arguments to avoid passing to constructor of model class
-    filter_args = ['h', 'model', 'm', 'evaluate', 'eval', 'V']
+    filter_args = ['h', 'model', 'm', 'evaluate', 'eval', 'V', 'seed', 'S']
 
     parser = argparse.ArgumentParser(description='Implementation of ETHZ CIL Road Segmentation 2022 project')
     parser.add_argument('-m', '--model', type=str, required=True)
+    parser.add_argument('-S', '--seed', type=int, default=1, required=False)
     parser.add_argument('-E', '--experiment_name', type=str, required=True)
     parser.add_argument('-R', '--run_name', type=str, required=False)
     parser.add_argument('-s', '--split', type=float, default=DEFAULT_TRAIN_FRACTION, required=False)
@@ -84,6 +88,13 @@ def main():
                                               cast_arg([*arg.split('='), True][1])),
                                  unknown_args))
     arg_dict = {**known_args_dict, **unknown_args_dict}
+
+    # seed everything
+
+    random.seed(known_args.seed)
+    torch.manual_seed(known_args.seed)
+    np.random.seed(known_args.seed)
+    tf.random.set_seed(known_args.seed)
 
     # Load the model by name from the factory
     factory = Factory.get_factory(known_args.model)
