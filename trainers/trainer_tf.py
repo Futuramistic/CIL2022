@@ -367,9 +367,9 @@ class TFTrainer(Trainer, abc.ABC):
             f1_macro_scores.append(f1_macro)
             f1_weighted_scores.append(f1_weighted)
             
-            f1_road_patchified_scores.append(f1_road_patchified.cpu().item())
-            f1_bkgd_patchified_scores.append(f1_bkgd_patchified.cpu().item())
-            f1_patchified_weighted_scores.append(f1_patchified_weighted.cpu().item())
+            f1_road_patchified_scores.append(f1_road_patchified)
+            f1_bkgd_patchified_scores.append(f1_bkgd_patchified)
+            f1_patchified_weighted_scores.append(f1_patchified_weighted)
 
         return (np.mean(precisions_road), np.mean(recalls_road), np.mean(f1_road_scores), 
                 np.mean(precisions_bkgd), np.mean(recalls_bkgd), np.mean(f1_bkgd_scores),
