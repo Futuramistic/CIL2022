@@ -8,12 +8,12 @@ import pysftp
 import requests
 import shutil
 import socket
-import tensorflow.keras as K
 
 from losses import *
 from requests.auth import HTTPBasicAuth
 from utils import *
 from utils.logging import mlflow_logger, optim_hyparam_serializer
+import tensorflow.keras as K
 
 
 class Trainer(abc.ABC):
