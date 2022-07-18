@@ -25,16 +25,13 @@ research process and results.
 ├── factory                         # Helper for Loading models
 ├── hyperopt_                       # Utilities for hyperparameter searches (using the HyperOpt framework)
 ├── losses                          # Folder with losses used across models
-├── models                          # Folder with our various models
-    └── cascade_residual_attention  # CRA Model
-    └── custom                      # Custom architectures
-    └── learning_aerial_image_...   # TODO why were these grouped together? Bc torch models?
-    └── reinforcement               # RL models
-    └── road_extraction_from_...    # GL_Dense_UNet model
+└── models                          # Folder with our various models
+    ├── reinforcement               # RL models
+    ├── torch                       # Torch models
     └── TF                          # Tensorflow models
 ├── trainers                        # Custom trainers for each model
 ├── utils                           # Utility functions and constants
-└── processing                      # TODO put all processing files here
+└── processing                      # Contains processing files such as preprocessing, downloading etc.
 torch_predictor.py                  # Script for making predictions on a torch model
 tf_predictor.py                     # Script for making predictions on a tf model
 mask_to_submission.py               # Script from the Kaggle competition page
@@ -49,6 +46,7 @@ main.py                             # Script for training models
 The implementation works both on Linux and Windows.
 
 To setup an environment, run:
+
 ```setup
 conda create -n CIL2022 python==3.7
 conda activate CIL2022
@@ -131,6 +129,9 @@ command-line below under the `model-name` argument):
 * UNet (name: 'unet')
 * CRA-Net (name: 'cranet')
 * DeepLabV3 (name: 'deeplabv3')
+* DeepLabV3+GAN (name: 'deeplabv3plusgan')
+* SegFormer (name: 'segformer')
+* TwoShotNet (name: 'twoshotnet')
 ```
 
 >📋  TODO: Only keep the models that have been tested

@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from models.learning_aerial_image_segmenation_from_online_maps.Unet import UNet
+from models.torch.Unet import UNet
 
 
 class TwoShotNet(nn.Module):
