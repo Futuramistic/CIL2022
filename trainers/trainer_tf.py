@@ -327,8 +327,8 @@ class TFTrainer(Trainer, abc.ABC):
         Returns:
             f1 score (float)
         """
-        *_, f1_patchified_weighted, _ = self.get_precision_recall_F1_score_validation()
-        return f1_patchified_weighted
+        *_,weighted_f1,_,_,_,_ = self.get_precision_recall_F1_score_validation()
+        return weighted_f1
 
     def get_precision_recall_F1_score_validation(self):
         """
