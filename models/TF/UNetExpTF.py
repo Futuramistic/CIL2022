@@ -1,4 +1,5 @@
 from keras.layers import *
+from numpy import dtype
 import tensorflow as tf
 import tensorflow.keras as K
 from tensorflow.keras.layers import *
@@ -270,6 +271,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         nb_filters_concat = [32,128,256,448]
         pretrained = None
         if(architecture=="vgg"):
+            inputs = K.applications.vgg19.preprocess_input(tf.cast(inputs,dtype=tf.float32))
             layer_names = ['block2_conv2','block3_conv4','block4_conv4','block5_conv4']
             vgg = K.applications.VGG19(include_top=False, weights='imagenet',input_shape=input_shape)
             for layer in vgg.layers:

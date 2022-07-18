@@ -1,10 +1,10 @@
-import tensorflow as tf
-import keras.backend as K
 from losses import *
 
-# Apply any loss to targets
-def U2NET_loss(loss_func = BCELoss(logits=False)):
 
+def U2NET_loss(loss_func=BCELoss(logits=False)):
+    """
+    Apply any loss to targets, for each element of the input, then sum the losses
+    """
     def loss(targets, inputs):
         targets = K.flatten(tf.cast(targets,tf.float32))
         inputs = tf.expand_dims(inputs, axis=-1)

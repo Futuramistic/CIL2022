@@ -3,7 +3,16 @@ from torchvision import models
 
 
 class VGGPerceptualLoss(torch.nn.Module):
+    """
+    Compute the VGG Perceptual Loss
+    In a nutshell, feed both the input and the targets through the VGG encoder and compute the L1 distance
+    between the 2 outputs
+    """
     def __init__(self, resize=False):
+        """
+        Args:
+            resize: Whether to resize the input images or not
+        """
         super(VGGPerceptualLoss, self).__init__()
         blocks = []
         blocks.append(models.vgg16(pretrained=True).features[:4].eval().cuda())

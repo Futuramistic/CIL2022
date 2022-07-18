@@ -24,7 +24,7 @@ class Trainer(abc.ABC):
                  batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
-                 blobs_removal_threshold=0, hyper_seg_threshold=False):
+                 blobs_removal_threshold=0, hyper_seg_threshold=False,use_sample_weighting=False):
         """
         Abstract class for model trainers.
         Args:
@@ -66,6 +66,7 @@ class Trainer(abc.ABC):
         self.optimizer_or_lr = optimizer_or_lr
         self.loss_function_hyperparams = loss_function_hyperparams if loss_function_hyperparams is not None else {}
         self.hyper_seg_threshold = hyper_seg_threshold
+        self.use_sample_weighting = use_sample_weighting
 
         self.loss_function_name = str(loss_function)
         if isinstance(loss_function, str):
@@ -205,9 +206,10 @@ class Trainer(abc.ABC):
             'split': self.split,
             'epochs': self.num_epochs,
             'batch_size': self.batch_size,
-            'loss_function': getattr(self, 'loss_function_name', self.loss_function),
             'seg_threshold': self.segmentation_threshold,
-            'use_channelwise_norm': self.use_channelwise_norm,
+            'loss_function': getattr(self, 'loss_function_name', self.loss_function),
+            'use_sample_weighting': getattr(self, 'use_sample_weighting', False),
+            'use_channelwise_norm': getattr(self, 'use_channelwise_norm', False),
             'blobs_removal_threshold': getattr(self, 'blobs_removal_threshold', 0),
             'model': getattr(self.model, 'name', type(self.model).__name__),
             'dataset': self.dataloader.dataset,

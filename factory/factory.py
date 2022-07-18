@@ -1,15 +1,13 @@
-import abc
-
 from data_handling import *
 from models import *
 from models.reinforcement.first_try import SimpleRLCNNMinimal
 from trainers import *
 from trainers.rl_trainer_torch_minimal import TorchRLTrainerMinimal
-from utils import *
 
 
 class Factory(abc.ABC):
-    """Abstract class for the factory method, in order to create corresponding trainer and dataloader for a specific model.
+    """
+    Abstract class for the factory method, in order to create corresponding trainer and dataloader for a specific model.
     Use the static method "get_factory(model_name: string) to get the corresponding factory class
     """
     
@@ -243,6 +241,15 @@ class SegFormerFactory(Factory):
 
 
 def get_torch_scheduler(optimizer, scheduler_name, kwargs):
+    """
+    Get a Torch scheduler object, given its name
+    Args:
+        optimizer: The optimizer we want to schedule
+        scheduler_name (str): The scheduler name
+        kwargs: the arguments we want to pass to the created scheduler
+    Returns:
+        A learning rate scheduler
+    """
     if scheduler_name == "steplr":
         return torch.optim.lr_scheduler.StepLR(optimizer=optimizer, **kwargs)
     elif scheduler_name == 'lambdalr':

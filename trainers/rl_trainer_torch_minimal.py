@@ -34,7 +34,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
                  load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
                  rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), std=[1e-3, 1e-3], reward_discount_factor=0.99,
                  num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20,
-                 rewards = None, blobs_removal_threshold=0, hyper_seg_threshold=False):
+                 rewards = None, blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False):
         """
         Trainer for RL-based models.
         Args:
@@ -54,6 +54,8 @@ class TorchRLTrainerMinimal(TorchTrainer):
             visualization_interval (int): logs the predicted trajectory as a gif every <visualization_interval> steps.
             min_steps (int): minimum number of steps agent has to perform before it is allowed to terminate a trajectory
             rewards (dict): Dictionary of rewards, see type of rewards in models/reinforcement/environment.py under DEFAULT_REWARDS
+            
+            use_sample_weighting: Never needed in RL
         """
         if loss_function is not None:
             raise RuntimeError('Custom losses not supported by TorchRLTrainer')
@@ -91,7 +93,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
                  optimizer_or_lr=optimizer_or_lr, scheduler=scheduler, loss_function=loss_function, loss_function_hyperparams=loss_function_hyperparams,
                  evaluation_interval=evaluation_interval, num_samples_to_visualize=num_samples_to_visualize, checkpoint_interval=checkpoint_interval,
                  load_checkpoint_path=load_checkpoint_path, segmentation_threshold=segmentation_threshold, use_channelwise_norm=use_channelwise_norm,
-                 blobs_removal_threshold=blobs_removal_threshold, hyper_seg_threshold=hyper_seg_threshold)
+                 blobs_removal_threshold=blobs_removal_threshold, hyper_seg_threshold=hyper_seg_threshold, use_sample_weighting=False) # use_sampling_weighting not needed in RL
         self.rollout_len = int(rollout_len)
         self.replay_memory_capacity = int(replay_memory_capacity)
         self.std = torch.tensor(std, device=self.device).detach()

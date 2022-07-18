@@ -52,7 +52,7 @@ class UNetTFTrainer(TFTrainer):
             #                                            reduction=K.losses.Reduction.SUM_OVER_BATCH_SIZE)
 
         if evaluation_interval is None:
-            evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs, num_samples_to_visualize)
+            evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)
 
         # convert model input to float32 \in [0, 1] & remove A channel;
         # convert ground truth to int \in {0, 1} & remove A channel
@@ -60,7 +60,7 @@ class UNetTFTrainer(TFTrainer):
         # note: no batch dim
         if pre_process == "vgg":
             preprocessing =\
-                lambda x, is_gt: K.applications.vgg19.preprocess_input(tf.cast(x[:, :, :3], dtype=tf.float32)) if not is_gt \
+                lambda x, is_gt: x[:, :, :3] if not is_gt \
                 else x[:, :, :1] // 255
         # Expect some preprocessing on the model side (VGG architecture preprocessing or other)
         else:

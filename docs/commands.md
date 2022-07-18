@@ -11,6 +11,27 @@ Updated:
 # SimpleRLCNN with hyperopt:
 `python main_hyperopt.py -s simple_cnn_1 -n 100`
 
+# testing weighted samples (torch) via cranet
+`python main.py -m cranet -d original -E TestingWeightedSamplingTorch -R run1 -s 0.01 -e 3 -b 2 -i 2 -w True`
+Debugging:
+{
+    // Verwendet IntelliSense zum Ermitteln möglicher Attribute.
+    // Zeigen Sie auf vorhandene Attribute, um die zugehörigen Beschreibungen anzuzeigen.
+    // Weitere Informationen finden Sie unter https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Weighted Sampling Debugging",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "args": ["-m=cranet", "-E=TestingWeightedSamplingTorch", "-R=run1", "-s=0.03", "-e=3", "-b=2", "-i=2", "-w=True", "-d=original"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}
+
 # Debugging with launch.json
 {
     // Verwendet IntelliSense zum Ermitteln möglicher Attribute.

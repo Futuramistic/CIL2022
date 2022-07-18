@@ -1,3 +1,4 @@
+from losses.precision_recall_f1 import precision_recall_f1_score_torch
 from .trainer_torch import TorchTrainer
 from utils import *
 
@@ -16,7 +17,7 @@ class CRANetTrainer(TorchTrainer):
                  batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None,
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
-                 use_channelwise_norm=False, loss_function_name=None, blobs_removal_threshold=None, hyper_seg_threshold=False):
+                 use_channelwise_norm=False, loss_function_name=None, blobs_removal_threshold=None, hyper_seg_threshold=False, use_sample_weighting=False):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
@@ -45,8 +46,7 @@ class CRANetTrainer(TorchTrainer):
             loss_function = cra_loss()
 
         if evaluation_interval is None:
-            evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs,
-                                                                             num_samples_to_visualize)
+            evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)
 
         if blobs_removal_threshold is None:
             blobs_removal_threshold = 0
@@ -71,7 +71,7 @@ class CRANetTrainer(TorchTrainer):
         super().__init__(dataloader, model, preprocessing, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
-                         segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold)
+                         segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting)
 
         if loss_function_name is not None:
             self.loss_function_name = loss_function_name
@@ -81,7 +81,7 @@ class CRANetTrainer(TorchTrainer):
         model.train()
         opt = self.optimizer_or_lr
         train_loss = 0
-        for (inputs, labels) in train_loader:
+        for (inputs, labels, sample_idx) in train_loader:
             labels = torch.squeeze(labels, dim=1)
             if torch.cuda.is_available():
                 inputs = Variable(inputs.cuda())
@@ -93,6 +93,13 @@ class CRANetTrainer(TorchTrainer):
                 labels = labels.float()
             opt.zero_grad()
             outputs, refined = model.forward(inputs)
+
+            if self.use_sample_weighting:
+                threshold = getattr(self, 'last_hyper_threshold', self.segmentation_threshold)
+                # weight based on F1 score of batch
+                self.weights[sample_idx] =\
+                    1.0 - precision_recall_f1_score_torch((outputs.squeeze() >= threshold).float(), labels)[-1].mean().item()
+
             outputs = torch.squeeze(outputs, dim=1)
             refined = torch.squeeze(refined, dim=1)
             loss = self.loss_function(labels, refined, outputs)
@@ -112,7 +119,7 @@ class CRANetTrainer(TorchTrainer):
         model.eval()
         test_loss = 0
         with torch.no_grad():
-            for (inputs, labels) in test_loader:
+            for (inputs, labels, _) in test_loader:
                 labels = torch.squeeze(labels, dim=0)
 
                 if torch.cuda.is_available():

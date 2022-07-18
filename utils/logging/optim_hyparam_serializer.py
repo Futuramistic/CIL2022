@@ -1,15 +1,21 @@
-import keras.optimizers
 import tensorflow as tf
 import torch.optim as T
 import tensorflow.keras.optimizers as K
 
 
-# there could be multiple names describing the same param, but we want the names to be consistent so we can
-# compare the parameters in MLflow easily
-# make sure to keep the names consistent!
+"""
+there could be multiple names describing the same param, but we want the names to be consistent so we can
+compare the parameters in MLflow easily
+make sure to keep the names consistent!
+"""
 
 
 def _get_consistent_hyparam_name(name):
+    """
+    Rename the given name so that it is consistent with the rest of the framework
+    Args:
+        name (str): Name to rename
+    """
     # ensure consistency of all hyparam names with Torch naming scheme
     # keys: target names; values: names to rename
     rename_dir = {
@@ -103,17 +109,29 @@ def serialize_optimizer_hyperparams(optimizer_object):
 
 
 def _get_torch_hyparam_name(name, opt, param_group_idx):
+    """
+    Get a consistent name for the hyperparameter given its original name and group index
+    """
     suffix = '' if len(opt.param_groups) <= 1 else f'__{param_group_idx}'
     return _get_consistent_hyparam_name(name) + suffix
 
 
 def _get_torch_hyparam(name, opt, param_group_idx):
+    """
+    Get the value of of a hyperparameter given its name and group index
+    """
     return opt.param_groups[param_group_idx][name]
 
 
 def _serialize_generic_torch_hyparams(opt, opt_name, hyparams):
-    # can be used whenever an optimizer has no hyperparameters requiring "special treatment"
-
+    """
+    Serialize generic torch hyperparameters.
+    Can be used whenever an optimizer has no hyperparameters requiring "special treatment"
+    Args:
+        opt (optimizer): Optimizer
+        opt_name (str): Optimizer name
+        hyparams (list): hyper parameters to serialize
+    """
     output = {'optimizer': opt_name}
     for param_group_idx, param_group in enumerate(opt.param_groups):
         # dict to reduce code duplication
@@ -133,8 +151,15 @@ def _serialize_generic_torch_hyparams(opt, opt_name, hyparams):
 
 
 def _serialize_torch_adam_hyparams(opt, opt_name='Adam', generic_params=['lr', 'eps', 'weight_decay', 'amsgrad']):
-    # we need this function to break apart the "beta" hyparam of Adam-based optimizers into two separate numbers
+    """
+    Serialize generic adam hyperparameters
+    We need this function to break apart the "beta" hyparam of Adam-based optimizers into two separate numbers
     # omitted hyparams: maximize
+    Args:
+        opt (optimizer): Optimizer
+        opt_name (str): Optimizer name
+        generic_params (list): hyper parameters to serialize
+    """
 
     output = _serialize_generic_torch_hyparams(opt, opt_name, generic_params)
 
@@ -150,8 +175,15 @@ def _serialize_torch_adam_hyparams(opt, opt_name='Adam', generic_params=['lr', '
 
 
 def _serialize_torch_rprop_hyparams(opt, opt_name='RProp', generic_params=['lr']):
-    # we need this function to break apart the "eta" and "step_sizes" hyparams of RProp-based optimizers into
-    # two separate numbers each
+    """
+    Serialize generic rprop hyperparameters
+    We need this function to break apart the "eta" and "step_sizes" hyparams of RProp-based optimizers into
+    two separate numbers each
+    Args:
+        opt (optimizer): Optimizer
+        opt_name (str): Optimizer name
+        generic_params (list): hyper parameters to serialize
+    """
 
     output = _serialize_generic_torch_hyparams(opt, opt_name, generic_params)
 
@@ -169,10 +201,16 @@ def _serialize_torch_rprop_hyparams(opt, opt_name='RProp', generic_params=['lr']
 
 
 def _get_keras_hyparam_name(name, opt):
+    """
+    Get a consistent name for the Keras hyperparameter given by 'name'
+    """
     return _get_consistent_hyparam_name(name)
 
 
 def _get_keras_hyparam(name, opt):
+    """
+    Get the value of a hyperparameter given its name.
+    """
     value = getattr(opt, name)
     if isinstance(value, tf.Variable):
         return value.numpy()
@@ -180,6 +218,13 @@ def _get_keras_hyparam(name, opt):
 
 
 def _serialize_generic_keras_hyparams(opt, opt_name, hyparams):
+    """
+    Serialize generic keras hyperparameters
+    Args:
+        opt (optimizer): Optimizer
+        opt_name (str): Optimizer name
+        hyparams (list): hyper parameters to serialize
+    """
     output = {'optimizer': opt_name}
     # simply copy to output
     for hyparam in hyparams:

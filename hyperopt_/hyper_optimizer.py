@@ -1,12 +1,7 @@
-import datetime
+import cloudpickle
+
 from functools import partial
 from hyperopt import STATUS_OK, fmin, tpe, Trials, STATUS_FAIL
-import numpy as np
-import os
-import cloudpickle
-import time
-import warnings
-
 from data_handling import *
 from factory import Factory, get_torch_scheduler
 from utils.logging import pushbullet_logger
@@ -14,10 +9,17 @@ from utils.logging import pushbullet_logger
 
 class HyperParamOptimizer:
     """Class for Hyperparameter Optimization, based on the F1 score
-        Args: 
-            param_space (Dictionary) - hyparparameter search space, beware that no two params are called the same, see param_spaces_UNet.py for an example
+    Args:
+        param_space (Dictionary) - hyparparameter search space, beware that no two params are called the same,
+        see param_spaces_UNet.py for an example
     """
+
     def __init__(self, param_space, param_space_name=None):
+        """
+        Args:
+            param_space (dict): Dictionary describing the search space
+            param_space_name (str): Name of this search space
+        """
         warnings.filterwarnings("ignore", category=UserWarning) 
         self.param_space = param_space
         factory = Factory.get_factory(param_space['model']['model_type'].lower())
@@ -31,12 +33,14 @@ class HyperParamOptimizer:
         self.run_name = param_space_name
         if 'experiment_name' in param_space['training']['trainer_params']:
             self.exp_name = param_space['training']['trainer_params']['experiment_name']
-            del param_space['training']['trainer_params']['experiment_name']  # delete to avoid error due to duplicate argument
+            # delete to avoid error due to duplicate argument
+            del param_space['training']['trainer_params']['experiment_name']
         else:
             self.exp_name = self.model_class.__name__
         
         # prepare file for saving trials and eventually reload trials if file already exists        
-        # code adapted from https://stackoverflow.com/questions/63599879/can-we-save-the-result-of-the-hyperopt-trials-with-sparktrials
+        # code adapted from
+        # https://stackoverflow.com/questions/63599879/can-we-save-the-result-of-the-hyperopt-trials-with-sparktrials
         self.trials_path = param_space['model']['saving_directory']
         if not os.path.isdir("archive"):
             os.makedirs("archive")
@@ -53,7 +57,8 @@ class HyperParamOptimizer:
     
     def run(self, n_runs):
         """
-        Executes search for best (hyper-)hyperparameters by training different models and computing the loss over the validation data
+        Executes search for best (hyper-)hyperparameters by training different models and
+        computing the loss over the validation data
         The best model is defined by the best validation loss!
         Args: 
             n_runs (int) - number of searches in search space
@@ -66,7 +71,8 @@ class HyperParamOptimizer:
 
         pushbullet_logger.send_pushbullet_message("Hyperopt optimization started.")
 
-        # run objective function n times with different variations of the parameter space and search for the variation minimizing the loss
+        # run objective function n times with different variations of the parameter space and
+        # search for the variation minimizing the loss
         best_run = fmin(
                 partial(self.objective),
                 space = self.param_space,
@@ -86,7 +92,7 @@ class HyperParamOptimizer:
         Args: 
             hyperparams (Dictionary) - Hyperparameter search space
         Returns:
-        output (Dictionary[loss, status, and other things])
+            output (Dictionary[loss, status, and other things])
         """
         # for mlflow logger
         run_name_initial = self.run_name if self.run_name is not None else ''
@@ -97,21 +103,27 @@ class HyperParamOptimizer:
             # for RL Learning:
             training_params = hyperparams['training']['trainer_params']
             if 'history_size' in training_params:
-                hyperparams['model']['kwargs']['in_channels'] = int(training_params['history_size'] + 2 + (1 if hyperparams['dataset']['name'] == 'original_gt' else 3))
+                hyperparams['model']['kwargs']['in_channels'] = \
+                    int(training_params['history_size'] + 2 +
+                        (1 if hyperparams['dataset']['name'] == 'original_gt' else 3))
                 # penalty for false negative should not be smaller than reward for true positive,   
-                training_params['rewards']['false_neg_seg_pen'] = training_params['rewards']['false_pos_seg_pen'] if training_params['rewards']['false_neg_seg_pen'] < training_params['rewards']['false_pos_seg_pen'] else training_params['rewards']['false_neg_seg_pen']
+                training_params['rewards']['false_neg_seg_pen'] = training_params['rewards']['false_pos_seg_pen'] if \
+                    training_params['rewards']['false_neg_seg_pen'] < training_params['rewards']['false_pos_seg_pen'] \
+                    else training_params['rewards']['false_neg_seg_pen']
             model = self.model_class(**hyperparams['model']['kwargs'])
             
             # get scheduler from string
             if 'optimizer_params' in hyperparams['training']:
-                optimizer = self.trainer_class.get_default_optimizer_with_lr(hyperparams['training']['optimizer_params']['optimizer_lr'], model)
+                optimizer = self.trainer_class.get_default_optimizer_with_lr(
+                    hyperparams['training']['optimizer_params']['optimizer_lr'], model)
                 scheduler_args = hyperparams['training']['optimizer_params']['scheduler_args']
                 scheduler_name = scheduler_args['scheduler_name']
                 scheduler_kwargs = scheduler_args['kwargs']
                 scheduler = get_torch_scheduler(optimizer, scheduler_name, scheduler_kwargs)
                 hyperparams['training']['trainer_params']['scheduler'] = scheduler
             
-            trainer = self.trainer_class(**training_params, dataloader = self.dataloader, model=model, experiment_name=self.exp_name, run_name=run_name)
+            trainer = self.trainer_class(**training_params, dataloader=self.dataloader, model=model,
+                                         experiment_name=self.exp_name, run_name=run_name)
             trainer.train()
             average_f1_score = trainer.get_F1_score_validation()
         except RuntimeError as r:
@@ -124,7 +136,7 @@ class HyperParamOptimizer:
                 'params': hyperparams
             }
         
-        # save (overwrite) updated trials after each trainig
+        # save (overwrite) updated trials after each training
         with open(self.trials_path, 'wb') as handle:
             cloudpickle.dump(self.trials, handle)
         return {
@@ -147,9 +159,13 @@ class HyperParamOptimizer:
     
     @staticmethod
     def get_best_trial(trials):
-        # code adapted from https://stackoverflow.com/questions/54273199/how-to-save-the-best-hyperopt-optimized-keras-models-and-its-weights
+        """
+        Returns the experiment with the minimum loss
+        """
+        # code adapted from
+        # stackoverflow.com/questions/54273199/how-to-save-the-best-hyperopt-optimized-keras-models-and-its-weights
         valid_trial_list = [trial for trial in trials if STATUS_OK == trial['result']['status']]
         losses = [float(trial['result']['loss']) for trial in valid_trial_list]
-        index_having_minumum_loss = np.argmin(losses)
-        best_trial_obj = valid_trial_list[index_having_minumum_loss]
+        index_having_minimum_loss = np.argmin(losses)
+        best_trial_obj = valid_trial_list[index_having_minimum_loss]
         return best_trial_obj

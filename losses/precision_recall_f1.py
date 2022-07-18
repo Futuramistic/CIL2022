@@ -1,20 +1,25 @@
-import keras.backend as K
-import numpy as np
-import torch
-from sklearn.metrics import f1_score
-import tensorflow as tf
 from typing import Iterable
-
 from .loss_harmonizer import *
 
 
-# TODO: if we take the F1 score for both classes (corresponding to average='micro' for sklearn.metrics.f1_score),
-# the model can easily get a high F1 score, as most pixels correspond to the background
-# check which classes are used for evaluation
+"""
+If we take the F1 score for both classes (corresponding to average='micro' for sklearn.metrics.f1_score),
+the model can easily get a high F1 score, as most pixels correspond to the background
+check which classes are used for evaluation
+"""
 DEFAULT_F1_CLASSES = (1,)
 
 
 def prediction_stats_torch(thresholded_prediction, targets, classes, dtype=torch.float32):
+    """
+    Compute statics of the predictions i.e. the true positives/negatives and false positives/negatives
+    Torch version.
+    Args:
+        thresholded_prediction (Torch Tensor): binary prediction
+        targets (Torch Tensor): The target tensor
+        classes (list): List of classes for which we want to compute the statistics
+        dtype: Type of the tensors
+    """
     targets = collapse_channel_dim_torch(targets, take_argmax=True).long()
     thresholded_prediction = collapse_channel_dim_torch(thresholded_prediction, take_argmax=True).long()
 
@@ -38,6 +43,14 @@ def prediction_stats_torch(thresholded_prediction, targets, classes, dtype=torch
 
 
 def precision_torch(thresholded_prediction, targets, classes, pred_stats=None):
+    """
+    Compute prediction precision
+    Args:
+        thresholded_prediction (Torch Tensor): binary prediction
+        targets (Torch Tensor): The target tensor
+        classes (list): List of classes for which we want to compute the statistics
+        pred_stats: Type of the tensors
+    """
     if pred_stats is None:
         pred_stats = prediction_stats_torch(thresholded_prediction, targets, classes)
     if pred_stats['tp'] == torch.zeros_like(pred_stats['tp']):  # prevent NaNs
@@ -46,6 +59,14 @@ def precision_torch(thresholded_prediction, targets, classes, pred_stats=None):
 
 
 def recall_torch(thresholded_prediction, targets, classes, pred_stats=None):
+    """
+    Compute prediction recall
+    Args:
+        thresholded_prediction (Torch Tensor): binary prediction
+        targets (Torch Tensor): The target tensor
+        classes (list): List of classes for which we want to compute the statistics
+        pred_stats: Type of the tensors
+    """
     if pred_stats is None:
         pred_stats = prediction_stats_torch(thresholded_prediction, targets, classes)
     if pred_stats['tp'] == torch.zeros_like(pred_stats['tp']):  # prevent NaNs
@@ -54,6 +75,13 @@ def recall_torch(thresholded_prediction, targets, classes, pred_stats=None):
 
 
 def precision_recall_f1_score_torch(thresholded_prediction, targets, classes=DEFAULT_F1_CLASSES):
+    """
+    Compute precision, recall and f1 score
+    Args:
+        thresholded_prediction (Torch Tensor): binary prediction
+        targets (Torch Tensor): The target tensor
+        classes (list): List of classes for which we want to compute the statistics
+    """
     # best value is at 1, worst at 0
     pred_stats = prediction_stats_torch(thresholded_prediction, targets, classes)
     precision = precision_torch(thresholded_prediction, targets, classes, pred_stats)
@@ -65,11 +93,27 @@ def precision_recall_f1_score_torch(thresholded_prediction, targets, classes=DEF
 
 
 def f1_score_torch(thresholded_prediction, targets, classes=DEFAULT_F1_CLASSES):
+    """
+    Compute the f1 score
+    Args:
+        thresholded_prediction (Torch Tensor): binary prediction
+        targets (Torch Tensor): The target tensor
+        classes (list): List of classes for which we want to compute the statistics
+    """
     _, _, f1_score = precision_recall_f1_score_torch(thresholded_prediction, targets, classes)
     return f1_score
 
 
 def prediction_stats_tf(thresholded_prediction, targets, classes, dtype=tf.dtypes.float32):
+    """
+    Compute statics of the predictions i.e. the true positives/negatives and false positives/negatives
+    Tensorflow version.
+    Args:
+        thresholded_prediction (Torch Tensor): binary prediction
+        targets (Torch Tensor): The target tensor
+        classes (list): List of classes for which we want to compute the statistics
+        dtype: Type of the tensors
+    """
     targets = collapse_channel_dim_tf(targets, take_argmax=True)
     thresholded_prediction = tf.cast(collapse_channel_dim_tf(thresholded_prediction, take_argmax=True),
                                      dtype=targets.dtype)
@@ -95,6 +139,14 @@ def prediction_stats_tf(thresholded_prediction, targets, classes, dtype=tf.dtype
 
 
 def precision_tf(thresholded_prediction, targets, classes, pred_stats=None):
+    """
+    Compute prediction precision
+    Args:
+        thresholded_prediction (Torch Tensor): binary prediction
+        targets (Torch Tensor): The target tensor
+        classes (list): List of classes for which we want to compute the statistics
+        pred_stats: Type of the tensors
+    """
     if pred_stats is None:
         pred_stats = prediction_stats_tf(thresholded_prediction, targets, classes)
     if pred_stats['tp'] == tf.zeros_like(pred_stats['tp']):  # prevent NaNs
@@ -103,6 +155,14 @@ def precision_tf(thresholded_prediction, targets, classes, pred_stats=None):
 
 
 def recall_tf(thresholded_prediction, targets, classes, pred_stats=None):
+    """
+    Compute prediction recall
+    Args:
+        thresholded_prediction (Torch Tensor): binary prediction
+        targets (Torch Tensor): The target tensor
+        classes (list): List of classes for which we want to compute the statistics
+        pred_stats: Type of the tensors
+    """
     if pred_stats is None:
         pred_stats = prediction_stats_tf(thresholded_prediction, targets, classes)
     if pred_stats['tp'] == tf.zeros_like(pred_stats['tp']):  # prevent NaNs
@@ -111,6 +171,13 @@ def recall_tf(thresholded_prediction, targets, classes, pred_stats=None):
 
 
 def precision_recall_f1_score_tf(thresholded_prediction, targets, classes=DEFAULT_F1_CLASSES):
+    """
+    Compute precision, recall and f1 score
+    Args:
+        thresholded_prediction (Torch Tensor): binary prediction
+        targets (Torch Tensor): The target tensor
+        classes (list): List of classes for which we want to compute the statistics
+    """
     # best value is at 1, worst at 0
     pred_stats = prediction_stats_tf(thresholded_prediction, targets, classes)
     precision = precision_tf(thresholded_prediction, targets, classes, pred_stats)
@@ -122,5 +189,12 @@ def precision_recall_f1_score_tf(thresholded_prediction, targets, classes=DEFAUL
 
 
 def f1_score_tf(thresholded_prediction, targets, classes=DEFAULT_F1_CLASSES):
+    """
+    Compute the f1 score
+    Args:
+        thresholded_prediction (Torch Tensor): binary prediction
+        targets (Torch Tensor): The target tensor
+        classes (list): List of classes for which we want to compute the statistics
+    """
     _, _, f1_score = precision_recall_f1_score_tf(thresholded_prediction, targets, classes)
     return f1_score

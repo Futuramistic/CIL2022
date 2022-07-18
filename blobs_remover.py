@@ -1,58 +1,47 @@
 from scipy.ndimage.measurements import label
 import numpy as np
-import cv2
 import tensorflow as tf
 import torch
 
-connection_filter = np.ones((3, 3), dtype=np.int32)
 
-# with_blobs = (cv2.imread('output_preds/satimage_151.png')[:, :, 0] / 255)
+connection_filter = np.ones((3, 3), dtype=np.int32)
 device = torch.device('cuda') if torch.cuda.is_available() else 'cpu'
 
 
 def remove_blobs(image, threshold=200):
+    """
+    Given a predicted groundtruth image, remove all the connected components whose size is below a certain threshold
+    Args:
+        image (numpy array, torch tensor or TF tensor): groundtruth image that we want to process
+        threshold (int): Minimum size below which blobs are removed
+    """
     original_shape = image.shape
-    if threshold == 0:
+    if threshold == 0: # No processing needed
         return image
-    # restore_first_dim = False
-    # restore_second_dim = False
-    # if len(image.shape) == 3:
-    #     image = image[0]
-    #     restore_first_dim = True
-    # elif len(image.shape) == 4:
-    #     image = image[0][0]
-    #     restore_second_dim = True
+    # Remove useless dimensions
     image = np.squeeze(image)
-    # print('#blobs', image.shape)
     is_tf = False
     is_torch = False
+    # Convert to numpy arrays if not already done
     if tf.is_tensor(image):
         image = image.numpy().copy()
         is_tf = True
     elif torch.is_tensor(image):
         image = image.cpu().numpy()
         is_torch = True
-
+    # Label the blobs
     labeled, ncomponents = label(image, connection_filter)
     indices = np.indices(image.shape).T[:, :, [1, 0]]
-    # print('ncomponents', ncomponents)
+    # Remove the blobs that are not big enough
     for i in range(ncomponents):
         idcs = indices[labeled == i+1]
         component_size = len(idcs)
         if component_size < threshold:
             image[idcs[:, 0], idcs[:, 1]] = 0
-    # if restore_first_dim:
-    #     image = image[None, :, :]
-    # elif restore_second_dim:
-    #     image = image[None, None, :, :]
     np.reshape(image, original_shape)
+    # Convert back to original type if we made a modification
     if is_tf:
         image = tf.convert_to_tensor(image)
     elif is_torch:
         image = torch.Tensor(image).to(device)
     return image
-
-
-# without_blobs = remove_blobs(with_blobs) * 255
-# cv2.imwrite('without_blobs.png', without_blobs)
-
