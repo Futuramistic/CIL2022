@@ -149,7 +149,7 @@ def precision_tf(thresholded_prediction, targets, target_class):
         target_class (int): Class to predict for
     """
     precision_metric = K.metrics.Precision(dtype=tf.float32)
-    precision_metric.update_state(targets,tf.equal(thresholded_prediction,target_class))
+    precision_metric.update_state(tf.equal(targets,target_class),tf.equal(thresholded_prediction,target_class))
     return precision_metric.result().numpy()
 
 
@@ -162,7 +162,7 @@ def recall_tf(thresholded_prediction, targets, target_class):
         target_class (int): Class to predict for
     """
     recall_metric = K.metrics.Recall(dtype=tf.float32)
-    recall_metric.update_state(targets,tf.equal(thresholded_prediction,target_class))
+    recall_metric.update_state(tf.equal(targets,target_class),tf.equal(thresholded_prediction,target_class))
     return recall_metric.result().numpy()
 
 def f1_micro_tf(thresholded_prediction,targets,target_class):
@@ -174,7 +174,7 @@ def f1_micro_tf(thresholded_prediction,targets,target_class):
         target_class (int): Class to predict for
     """
     f1_micro_metric = tfa.metrics.F1Score(num_classes=2, average='micro',dtype=tf.float32)
-    f1_micro_metric.update_state(targets,tf.cast(tf.equal(thresholded_prediction,target_class),tf.float32))
+    f1_micro_metric.update_state(tf.equal(targets,target_class),tf.cast(tf.equal(thresholded_prediction,target_class),tf.float32))
     return f1_micro_metric.result().numpy()
 
 def tf_count(t, val):
