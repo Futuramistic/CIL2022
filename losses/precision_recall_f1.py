@@ -277,13 +277,13 @@ def patchified_f1_scores_tf(thresholded_prediction, targets):
     patchified_prediction = tf.cast(patch_sums_pred > 64, dtype=tf.int32)
     patchified_targets = tf.cast(patch_sums_gt > 64, dtype=tf.int32)
 
-    zeros_weight_patchified =   tf_count(patchified_targets,0) / num_patches
-    ones_weight_patchified  =   tf_count(patchified_targets,1) / num_patches
+    zeros_weight_patchified =   tf_count(patchified_targets,0).numpy().item() / num_patches
+    ones_weight_patchified  =   tf_count(patchified_targets,1).numpy().item() / num_patches
 
     f1_road_patchified = f1_tf(patchified_prediction, patchified_targets, 1)
     f1_bkgd_patchified = f1_tf(patchified_prediction, patchified_targets, 0)
     f1_patchified_weighted = ones_weight_patchified * f1_road_patchified + zeros_weight_patchified * f1_bkgd_patchified
-    return f1_road_patchified.numpy().item(), f1_bkgd_patchified.numpy().item(), f1_patchified_weighted.numpy().item()
+    return f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted
 
 
 def precision_recall_f1_score_tf(thresholded_prediction, targets):
