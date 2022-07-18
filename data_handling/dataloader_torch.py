@@ -88,11 +88,11 @@ class TorchDataLoader(DataLoader):
         
         if weights is None or len(weights) == 0:
             # if weighting is not used / has not been used yet, self.dataset is not yet set
-            self.dataset = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing, training_data_len,
-                                      self.use_geometric_augmentation, self.use_color_augmentation, self.contrast,
-                                      self.brightness, self.saturation)
-            self.training_data = Subset(self.dataset, list(range(training_data_len)))
-            self.testing_data = Subset(self.dataset, list(range(training_data_len, len(self.dataset))))
+            self.dataset_obj = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing, training_data_len,
+                                                   self.use_geometric_augmentation, self.use_color_augmentation, self.contrast,
+                                                   self.brightness, self.saturation)
+            self.training_data = Subset(self.dataset_obj, list(range(training_data_len)))
+            self.testing_data = Subset(self.dataset_obj, list(range(training_data_len, len(self.dataset_obj))))
             ret = torchDL(self.training_data, batch_size, shuffle=True, **args)
         else:
             sampler = WeightedRandomSampler(weights, training_data_len, replacement=True)
