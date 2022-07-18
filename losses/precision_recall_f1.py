@@ -254,7 +254,7 @@ def tf_count(t, val):
     elements_equal_to_value = tf.equal(t, val)
     as_ints = tf.cast(elements_equal_to_value, tf.int32)
     count = tf.reduce_sum(as_ints)
-    return count
+    return tf.cast(count,tf.float32)
 
 
 def patchified_f1_scores_tf(thresholded_prediction, targets):
@@ -277,8 +277,8 @@ def patchified_f1_scores_tf(thresholded_prediction, targets):
     patchified_prediction = tf.cast(patch_sums_pred > 64, dtype=tf.int32)
     patchified_targets = tf.cast(patch_sums_gt > 64, dtype=tf.int32)
 
-    zeros_weight_patchified = tf.reduce_sum(tf.cast(tf.equal(patchified_targets,0),tf.float32)) / num_patches
-    ones_weight_patchified = tf.reduce_sum(tf.cast(tf.equal(patchified_targets,1),tf.float32)) / num_patches
+    zeros_weight_patchified =   tf_count(patchified_targets,0) / num_patches
+    ones_weight_patchified  =   tf_count(patchified_targets,1) / num_patches
 
     f1_road_patchified = f1_tf(patchified_prediction, patchified_targets, 1)
     f1_bkgd_patchified = f1_tf(patchified_prediction, patchified_targets, 0)
