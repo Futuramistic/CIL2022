@@ -8,7 +8,7 @@ import pysftp
 import requests
 import shutil
 import socket
-import keras.preprocessing as K
+import tensorflow.keras as K
 
 from losses import *
 from requests.auth import HTTPBasicAuth
@@ -405,4 +405,4 @@ class Trainer(abc.ABC):
             arr.append(row)
         # Concatenate in the second-to-last dimension to get the final big image
         final = np.concatenate(arr, axis=-2)
-        K.image.save_img(file_path, segmentation_to_image(final), data_format="channels_first")
+        K.utils.save_img(file_path, segmentation_to_image(final), data_format="channels_first")
