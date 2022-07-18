@@ -66,7 +66,7 @@ def main():
     parser.add_argument('-T', '--hyper_seg_threshold', type=bool,
                         help="If True, use hyperparameter search after evaluation to find the best "
                              "segmentation threshold", required=False, default=True)
-    parser.add_argument('-w', '--use_sample_weighting', type=bool,
+    parser.add_argument('-w', '--use_sample_weighting', type=bool, required=False, default=False,
                         help="If True, use sample weighting during training to train more on samples with big errors.")
     known_args, unknown_args = parser.parse_known_args()
 

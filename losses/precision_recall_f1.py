@@ -257,6 +257,34 @@ def tf_count(t, val):
     return count
 
 
+def patchified_f1_scores_tf(thresholded_prediction, targets):
+    patch_sums_pred = tf.zeros([*thresholded_prediction.shape[:-2],
+                                 thresholded_prediction.shape[-2] // 16,
+                                 thresholded_prediction.shape[-1] // 16])
+    patch_sums_gt = tf.identity(patch_sums_pred)
+    num_patches = 0
+
+    for patch_y in range(thresholded_prediction.shape[-2] // 16):
+        for patch_x in range(thresholded_prediction.shape[-1] // 16):
+            patch_sums_pred[..., patch_y, patch_x] =\
+                tf.reduce_sum(thresholded_prediction[..., patch_y*16 : (patch_y+1)*16, patch_x*16 : (patch_x+1)*16])
+            patch_sums_gt[..., patch_y, patch_x] =\
+                tf.reduce_sum(targets[..., patch_y*16 : (patch_y+1)*16, patch_x*16 : (patch_x+1)*16])
+            num_patches += 1
+
+    # > and ratio of 0.25 (0.25 * 256 = 64) used in "mask_to_submission.py"
+    patchified_prediction = tf.cast(patch_sums_pred > 64, dtype=tf.int32)
+    patchified_targets = tf.cast(patch_sums_gt > 64, dtype=tf.int32)
+
+    zeros_weight_patchified = tf.reduce_sum(patchified_targets == 0) / num_patches
+    ones_weight_patchified = tf.reduce_sum(patchified_targets == 1) / num_patches
+
+    f1_road_patchified = f1_tf(patchified_prediction, patchified_targets, 1)
+    f1_bkgd_patchified = f1_tf(patchified_prediction, patchified_targets, 0)
+    f1_patchified_weighted = ones_weight_patchified * f1_road_patchified + zeros_weight_patchified * f1_bkgd_patchified
+    return f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted
+
+
 def precision_recall_f1_score_tf(thresholded_prediction, targets):
     """
     Compute precision, recall and f1 score
@@ -282,9 +310,13 @@ def precision_recall_f1_score_tf(thresholded_prediction, targets):
     f1_macro = (f1_road+f1_bkgd)/2.0
     f1_weighted = ones_weight * f1_road + zeros_weight * f1_bkgd
     
+    f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted =\
+        patchified_f1_scores_tf(thresholded_prediction, targets)
+
     return (precision_road, recall_road, f1_road, 
             precision_bkgd, recall_bkgd, f1_bkgd, 
-            f1_macro, f1_weighted)
+            f1_macro, f1_weighted,
+            f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted)
 
 
 def f1_score_tf(thresholded_prediction, targets):
@@ -295,5 +327,5 @@ def f1_score_tf(thresholded_prediction, targets):
         targets (Torch Tensor): The target tensor
         classes (list): List of classes for which we want to compute the statistics
     """
-    _, _, _, _, _, _, _, f1_weighted = precision_recall_f1_score_tf(thresholded_prediction, targets)
-    return f1_weighted
+    *_, f1_patchified_weighted = precision_recall_f1_score_tf(thresholded_prediction, targets)
+    return f1_patchified_weighted

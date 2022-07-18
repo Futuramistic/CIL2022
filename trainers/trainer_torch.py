@@ -385,8 +385,8 @@ class TorchTrainer(Trainer, abc.ABC):
         Returns:
             f1 score (float)
         """
-        _, _, _, _, _, _, _, f1_weighted, *_ = self.get_precision_recall_F1_score_validation()
-        return f1_weighted
+        *_, f1_patchified_weighted, _ = self.get_precision_recall_F1_score_validation()
+        return f1_patchified_weighted
 
     def get_precision_recall_F1_score_validation(self):
         """

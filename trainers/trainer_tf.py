@@ -27,7 +27,7 @@ class TFTrainer(Trainer, abc.ABC):
                  optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None, evaluation_interval=None,
                  num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
                  segmentation_threshold=None, use_channelwise_norm=False, blobs_removal_threshold=0,
-                 hyper_seg_threshold=False):
+                 hyper_seg_threshold=False, use_sample_weighting=False):
         """
         Initializes a Tensorflow trainer
         Args:
@@ -39,7 +39,7 @@ class TFTrainer(Trainer, abc.ABC):
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
-                         blobs_removal_threshold, hyper_seg_threshold)
+                         blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
@@ -141,21 +141,26 @@ class TFTrainer(Trainer, abc.ABC):
             Here we compute scores, save models, and log to MLFlow
             """
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted, self.segmentation_threshold = self.trainer.get_precision_recall_F1_score_validation()
+                precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted,\
+                f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted, self.segmentation_threshold =\
+                    self.get_precision_recall_F1_score_validation()
                 metrics = {'precision': precision_road, 'recall': recall_road, 'f1_score': f1_road,
                            'precision road': precision_road, 'recall road': recall_road, 'f1 road': f1_road, 
-                           'precision background': precision_bkgd, 'recall background': recall_bkgd, 'f1 background': f1_bkgd, 
-                           'f1 macro': f1_macro,'f1 weighted': f1_weighted, 'seg_threshold': self.segmentation_threshold}
+                           'precision background': precision_bkgd, 'recall background': recall_bkgd,
+                           'f1 background': f1_bkgd, 'f1 macro': f1_macro, 'f1 weighted': f1_weighted,
+                           'patch f1 road': f1_road_patchified, 'patch f1 background': f1_bkgd_patchified,
+                           'patch f1 weighted': f1_patchified_weighted, 'seg_threshold': self.segmentation_threshold}
                 print('\nMetrics at aggregate iteration %i (ep. %i, ep.-it. %i): %s'
                       % (self.iteration_idx, self.epoch_idx, batch, str(metrics)))
+                # Log the scores to MLFlow
                 if mlflow_logger.logging_to_mlflow_enabled():
                     mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=self.iteration_idx)
                     if self.do_visualize:
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx, self.epoch_idx,
                                                          self.epoch_iteration_idx)
                 # save the best f1 score checkpoint
-                if self.trainer.do_checkpoint and self.best_score <= f1_weighted:
-                    self.best_score = f1_weighted
+                if self.trainer.do_checkpoint and self.best_score <= f1_patchified_weighted:
+                    self.best_score = f1_patchified_weighted
                     keras.models.save_model(model=self.model, filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_f1.ckpt"))
 
             if self.trainer.do_checkpoint \
@@ -318,12 +323,12 @@ class TFTrainer(Trainer, abc.ABC):
 
     def get_F1_score_validation(self):
         """
-        Compute the Weighted F1 Score on the validation set
+        Compute the F1 Score on the validation set
         Returns:
             f1 score (float)
         """
-        _, _, _, _, _, _, _, f1_weighted = self.get_precision_recall_F1_score_validation()
-        return f1_weighted
+        *_, f1_patchified_weighted, _ = self.get_precision_recall_F1_score_validation()
+        return f1_patchified_weighted
 
     def get_precision_recall_F1_score_validation(self):
         """
@@ -334,6 +339,7 @@ class TFTrainer(Trainer, abc.ABC):
         precisions_road, recalls_road, f1_road_scores = [], [], []
         precisions_bkgd, recalls_bkgd, f1_bkgd_scores = [], [], []
         f1_macro_scores, f1_weighted_scores = [], []
+        f1_road_patchified_scores, f1_bkgd_patchified_scores, f1_patchified_weighted_scores = [], [], []
         threshold = self.segmentation_threshold
         if self.hyper_seg_threshold:
             threshold = self.get_best_segmentation_threshold()
@@ -347,9 +353,10 @@ class TFTrainer(Trainer, abc.ABC):
             preds = tf.cast(tf.squeeze(output) >= threshold, tf.dtypes.int8)
             blb_input = preds.numpy()
             preds = remove_blobs(blb_input, threshold=self.blobs_removal_threshold)
-            # print('tf preds 2', preds.shape)
-            precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted =\
-                precision_recall_f1_score_tf(preds, y)
+            # print('tf preds 2', preds.shape)$
+            
+            precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted,\
+            f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted = precision_recall_f1_score_tf(preds, y)
 
             precisions_road.append(precision_road)
             recalls_road.append(recall_road)
@@ -359,10 +366,16 @@ class TFTrainer(Trainer, abc.ABC):
             f1_bkgd_scores.append(f1_bkgd)
             f1_macro_scores.append(f1_macro)
             f1_weighted_scores.append(f1_weighted)
+            
+            f1_road_patchified_scores.append(f1_road_patchified.cpu().item())
+            f1_bkgd_patchified_scores.append(f1_bkgd_patchified.cpu().item())
+            f1_patchified_weighted_scores.append(f1_patchified_weighted.cpu().item())
 
         return (np.mean(precisions_road), np.mean(recalls_road), np.mean(f1_road_scores), 
                 np.mean(precisions_bkgd), np.mean(recalls_bkgd), np.mean(f1_bkgd_scores),
-                np.mean(f1_macro_scores), np.mean(f1_weighted_scores), threshold)
+                np.mean(f1_macro_scores), np.mean(f1_weighted_scores),
+                np.mean(f1_road_patchified_scores), np.mean(f1_bkgd_patchified_scores), np.mean(f1_patchified_weighted_scores),
+                threshold)
 
     ''' 
     def find_best_segmentation_threshold(self,step=0.05):
