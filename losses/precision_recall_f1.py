@@ -193,12 +193,12 @@ def precision_recall_f1_score_tf(thresholded_prediction, targets):
     """
     Compute precision, recall and f1 score
     Args:
-        thresholded_prediction (Torch Tensor): binary prediction
-        targets (Torch Tensor): The target tensor
-        classes (list): List of classes for which we want to compute the statistics
+        thresholded_prediction (TF Tensor): binary prediction
+        targets (TF Tensor): The target tensor
     """
     thresholded_prediction = tf.squeeze(thresholded_prediction)
     targets = tf.squeeze(targets)
+
     precision_road = precision_tf(thresholded_prediction,targets,1)
     precision_bkgd = precision_tf(thresholded_prediction,targets,0)
 
