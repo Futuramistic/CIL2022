@@ -2,6 +2,7 @@ from typing import Iterable
 from .loss_harmonizer import *
 import tensorflow.keras as K
 import tensorflow_addons as tfa
+import tensorflow as tf
 
 """
 If we take the F1 score for both classes (corresponding to average='micro' for sklearn.metrics.f1_score),
@@ -196,7 +197,8 @@ def precision_recall_f1_score_tf(thresholded_prediction, targets):
         targets (Torch Tensor): The target tensor
         classes (list): List of classes for which we want to compute the statistics
     """
-
+    thresholded_prediction = tf.squeeze(thresholded_prediction)
+    targets = tf.squeeze(targets)
     precision_road = precision_tf(thresholded_prediction,targets,1)
     precision_bkgd = precision_tf(thresholded_prediction,targets,0)
 
@@ -215,7 +217,6 @@ def precision_recall_f1_score_tf(thresholded_prediction, targets):
     return (precision_road, recall_road, f1_micro_road, 
             precision_bkgd, recall_bkgd, f1_micro_bkgd, 
             f1_macro, f1_weighted)
-
 
 def f1_score_tf(thresholded_prediction, targets):
     """
