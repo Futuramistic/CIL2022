@@ -141,14 +141,11 @@ class TFTrainer(Trainer, abc.ABC):
             Here we compute scores, save models, and log to MLFlow
             """
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                precision_road, recall_road, f1_micro_road, precision_bkgd, recall_bkgd, f1_micro_bkgd, \
-                f1_macro, f1_weighted, self.segmentation_threshold = \
-                    self.trainer.get_precision_recall_F1_score_validation()
-                metrics = {'precision (road)': precision_road, 'recall (road)': recall_road,
-                           'f1 micro road': f1_micro_road,
-                           'precision (background)': precision_bkgd, 'recall (background)': recall_bkgd,
-                           'f1 micro background': f1_micro_bkgd,
-                           'f1 macro': f1_macro, 'f1 weighted': f1_weighted,
+                precision_road, recall_road, f1_micro_road, precision_bkgd, recall_bkgd, f1_micro_bkgd, f1_macro, \
+                f1_weighted, self.segmentation_threshold = self.trainer.get_precision_recall_F1_score_validation()
+                metrics = {'precision road': precision_road, 'recall road': recall_road, 'f1 micro road': f1_micro_road, 
+                           'precision background': precision_bkgd, 'recall background': recall_bkgd,
+                           'f1 micro background': f1_micro_bkgd, 'f1 macro': f1_macro, 'f1 weighted': f1_weighted,
                            'seg_threshold': self.segmentation_threshold}
                 print('\nMetrics at aggregate iteration %i (ep. %i, ep.-it. %i): %s'
                       % (self.iteration_idx, self.epoch_idx, batch, str(metrics)))
