@@ -1,24 +1,19 @@
 import abc
 import datetime
-import functools
 import hashlib
-import math
 import numpy as np
 import pysftp
 import requests
 from requests.auth import HTTPBasicAuth
-from sklearn.utils import shuffle
-import torch
 import torch.cuda
 from torch.utils.data import DataLoader, Subset
 from urllib.parse import urlparse
 
 from losses.precision_recall_f1 import *
-from utils.logging import mlflow_logger
 from .trainer import Trainer
 from utils import *
-from blobs_remover import remove_blobs
-from threshold_optimizer import ThresholdOptimizer
+from processing.blobs_remover import remove_blobs
+from processing.threshold_optimizer import ThresholdOptimizer
 
 
 class TorchTrainer(Trainer, abc.ABC):

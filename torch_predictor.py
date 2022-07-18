@@ -7,7 +7,7 @@ import torchvision.transforms.functional as TF
 
 from factory import Factory
 from losses.precision_recall_f1 import precision_recall_f1_score_torch
-from blobs_remover import remove_blobs
+from processing.blobs_remover import remove_blobs
 from tqdm import tqdm
 from losses import *
 from utils import *

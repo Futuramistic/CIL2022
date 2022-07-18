@@ -18,9 +18,9 @@ and let each model make a prediction, before ensembling all predictions into a s
 os.environ['MLFLOW_TRACKING_USERNAME'] = MLFLOW_HTTP_USER
 os.environ['MLFLOW_TRACKING_PASSWORD'] = MLFLOW_HTTP_PASS
 
-sftp_paths_file = 'sftp_paths.txt'
-checkpoints_output_dir = 'model_checkpoints'
-output_predictions_dir = 'submissions_to_ensemble'
+sftp_paths_file = '../sftp_paths.txt'
+checkpoints_output_dir = '../model_checkpoints'
+output_predictions_dir = '../submissions_to_ensemble'
 
 
 def sftp_url_to_command(url):
