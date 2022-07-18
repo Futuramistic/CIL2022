@@ -143,7 +143,7 @@ class TFTrainer(Trainer, abc.ABC):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
                 precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted,\
                 f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted, self.segmentation_threshold =\
-                    self.get_precision_recall_F1_score_validation()
+                    self.trainer.get_precision_recall_F1_score_validation()
                 metrics = {'precision': precision_road, 'recall': recall_road, 'f1_score': f1_road,
                            'precision road': precision_road, 'recall road': recall_road, 'f1 road': f1_road, 
                            'precision background': precision_bkgd, 'recall background': recall_bkgd,
