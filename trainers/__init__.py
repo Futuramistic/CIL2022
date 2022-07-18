@@ -13,3 +13,4 @@ from .deep_lab_v3 import DeepLabV3Trainer
 from .deeplabv3gan import DeepLabV3PlusGANTrainer
 from .rl_trainer_torch import TorchRLTrainer
 from .fft_unet import FFT_UNetTrainer
+from .segformer import SegFormerTrainer

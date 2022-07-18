@@ -1,24 +1,19 @@
 import abc
 import datetime
-import functools
 import hashlib
-import math
 import numpy as np
 import pysftp
 import requests
 from requests.auth import HTTPBasicAuth
-from sklearn.utils import shuffle
-import torch
 import torch.cuda
 from torch.utils.data import DataLoader, Subset
 from urllib.parse import urlparse
 
 from losses.precision_recall_f1 import *
-from utils.logging import mlflow_logger
 from .trainer import Trainer
 from utils import *
-from blobs_remover import remove_blobs
-from threshold_optimizer import ThresholdOptimizer
+from processing.blobs_remover import remove_blobs
+from processing.threshold_optimizer import ThresholdOptimizer
 
 
 class TorchTrainer(Trainer, abc.ABC):
@@ -134,7 +129,9 @@ class TorchTrainer(Trainer, abc.ABC):
             output = self.model(batch_xs)
             if type(output) is tuple:
                 output = output[0]
-            preds = (output >= self.segmentation_threshold).float().cpu().detach().numpy()
+
+            preds = collapse_channel_dim_torch((output >= self.segmentation_threshold).float(), take_argmax=True).detach().cpu().numpy()
+            
             # print('shape', preds.shape)
             preds_list = []
             for i in range(preds.shape[0]):
@@ -327,7 +324,8 @@ class TorchTrainer(Trainer, abc.ABC):
             output = self.model(x)
             if type(output) is tuple:
                 output = output[0]
-            preds = (output.squeeze() >= threshold).float()
+            # preds = (output.squeeze() >= threshold).float()
+            preds = collapse_channel_dim_torch((output >= threshold).float(), take_argmax=True)
             preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
             precision, recall, f1_score = precision_recall_f1_score_torch(preds, y)
             precisions.append(precision.cpu().numpy())
@@ -349,7 +347,9 @@ class TorchTrainer(Trainer, abc.ABC):
                 output = self.model(x)
                 if type(output) is tuple:
                     output = output[0]
-                preds = remove_blobs(output.squeeze(), threshold=self.blobs_removal_threshold)
+
+                preds = collapse_channel_dim_torch(output.float(), take_argmax=False)
+                preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
                 predictions.append(preds)
                 targets.append(y)
             best_threshold = threshold_optimizer.run(predictions, targets,

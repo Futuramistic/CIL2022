@@ -13,5 +13,7 @@ from .custom.DeepLabV3PlusGAN import DeepLabV3PlusGAN
 from .custom.FFT_UNet import FFT_UNet
 from .reinforcement.first_try import SimpleRLCNN
 
+from .segformer.segformer import SegFormer
+
 from .TF import blocks as tf_blocks
 from .TF.UNetExpTF import UNet3PlusTF, UNetExpTF

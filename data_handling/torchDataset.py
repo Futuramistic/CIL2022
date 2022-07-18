@@ -61,6 +61,8 @@ class SegmentationDataset(Dataset):
         # load the image from disk
         image_np = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
         image = torch.from_numpy(image_np)
+        if len(image.shape) == 2:
+            image = image.unsqueeze(-1).repeat((1, 1, 3))
         image = torch.permute(image, (2, 0, 1))  # channel dim first
         image = image[[2, 1, 0, 3] if image.shape[0] == 4 else [2, 1, 0] if image.shape[0] == 3 else [0]]  # BGR to RGB
 

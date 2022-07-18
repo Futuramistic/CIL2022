@@ -7,7 +7,7 @@ Given a set of submissions in CSV format, ensemble them into a single submission
 """
 
 
-pred_dir = "submissions_to_ensemble/"
+pred_dir = "../submissions_to_ensemble/"
 output_filename = "ensembled_submission.csv"
 
 
