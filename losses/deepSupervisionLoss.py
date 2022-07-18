@@ -4,6 +4,9 @@ import keras.backend as K
 
 
 def DeepSupervisionLoss(function=DiceLoss, loss_weights=None, **kwargs):
+    """
+    TODO How to comment this?
+    """
     def loss(targets, inputs):
         targets = K.flatten(tf.cast(targets, tf.float32))
         inputs = tf.expand_dims(inputs, axis=-1)

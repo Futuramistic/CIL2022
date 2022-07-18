@@ -80,10 +80,13 @@ class UNetTrainer(TorchTrainer):
             loss.backward()
             opt.step()
             callback_handler.on_train_batch_end()
+            if self.use_sample_weighting:
+                threshold = getattr(self, 'last_hyper_threshold', self.segmentation_threshold)
+                # weight based on F1 score of batch
+                self.weights[sample_idx] =\
+                    1.0 - precision_recall_f1_score_torch((preds.squeeze() >= threshold).float(), y)[-1].mean().item()
             del x
             del y
-            if self.use_sample_weighting:
-                self.weights[sample_idx] = loss.item()
         train_loss /= len(train_loader.dataset)
         callback_handler.on_epoch_end()
         self.scheduler.step()
