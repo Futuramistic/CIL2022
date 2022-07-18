@@ -1,3 +1,4 @@
+from losses.precision_recall_f1 import precision_recall_f1_score_torch
 from .trainer_torch import TorchTrainer
 from utils import *
 
@@ -92,6 +93,13 @@ class CRANetTrainer(TorchTrainer):
                 labels = labels.float()
             opt.zero_grad()
             outputs, refined = model.forward(inputs)
+
+            if self.use_sample_weighting:
+                threshold = getattr(self, 'last_hyper_threshold', self.segmentation_threshold)
+                # weight based on F1 score of batch
+                self.weights[sample_idx] =\
+                    1.0 - precision_recall_f1_score_torch((outputs.squeeze() >= threshold).float(), labels)[-1].mean().item()
+
             outputs = torch.squeeze(outputs, dim=1)
             refined = torch.squeeze(refined, dim=1)
             loss = self.loss_function(labels, refined, outputs)
@@ -101,9 +109,6 @@ class CRANetTrainer(TorchTrainer):
             loss.backward()
             opt.step()
             callback_handler.on_train_batch_end()
-            
-            if self.use_sample_weighting:
-                self.weights[sample_idx] = loss.item()
 
         train_loss /= len(train_loader.dataset)
         callback_handler.on_epoch_end()
