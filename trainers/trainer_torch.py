@@ -329,7 +329,8 @@ class TorchTrainer(Trainer, abc.ABC):
             output = self.model(x)
             if type(output) is tuple:
                 output = output[0]
-            preds = (output.squeeze() >= threshold).float()
+            # preds = (output.squeeze() >= threshold).float()
+            preds = collapse_channel_dim_torch((output >= threshold).float(), take_argmax=True)
             preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
             precision, recall, f1_score = precision_recall_f1_score_torch(preds, y)
             precisions.append(precision.cpu().numpy())
@@ -351,7 +352,9 @@ class TorchTrainer(Trainer, abc.ABC):
                 output = self.model(x)
                 if type(output) is tuple:
                     output = output[0]
-                preds = remove_blobs(output.squeeze(), threshold=self.blobs_removal_threshold)
+
+                preds = collapse_channel_dim_torch(output.float(), take_argmax=False)
+                preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
                 predictions.append(preds)
                 targets.append(y)
             best_threshold = threshold_optimizer.run(predictions, targets,

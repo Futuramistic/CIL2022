@@ -27,7 +27,8 @@ def collapse_channel_dim_torch(tensor, take_argmax, dim_layout=DEFAULT_TORCH_DIM
         return torch.argmax(tensor, dim=channel_dim_idx).to(dtype=tensor.dtype)  # preserve original dtype
     else:
         # remove the channel dimension
-        selector = [0 if dim_idx == channel_dim_idx else slice(0, shape[dim_idx]) for dim_idx in range(len(shape))]
+        # assume last channel (may be the only channel) corresponds to road class
+        selector = [-1 if dim_idx == channel_dim_idx else slice(0, shape[dim_idx]) for dim_idx in range(len(shape))]
         if take_argmax:
             return tensor[selector].round()
         else:
@@ -97,7 +98,8 @@ def collapse_channel_dim_tf(tensor, take_argmax, dim_layout=DEFAULT_TF_DIM_LAYOU
         return tf.cast(keras.backend.argmax(tensor, axis=channel_dim_idx), dtype=tensor.dtype)
     else:
         # remove the channel dimension
-        selector = [0 if dim_idx == channel_dim_idx else slice(0, shape[dim_idx]) for dim_idx in range(len(shape))]
+        # assume last channel (may be the only channel) corresponds to road class
+        selector = [-1 if dim_idx == channel_dim_idx else slice(0, shape[dim_idx]) for dim_idx in range(len(shape))]
         if take_argmax:
             return tf.math.round(tensor[selector])
         else:

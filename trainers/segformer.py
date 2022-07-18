@@ -16,7 +16,7 @@ class SegFormerTrainer(TorchTrainer):
                  batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None,
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
-                 use_channelwise_norm=False, blobs_removal_threshold=0, hyper_seg_threshold=False):
+                 use_channelwise_norm=True, blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False):
         # set omitted parameters to model-specific defaults, then call superclass __init__ function
         # warning: some arguments depend on others not being None, so respect this order!
 
@@ -29,13 +29,23 @@ class SegFormerTrainer(TorchTrainer):
         if num_epochs is None:
             num_epochs = 5000
 
+        default_lr = 0.00006
+        head_lr_mult = 10
+
         if optimizer_or_lr is None:
-            default_lr = 0.00006
+            self.backbone_lr = default_lr
+            self.head_lr = self.backbone_lr * head_lr_mult
             optimizer_or_lr = SegFormerTrainer.get_default_optimizer_with_lr(default_lr, model.backbone)
-            self.optimizer_or_lr_head = SegFormerTrainer.get_default_optimizer_with_lr(default_lr * 10, model.head)
+            self.optimizer_or_lr_head = SegFormerTrainer.get_default_optimizer_with_lr(self.head_lr, model.head)
         elif isinstance(optimizer_or_lr, int) or isinstance(optimizer_or_lr, float):
-            optimizer_or_lr = SegFormerTrainer.get_default_optimizer_with_lr(optimizer_or_lr, model.backbone)
-            self.optimizer_or_lr_head = SegFormerTrainer.get_default_optimizer_with_lr(optimizer_or_lr * 10, model.head)
+            self.backbone_lr = optimizer_or_lr
+            self.head_lr = self.backbone_lr * head_lr_mult
+            optimizer_or_lr = SegFormerTrainer.get_default_optimizer_with_lr(self.backbone_lr, model.backbone)
+            self.optimizer_or_lr_head = SegFormerTrainer.get_default_optimizer_with_lr(self.head_lr, model.head)
+        else:
+            self.backbone_lr = getattr(optimizer_or_lr, 'lr', None)
+            self.head_lr = (self.backbone_lr if self.backbone_lr is not None else default_lr) * head_lr_mult
+            self.optimizer_or_lr_head = SegFormerTrainer.get_default_optimizer_with_lr(self.head_lr, model.head)
 
         if scheduler is None:
             scheduler = torch.optim.lr_scheduler.StepLR(optimizer_or_lr, step_size=1, gamma=1)
@@ -45,7 +55,7 @@ class SegFormerTrainer(TorchTrainer):
             loss_function = lambda input, target: self.ce_loss(input, target.long())
 
         if evaluation_interval is None:
-            evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs, num_samples_to_visualize)
+            evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)
 
         preprocessing = None
         if use_channelwise_norm and dataloader.dataset in DATASET_STATS:
@@ -67,7 +77,7 @@ class SegFormerTrainer(TorchTrainer):
         super().__init__(dataloader, model, preprocessing, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
-                         segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold)
+                         segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting)
         
     def _train_step(self, model, device, train_loader, callback_handler):
         
@@ -77,7 +87,7 @@ class SegFormerTrainer(TorchTrainer):
         opt_backbone = self.optimizer_or_lr
         opt_head = self.optimizer_or_lr_head
         train_loss = 0
-        for (x, y) in train_loader:
+        for (x, y, sample_idx) in train_loader:
             x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
             y = torch.squeeze(y, dim=1)  # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
             preds = model(x, softmax=False)
@@ -101,7 +111,7 @@ class SegFormerTrainer(TorchTrainer):
         model.eval()
         test_loss = 0
         with torch.no_grad():
-            for (x, y) in test_loader:
+            for (x, y, sample_idx) in test_loader:
                 x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.long)
                 y = torch.squeeze(y, dim=1)
                 preds = model(x, softmax=False)
@@ -113,9 +123,20 @@ class SegFormerTrainer(TorchTrainer):
 
     def _get_hyperparams(self):
         return {**(super()._get_hyperparams()),
+                **({f'opt_{param}': getattr(self, param)
+                   for param in ['head_lr', 'backbone_lr']
+                   if hasattr(self, param)}),
                 **({param: getattr(self.model, param)
-                   for param in ['n_channels', 'n_classes', 'bilinear']
-                   if hasattr(self.model, param)})}
+                   for param in ['align_corners', 'pretrained_backbone_path']
+                   if hasattr(self.model, param)}),
+                **({f'bb_{param}': getattr(self.model.backbone, param)
+                   for param in ['num_classes', 'depths', 'img_size', 'patch_size', 'in_chans', 'embed_dims',
+                                 'num_heads', 'mlp_ratios', 'qkv_bias', 'qk_scale', 'drop_rate', 'attn_drop_rate', 'drop_path_rate',
+                                 'depths', 'sr_ratios']
+                   if hasattr(self.model.backbone, param)}),
+                **({f'head_{param}': getattr(self.model.head, param)
+                   for param in ['in_channels', 'num_classes', 'feature_strides', 'dropout_rate', 'embedding_dim', 'dropout_rate']
+                   if hasattr(self.model.backbone, param)})}
     
     @staticmethod
     def get_default_optimizer_with_lr(lr, model):
