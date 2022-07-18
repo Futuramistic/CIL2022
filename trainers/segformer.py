@@ -74,7 +74,8 @@ class SegFormerTrainer(TorchTrainer):
         # use custom LR for head
 
         model.train()
-        opt = self.optimizer_or_lr
+        opt_backbone = self.optimizer_or_lr
+        opt_head = self.optimizer_or_lr_head
         train_loss = 0
         for (x, y) in train_loader:
             x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
@@ -83,9 +84,11 @@ class SegFormerTrainer(TorchTrainer):
             loss = self.loss_function(preds, y)
             with torch.no_grad():
                 train_loss += loss.item()
-            opt.zero_grad()
+            opt_backbone.zero_grad()
+            opt_head.zero_grad()
             loss.backward()
-            opt.step()
+            opt_backbone.step()
+            opt_head.step()
             callback_handler.on_train_batch_end()
             del x
             del y
@@ -93,6 +96,20 @@ class SegFormerTrainer(TorchTrainer):
         callback_handler.on_epoch_end()
         self.scheduler.step()
         return train_loss
+
+    def _eval_step(self, model, device, test_loader):
+        model.eval()
+        test_loss = 0
+        with torch.no_grad():
+            for (x, y) in test_loader:
+                x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.long)
+                y = torch.squeeze(y, dim=1)
+                preds = model(x, softmax=False)
+                test_loss += self.loss_function(preds, y).item()
+                del x
+                del y
+        test_loss /= len(test_loader.dataset)
+        return test_loss
 
     def _get_hyperparams(self):
         return {**(super()._get_hyperparams()),
