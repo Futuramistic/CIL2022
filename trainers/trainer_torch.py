@@ -67,9 +67,13 @@ class TorchTrainer(Trainer, abc.ABC):
 
         def on_train_batch_end(self):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                precision, recall, self.f1_score, self.segmentation_threshold = self.trainer.get_precision_recall_F1_score_validation()
-                metrics = {'precision': precision, 'recall': recall, 'f1_score': self.f1_score,
-                           'seg_threshold': self.segmentation_threshold}
+                precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted, f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted, self.segmentation_threshold = self.trainer.get_precision_recall_F1_score_validation()
+
+                self.f1_score = f1_weighted
+                metrics = {'precision': precision_road, 'recall': recall_road, 'f1_score': f1_road,
+                           'precision road': precision_road, 'recall road': recall_road, 'f1 road': f1_road, 
+                           'precision background': precision_bkgd, 'recall background': recall_bkgd, 'f1 background': f1_bkgd, 
+                           'f1 macro':f1_macro,'f1 weighted':f1_weighted, 'patch f1 road': f1_road_patchified, 'patch f1 background': f1_bkgd_patchified, 'patch f1 weighted': f1_patchified_weighted, 'seg_threshold': self.segmentation_threshold}
                 print('Metrics at aggregate iteration %i (ep. %i, ep.-it. %i): %s'
                       % (self.iteration_idx, self.epoch_idx, self.epoch_iteration_idx, str(metrics)))
                 if mlflow_logger.logging_to_mlflow_enabled():
@@ -308,16 +312,19 @@ class TorchTrainer(Trainer, abc.ABC):
         return test_loss
 
     def get_F1_score_validation(self):
-        _, _, f1_score, _ = self.get_precision_recall_F1_score_validation()
-        return f1_score
+        _, _, _, _, _, _, _, f1_weighted, *_ = self.get_precision_recall_F1_score_validation()
+        return f1_weighted
 
     def get_precision_recall_F1_score_validation(self):
         self.model.eval()
+        precisions_road, recalls_road, f1_road_scores = [], [], []
+        precisions_bkgd, recalls_bkgd, f1_bkgd_scores = [], [], []
+        f1_macro_scores, f1_weighted_scores = [], []
+        f1_road_patchified_scores, f1_bkgd_patchified_scores, f1_patchified_weighted_scores = [], [], []
         threshold = self.segmentation_threshold
         if self.hyper_seg_threshold:
             threshold = self.get_best_segmentation_threshold()
             self.last_hyper_threshold = threshold
-        precisions, recalls, f1_scores = [], [], []
         for (x, y, _) in self.test_loader:
             x = x.to(self.device, dtype=torch.float32)
             y = y.to(self.device, dtype=torch.float32)
@@ -327,13 +334,30 @@ class TorchTrainer(Trainer, abc.ABC):
             # preds = (output.squeeze() >= threshold).float()
             preds = collapse_channel_dim_torch((output >= threshold).float(), take_argmax=True)
             preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
-            precision, recall, f1_score = precision_recall_f1_score_torch(preds, y)
-            precisions.append(precision.cpu().numpy())
-            recalls.append(recall.cpu().numpy())
-            f1_scores.append(f1_score.cpu().numpy())
+
+            precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted, f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted = precision_recall_f1_score_torch(preds, y)
+
+            precisions_road.append(precision_road.cpu().item())
+            recalls_road.append(recall_road.cpu().item())
+            f1_road_scores.append(f1_road.cpu().item())
+            precisions_bkgd.append(precision_bkgd.cpu().item())
+            recalls_bkgd.append(recall_bkgd.cpu().item())
+            f1_bkgd_scores.append(f1_bkgd.cpu().item())
+            f1_macro_scores.append(f1_macro.cpu().item())
+            f1_weighted_scores.append(f1_weighted.cpu().item())
+            
+            f1_road_patchified_scores.append(f1_road_patchified.cpu().item())
+            f1_bkgd_patchified_scores.append(f1_bkgd_patchified.cpu().item())
+            f1_patchified_weighted_scores.append(f1_patchified_weighted.cpu().item())
+
             del x
             del y
-        return np.mean(precisions), np.mean(recalls), np.mean(f1_scores), threshold
+        
+        return (np.mean(precisions_road), np.mean(recalls_road), np.mean(f1_road_scores), 
+                np.mean(precisions_bkgd), np.mean(recalls_bkgd), np.mean(f1_bkgd_scores),
+                np.mean(f1_macro_scores), np.mean(f1_weighted_scores),
+                np.mean(f1_road_patchified_scores), np.mean(f1_bkgd_patchified_scores), np.mean(f1_patchified_weighted_scores),
+                threshold)
 
     def get_best_segmentation_threshold(self):
         # use hyperopt search space to get the best segmentation threshold based on a subset of the training data
@@ -353,6 +377,6 @@ class TorchTrainer(Trainer, abc.ABC):
                 predictions.append(preds)
                 targets.append(y)
             best_threshold = threshold_optimizer.run(predictions, targets,
-                                                     lambda thresholded_prediction, targets: f1_score_torch(
-                                                         thresholded_prediction, targets).cpu().numpy())
+                                                     lambda thresholded_prediction, targets: patchified_f1_scores_torch(
+                                                         thresholded_prediction, targets)[-1].cpu().numpy())
         return best_threshold

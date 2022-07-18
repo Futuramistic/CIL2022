@@ -1,5 +1,6 @@
 from typing import Iterable
 from .loss_harmonizer import *
+import torch.nn.functional as F
 import tensorflow.keras as K
 import tensorflow_addons as tfa
 import tensorflow as tf
@@ -46,12 +47,12 @@ def prediction_stats_torch(thresholded_prediction, targets, classes, dtype=torch
 
 def precision_torch(thresholded_prediction, targets, classes, pred_stats=None):
     """
-    Compute prediction precision
+    Compute prediction precision (micro-averaged)
     Args:
         thresholded_prediction (Torch Tensor): binary prediction
         targets (Torch Tensor): The target tensor
         classes (list): List of classes for which we want to compute the statistics
-        pred_stats: Type of the tensors
+        pred_stats (dict): precomputed statistics, or None if none available
     """
     if pred_stats is None:
         pred_stats = prediction_stats_torch(thresholded_prediction, targets, classes)
@@ -62,12 +63,12 @@ def precision_torch(thresholded_prediction, targets, classes, pred_stats=None):
 
 def recall_torch(thresholded_prediction, targets, classes, pred_stats=None):
     """
-    Compute prediction recall
+    Compute prediction recall (micro-averaged)
     Args:
         thresholded_prediction (Torch Tensor): binary prediction
         targets (Torch Tensor): The target tensor
         classes (list): List of classes for which we want to compute the statistics
-        pred_stats: Type of the tensors
+        pred_stats (dict): precomputed statistics, or None if none available
     """
     if pred_stats is None:
         pred_stats = prediction_stats_torch(thresholded_prediction, targets, classes)
@@ -76,34 +77,97 @@ def recall_torch(thresholded_prediction, targets, classes, pred_stats=None):
     return pred_stats['tp'] / (pred_stats['tp'] + pred_stats['fn'])
 
 
-def precision_recall_f1_score_torch(thresholded_prediction, targets, classes=DEFAULT_F1_CLASSES):
+def f1_torch(thresholded_prediction, targets, classes):
     """
-    Compute precision, recall and f1 score
+    Compute prediction F1 score (micro-averaged)
     Args:
         thresholded_prediction (Torch Tensor): binary prediction
         targets (Torch Tensor): The target tensor
-        classes (list): List of classes for which we want to compute the statistics
+        classes (list of int): Classes to predict for
     """
-    # best value is at 1, worst at 0
     pred_stats = prediction_stats_torch(thresholded_prediction, targets, classes)
     precision = precision_torch(thresholded_prediction, targets, classes, pred_stats)
     recall = recall_torch(thresholded_prediction, targets, classes, pred_stats)
-    if precision == torch.zeros_like(precision):  # prevent NaNs
-        return precision, recall, torch.zeros_like(precision)
-    f1_score = (2 * precision * recall) / (precision + recall)
-    return precision, recall, f1_score
+
+    if precision + recall == torch.zeros_like(precision + recall):  # prevent NaNs
+        return torch.zeros_like(precision + recall)
+
+    return (2.0 * precision * recall) / (precision + recall)
 
 
-def f1_score_torch(thresholded_prediction, targets, classes=DEFAULT_F1_CLASSES):
+def patchified_f1_scores_torch(thresholded_prediction, targets):
+    patch_sums_pred = torch.zeros([*thresholded_prediction.shape[:-2],
+                                    thresholded_prediction.shape[-2] // 16,
+                                    thresholded_prediction.shape[-1] // 16])
+    patch_sums_gt = patch_sums_pred.clone()
+    num_patches = 0
+
+    for patch_y in range(thresholded_prediction.shape[-2] // 16):
+        for patch_x in range(thresholded_prediction.shape[-1] // 16):
+            patch_sums_pred[..., patch_y, patch_x] =\
+                thresholded_prediction[..., patch_y*16 : (patch_y+1)*16, patch_x*16 : (patch_x+1)*16].sum()
+            patch_sums_gt[..., patch_y, patch_x] =\
+                targets[..., patch_y*16 : (patch_y+1)*16, patch_x*16 : (patch_x+1)*16].sum()
+            num_patches += 1
+
+    # > and ratio of 0.25 (0.25 * 256 = 64) used in "mask_to_submission.py"
+    patchified_prediction = (patch_sums_pred > 64).int()
+    patchified_targets = (patch_sums_gt > 64).int()
+
+    zeros_weight_patchified = (patchified_targets == 0).sum() / num_patches
+    ones_weight_patchified = (patchified_targets == 1).sum() / num_patches
+
+    f1_road_patchified = f1_torch(patchified_prediction, patchified_targets, 1)
+    f1_bkgd_patchified = f1_torch(patchified_prediction, patchified_targets, 0)
+    f1_patchified_weighted = ones_weight_patchified * f1_road_patchified + zeros_weight_patchified * f1_bkgd_patchified
+    return f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted
+
+
+def precision_recall_f1_score_torch(thresholded_prediction, targets):
+    """
+    Compute precision, recall and F1 score
+    Args:
+        thresholded_prediction (Torch Tensor): binary prediction
+        targets (Torch Tensor): The target tensor
+        pred_stats (dict): precomputed statistics, or None if none available
+    """
+
+    precision_road = precision_torch(thresholded_prediction, targets, 1)
+    precision_bkgd = precision_torch(thresholded_prediction,targets, 0)
+
+    recall_road = recall_torch(thresholded_prediction, targets, 1)
+    recall_bkgd = recall_torch(thresholded_prediction, targets, 0)
+
+    f1_road = f1_torch(thresholded_prediction, targets, 1)
+    f1_bkgd = f1_torch(thresholded_prediction, targets, 0)
+    
+    num_pixels = torch.ones_like(thresholded_prediction).sum()
+    ones_weight = (targets == 1).sum() / num_pixels
+    zeros_weight = (targets == 0).sum() / num_pixels
+
+    f1_macro = (f1_road + f1_bkgd) / 2.0
+    f1_weighted = ones_weight * f1_road + zeros_weight * f1_bkgd
+
+    f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted =\
+        patchified_f1_scores_torch(thresholded_prediction, targets)
+
+    return (precision_road, recall_road, f1_road, 
+            precision_bkgd, recall_bkgd, f1_bkgd, 
+            f1_macro, f1_weighted,
+            f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted)
+
+
+def f1_score_torch(thresholded_prediction, targets):
     """
     Compute the f1 score
     Args:
         thresholded_prediction (Torch Tensor): binary prediction
         targets (Torch Tensor): The target tensor
         classes (list): List of classes for which we want to compute the statistics
+        pred_stats (dict): precomputed statistics, or None if none available
     """
-    _, _, f1_score = precision_recall_f1_score_torch(thresholded_prediction, targets, classes)
-    return f1_score
+    *_, f1_patchified_weighted = precision_recall_f1_score_torch(thresholded_prediction, targets)
+    return f1_patchified_weighted
 
 
 def prediction_stats_tf(thresholded_prediction, targets, classes, dtype=tf.dtypes.float32):
@@ -115,6 +179,7 @@ def prediction_stats_tf(thresholded_prediction, targets, classes, dtype=tf.dtype
         targets (Torch Tensor): The target tensor
         classes (list): List of classes for which we want to compute the statistics
         dtype: Type of the tensors
+        pred_stats (dict): precomputed statistics, or None if none available
     """
     targets = collapse_channel_dim_tf(targets, take_argmax=True)
     thresholded_prediction = tf.cast(collapse_channel_dim_tf(thresholded_prediction, take_argmax=True),
@@ -165,17 +230,19 @@ def recall_tf(thresholded_prediction, targets, target_class):
     recall_metric.update_state(targets,tf.equal(thresholded_prediction,target_class))
     return recall_metric.result().numpy()
 
-def f1_micro_tf(thresholded_prediction,targets,target_class):
+
+def f1_tf(thresholded_prediction,targets,target_class):
     """
-    Compute prediction F1 score (micro)
+    Compute prediction F1 score
     Args:
         thresholded_prediction (TF Tensor): binary prediction
         targets (TF Tensor): The target tensor
         target_class (int): Class to predict for
     """
-    f1_micro_metric = tfa.metrics.F1Score(num_classes=2, average='micro',dtype=tf.float32)
-    f1_micro_metric.update_state(targets,tf.cast(tf.equal(thresholded_prediction,target_class),tf.float32))
-    return f1_micro_metric.result().numpy()
+    f1_metric = tfa.metrics.F1Score(num_classes=2, average='micro',dtype=tf.float32)
+    f1_metric.update_state(targets,tf.cast(tf.equal(thresholded_prediction,target_class),tf.float32))
+    return f1_metric.result().numpy()
+
 
 def tf_count(t, val):
     """
@@ -188,6 +255,7 @@ def tf_count(t, val):
     as_ints = tf.cast(elements_equal_to_value, tf.int32)
     count = tf.reduce_sum(as_ints)
     return count
+
 
 def precision_recall_f1_score_tf(thresholded_prediction, targets):
     """
@@ -205,18 +273,19 @@ def precision_recall_f1_score_tf(thresholded_prediction, targets):
     recall_road = recall_tf(thresholded_prediction,targets,1)
     recall_bkgd = recall_tf(thresholded_prediction,targets,0)
 
-    f1_micro_road = f1_micro_tf(thresholded_prediction,targets,1)
-    f1_micro_bkgd = f1_micro_tf(thresholded_prediction,targets,0)
+    f1_road = f1_tf(thresholded_prediction,targets,1)
+    f1_bkgd = f1_tf(thresholded_prediction,targets,0)
     
     ones_weight =   tf_count(targets,1).numpy().item()/tf.size(targets,out_type=tf.int32).numpy().item()
     zeros_weight =  tf_count(targets,0).numpy().item()/tf.size(targets,out_type=tf.int32).numpy().item()
 
-    f1_macro = (f1_micro_road+f1_micro_bkgd)/2.0
-    f1_weighted = ones_weight * f1_micro_road + zeros_weight * f1_micro_bkgd
+    f1_macro = (f1_road+f1_bkgd)/2.0
+    f1_weighted = ones_weight * f1_road + zeros_weight * f1_bkgd
     
-    return (precision_road, recall_road, f1_micro_road, 
-            precision_bkgd, recall_bkgd, f1_micro_bkgd, 
+    return (precision_road, recall_road, f1_road, 
+            precision_bkgd, recall_bkgd, f1_bkgd, 
             f1_macro, f1_weighted)
+
 
 def f1_score_tf(thresholded_prediction, targets):
     """
