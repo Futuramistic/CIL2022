@@ -4,11 +4,13 @@ import hashlib
 import numpy as np
 import pysftp
 import requests
-from requests.auth import HTTPBasicAuth
 import torch.cuda
+
 from torch.utils.data import DataLoader, Subset
 from urllib.parse import urlparse
+from requests.auth import HTTPBasicAuth
 
+from losses.loss_harmonizer import collapse_channel_dim_torch
 from losses.precision_recall_f1 import *
 from .trainer import Trainer
 from utils import *
@@ -17,6 +19,10 @@ from processing.threshold_optimizer import ThresholdOptimizer
 
 
 class TorchTrainer(Trainer, abc.ABC):
+    """
+    Abstract class for Torch-based model trainers.
+    """
+
     def __init__(self, dataloader, model, preprocessing,
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, scheduler=None, loss_function=None, loss_function_hyperparams=None,
@@ -24,10 +30,13 @@ class TorchTrainer(Trainer, abc.ABC):
                  load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
                  blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False):
         """
-        Abstract class for Torch-based model trainers.
+        Initializes a Torch Trainer
         Args:
             dataloader: the DataLoader to use when training the model
             model: the model to train
+            preprocessing: preprocessing function to use on the images
+
+        Refer to the Trainer superclass for a detailed description of the other arguments
         """
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
@@ -45,12 +54,15 @@ class TorchTrainer(Trainer, abc.ABC):
             self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                     preprocessing=self.preprocessing)
 
-    # This class is a mimicry of TensorFlow's "Callback" class behavior, used not out of necessity (as we write the
-    # training loop explicitly in Torch, instead of using the "all-inclusive" model.fit(...) in TF, and can thus just
-    # build event handlers into the training loop), but to have a more consistent codebase across TorchTrainer and
-    # TFTrainer.
-    # See the comment next to the KC.Callback subclass in "trainer_tf.py" for more information.
     class Callback:
+        """
+        This class is a mimicry of TensorFlow's "Callback" class behavior, used not out of necessity (as we write the
+        training loop explicitly in Torch, instead of using the "all-inclusive" model.fit(...) in TF, and can thus just
+        build event handlers into the training loop), but to have a more consistent codebase across TorchTrainer and
+        TFTrainer.
+        See the comment next to the KC.Callback subclass in "trainer_tf.py" for more information.
+        """
+
         def __init__(self, trainer, mlflow_run, model):
             super().__init__()
             self.model = model
@@ -67,17 +79,21 @@ class TorchTrainer(Trainer, abc.ABC):
 
         def on_train_batch_end(self):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                precision, recall, self.f1_score, self.segmentation_threshold = self.trainer.get_precision_recall_F1_score_validation()
+                # Compute various scores
+                precision, recall, self.f1_score, self.segmentation_threshold = \
+                    self.trainer.get_precision_recall_F1_score_validation()
                 metrics = {'precision': precision, 'recall': recall, 'f1_score': self.f1_score,
                            'seg_threshold': self.segmentation_threshold}
                 print('Metrics at aggregate iteration %i (ep. %i, ep.-it. %i): %s'
                       % (self.iteration_idx, self.epoch_idx, self.epoch_iteration_idx, str(metrics)))
+                # Log the scores to MLFlow
                 if mlflow_logger.logging_to_mlflow_enabled():
                     mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=self.iteration_idx)
                     if self.do_visualize:
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx, self.epoch_idx,
                                                          self.epoch_iteration_idx)
 
+                # Save checkpoints
                 if self.trainer.do_checkpoint and self.best_f1_score < self.f1_score:
                     self.best_f1_score = self.f1_score
                     self.trainer._save_checkpoint(self.trainer.model, None, None, None, best="f1")
@@ -97,11 +113,19 @@ class TorchTrainer(Trainer, abc.ABC):
             self.epoch_iteration_idx = 0
             return self.f1_score
 
-    # Visualizations are created using mlflow_logger's "log_visualizations" (containing ML framework-independent code),
-    # and the "create_visualizations" functions of the Trainer subclasses (containing ML framework-specific code)
-    # Specifically, the Trainer calls mlflow_logger's "log_visualizations" (e.g. in "on_train_batch_end" of the
-    # tensorflow.keras.callbacks.Callback subclass), which in turn uses the Trainer's "create_visualizations".
     def create_visualizations(self, file_path, iteration_index, epoch_idx, epoch_iteration_idx):
+        """
+        Visualizations are created using mlflow_logger's "log_visualizations" (containing framework-independent code),
+        and the "create_visualizations" functions of the Trainer subclasses (containing ML framework-specific code)
+        Specifically, the Trainer calls mlflow_logger's "log_visualizations" (e.g. in "on_train_batch_end" of the
+        tensorflow.keras.callbacks.Callback subclass), which in turn uses the Trainer's "create_visualizations".
+
+        Args:
+            file_path (str): Path where to save the visualizations to
+            iteration_index (int): The current iteration (global)
+            epoch_idx (int): The current epoch
+            epoch_iteration_idx (int): The current iteration in the current epoch
+        """
         # sample image indices to visualize
         # fix half of the samples, randomize other half
         # the first, fixed half of samples serves for comparison purposes across models/runs
@@ -130,30 +154,36 @@ class TorchTrainer(Trainer, abc.ABC):
             if type(output) is tuple:
                 output = output[0]
 
-            preds = collapse_channel_dim_torch((output >= self.segmentation_threshold).float(), take_argmax=True).detach().cpu().numpy()
-            
-            # print('shape', preds.shape)
+            preds = collapse_channel_dim_torch((output >= self.segmentation_threshold).float(),
+                                               take_argmax=True).detach().cpu().numpy()
+
+            # Remove blobs smaller than a given threshold
             preds_list = []
             for i in range(preds.shape[0]):
-                # print('preds[i]', preds[i].shape)
-                # print('THRESHOLD', self.blobs_removal_threshold)
                 pred_ = remove_blobs(preds[i], threshold=self.blobs_removal_threshold)
-                # print('pred_', pred_.shape)
                 if len(pred_.shape) == 2:
                     preds_list.append(pred_[None, None, :, :])
                 elif len(pred_.shape) == 3:
                     preds_list.append(pred_[None, :, :, :])
                 else:
                     print('problem', pred_.shape)
-            # print('len', len(preds_list))
             preds = np.concatenate(preds_list, axis=0)
-            # print(preds.shape)
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
             self._fill_images_array(preds, batch_ys, images)
 
         self._save_image_array(images, file_path)
 
     def _save_checkpoint(self, model, epoch, epoch_iteration, total_iteration, best=None):
+        """
+        Save a checkpoint of the current model to disk
+
+        Args:
+            model: model from which we want to save a checkpoint
+            epoch (int): current training epoch
+            epoch_iteration (int): current iteration in current epoch
+            total_iteration (int): total number of iterations
+            best (str): Name to give to the checkpoint if it achieves the best f1 score so far
+        """
         if None not in [epoch, epoch_iteration, total_iteration]:
             checkpoint_path = f'{CHECKPOINTS_DIR}/cp_ep-{"%05i" % epoch}_epit-{"%05i" % epoch_iteration}' + \
                               f'_step-{total_iteration}.pt'
@@ -173,9 +203,15 @@ class TorchTrainer(Trainer, abc.ABC):
         mlflow_logger.log_checkpoints()
 
     def _load_checkpoint(self, checkpoint_path):
-        # this function may only be called after self.device was initialized, and after self.model has been moved
-        # to self.device
+        """
+        Load a checkpoint either from disk or from the network
 
+        @Note: WARNING: this function may only be called after self.device was initialized,
+        and after self.model has been moved to self.device
+
+        Args:
+            checkpoint_path (str): local path/url to the checkpoint
+        """
         print(f'\n*** WARNING: resuming training from checkpoint "{checkpoint_path}" ***\n')
         load_from_sftp = checkpoint_path.lower().startswith('sftp://')
         if load_from_sftp:
@@ -204,9 +240,16 @@ class TorchTrainer(Trainer, abc.ABC):
         self.optimizer_or_lr.load_state_dict(checkpoint['optimizer'])
         self.optimizer_or_lr.param_groups[0]['capturable'] = True
         print('Checkpoint loaded\n')
-        # os.remove(final_checkpoint_path)
 
     def _fit_model(self, mlflow_run):
+        """
+        Implements the main training loop and fits the model from start to finish
+
+        Args:
+            mlflow_run (object): mlflow run object created by calling #mlflow.start_run()
+        Returns:
+            last test loss (float)
+        """
         print('\nTraining started at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
         print(f'Session ID: {SESSION_ID}')
         print('Hyperparameters:')
@@ -226,8 +269,8 @@ class TorchTrainer(Trainer, abc.ABC):
         # use self.Callback instead of TorchTrainer.Callback, to allow subclasses to overwrite the callback handler
         callback_handler = self.Callback(self, mlflow_run, self.model)
         best_val_loss = 1e12
-        self.weights = np.zeros((len(self.train_loader.dataset)),
-                                dtype=np.float16)  # init all samples with the same weight, is overwritten in _train_step()
+        # init all samples with the same weight, is overwritten in _train_step()
+        self.weights = np.zeros((len(self.train_loader.dataset)), dtype=np.float16)
         for epoch in range(self.num_epochs):
             if self.use_sample_weighting and epoch != 0:
                 self.train_loader = self.dataloader.get_training_dataloader(split=self.split,
@@ -240,14 +283,14 @@ class TorchTrainer(Trainer, abc.ABC):
                 # normalize
                 weights_set_during_training = self.weights[self.weights != 0]
                 normalized = weights_set_during_training / (
-                            2 * np.max(np.absolute(weights_set_during_training)))  # between -0.5 and +0.5
+                        2 * np.max(np.absolute(weights_set_during_training)))  # between -0.5 and +0.5
                 self.weights[self.weights != 0] = normalized + 0.5  # between 0 and 1
                 # probability of zero is not wished for
                 self.weights[self.weights == 0] = np.min(self.weights[self.weights != 0])
                 # weights don't have to add up to 1 --> Done
             last_test_loss = self._eval_step(self.model, self.device, self.test_loader)
             metrics = {'train_loss': last_train_loss, 'test_loss': last_test_loss}
-            if (self.do_checkpoint and best_val_loss > last_test_loss):
+            if self.do_checkpoint and best_val_loss > last_test_loss:
                 best_val_loss = last_test_loss
                 self._save_checkpoint(self.model, None, None, None, best="test_loss")
             print('\nEpoch %i finished at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()) % epoch)
@@ -264,8 +307,21 @@ class TorchTrainer(Trainer, abc.ABC):
         return last_test_loss
 
     def _train_step(self, model, device, train_loader, callback_handler):
-        # WARNING: some models subclassing TorchTrainer overwrite this function, so make sure any changes here are
-        # reflected appropriately in these models' files
+        """
+        Train the model for 1 epoch
+
+        @Note: WARNING: some models subclassing TorchTrainer overwrite this function, so make sure any changes here are
+        reflected appropriately in these models' files
+
+        Args:
+            model: The model to train
+            device: either 'cuda' or 'cpu'
+            train_loader: train dataset loader object
+            callback_handler: To be called when the train step is over
+
+        Returns:
+            train loss (float)
+        """
         model.train()
         opt = self.optimizer_or_lr
         train_loss = 0
@@ -283,9 +339,8 @@ class TorchTrainer(Trainer, abc.ABC):
             if self.use_sample_weighting:
                 threshold = getattr(self, 'last_hyper_threshold', self.segmentation_threshold)
                 # weight based on F1 score of batch
-                self.weights[sample_idx] =\
+                self.weights[sample_idx] = \
                     1.0 - precision_recall_f1_score_torch((preds.squeeze() >= threshold).float(), y)[-1].mean().item()
-                # self.weights[sample_idx] = loss.item()
             del x
             del y
         train_loss /= len(train_loader.dataset)
@@ -294,6 +349,17 @@ class TorchTrainer(Trainer, abc.ABC):
         return train_loss
 
     def _eval_step(self, model, device, test_loader):
+        """
+        Evaluate the mode. Called at the end of each epoch
+
+        Args:
+            model: model to evaluate
+            device: either 'cuda' or 'cpu'
+            test_loader: loader for the samples to evaluate the model on
+
+        Returns:
+            test loss (float)
+        """
         model.eval()
         test_loss = 0
         with torch.no_grad():
@@ -308,10 +374,20 @@ class TorchTrainer(Trainer, abc.ABC):
         return test_loss
 
     def get_F1_score_validation(self):
+        """
+        Compute the F1 Score on the validation set
+        Returns:
+            f1 score (float)
+        """
         _, _, f1_score, _ = self.get_precision_recall_F1_score_validation()
         return f1_score
 
     def get_precision_recall_F1_score_validation(self):
+        """
+        Compute score metrics (precision, recall, F1 score)
+        Returns
+            scores: Tuple(float, float, float), the used threshold: (float)
+        """
         self.model.eval()
         threshold = self.segmentation_threshold
         if self.hyper_seg_threshold:
@@ -324,7 +400,6 @@ class TorchTrainer(Trainer, abc.ABC):
             output = self.model(x)
             if type(output) is tuple:
                 output = output[0]
-            # preds = (output.squeeze() >= threshold).float()
             preds = collapse_channel_dim_torch((output >= threshold).float(), take_argmax=True)
             preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
             precision, recall, f1_score = precision_recall_f1_score_torch(preds, y)
@@ -336,7 +411,12 @@ class TorchTrainer(Trainer, abc.ABC):
         return np.mean(precisions), np.mean(recalls), np.mean(f1_scores), threshold
 
     def get_best_segmentation_threshold(self):
-        # use hyperopt search space to get the best segmentation threshold based on a subset of the training data
+        """
+        Use hyperopt search space to get the best segmentation threshold based on a subset of the training data
+
+        Returns:
+            The segmentation threshold that maximizes the F1 Score on the train set
+        """
         threshold_optimizer = ThresholdOptimizer()
         predictions = []
         targets = []
