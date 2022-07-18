@@ -1,7 +1,4 @@
 from typing import Iterable
-from cv2 import threshold
-
-from numpy import average
 from loss_harmonizer import *
 import tensorflow.keras as K
 import tensorflow_addons as tfa
