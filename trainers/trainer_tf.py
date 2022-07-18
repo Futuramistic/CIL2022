@@ -159,8 +159,8 @@ class TFTrainer(Trainer, abc.ABC):
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx, self.epoch_idx,
                                                          self.epoch_iteration_idx)
                 # save the best f1 score checkpoint
-                if self.trainer.do_checkpoint and self.best_score <= f1_patchified_weighted:
-                    self.best_score = f1_patchified_weighted
+                if self.trainer.do_checkpoint and self.best_score <= f1_weighted:
+                    self.best_score = f1_weighted
                     keras.models.save_model(model=self.model, filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_f1.ckpt"))
 
             if self.trainer.do_checkpoint \
