@@ -1,32 +1,32 @@
 import abc
 import inspect
-from losses import *
 import mlflow
 import numpy as np
-import os
 import pexpect
 import paramiko
 import pysftp
 import requests
 import shutil
 import socket
-import tensorflow.keras as K
-import time
 
-from data_handling import DataLoader
+from losses import *
 from requests.auth import HTTPBasicAuth
 from utils import *
 from utils.logging import mlflow_logger, optim_hyparam_serializer
+import tensorflow.keras as K
 
 
 class Trainer(abc.ABC):
+    """
+    Abstract class for model trainers.
+    """
+
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
                  batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
                  blobs_removal_threshold=0, hyper_seg_threshold=False,use_sample_weighting=False):
         """
-        Abstract class for model trainers.
         Args:
             dataloader: the DataLoader to use when training the model
             model: the model to train
@@ -47,13 +47,14 @@ class Trainer(abc.ABC):
             num_samples_to_visualize: number of samples to visualize predictions for during evaluation
                                       (None to use default)
             checkpoint_interval: interval, in iterations, in which to create model checkpoints
-                                 specify an extremely high number (e.g. 1e15) to only create a single checkpoint after training has finished
-                                 (WARNING: None or 0 to discard model)
+                                 specify an extremely high number (e.g. 1e15) to only create a single checkpoint after
+                                 training has finished (WARNING: None or 0 to discard model)
             load_checkpoint_path: path to checkpoint file, or SFTP checkpoint URL for MLflow, to load a checkpoint and
                                   resume training from (None to start training from scratch instead)
             segmentation_threshold: threshold >= which to consider the model's prediction for a given pixel to
                                     correspond to class 1 rather than class 0 (None to use default)
-            hyper_seg_threshold: whether to use hyperopt to calculate the optimal threshold on the evaluation data (measured by F1 score)
+            hyper_seg_threshold: whether to use hyperopt to calculate the optimal threshold on the evaluation data
+                                 (measured by F1 score)
         """
         self.dataloader = dataloader
         self.model = model
@@ -101,10 +102,13 @@ class Trainer(abc.ABC):
         if not self.do_checkpoint:
             print('\n*** WARNING: no checkpoints of this model will be created! Specify valid checkpoint_interval '
                   '(in iterations) to Trainer in order to create checkpoints. ***\n')
-        # if load_checkpoint_path is not None:
-        #    self._load_checkpoint(load_checkpoint_path)
 
     def _init_mlflow(self):
+        """
+        Initialize a connection to the MLFlow server
+        Returns:
+            True if successfully established a connection
+        """
         if self.mlflow_initialized:
             return True
         
@@ -255,7 +259,8 @@ class Trainer(abc.ABC):
     @abc.abstractmethod
     def get_precision_recall_F1_score_validation(self):
         """
-        Calculate and return the precision, recall and F1 score on the validation split of the current dataset, as well as the segmentation threshold used to calculate these metrics.
+        Calculate and return the precision, recall and F1 score on the validation split of the current dataset, as well
+        as the segmentation threshold used to calculate these metrics.
         Returns: Tuple of (float, float, float, float) containing (precision, recall, f1_score, segmentation_threshold)
         """
         raise NotImplementedError('Must be defined for trainer.')
@@ -272,7 +277,7 @@ class Trainer(abc.ABC):
                 try:
                     mlflow_logger.log_hyperparams(self._get_hyperparams())
                     mlflow_logger.snapshot_codebase()  # snapshot before training as the files may change in-between
-                    mlflow_logger.log_codebase()  # log codebase before training, to be invariant to training crashes and stops
+                    mlflow_logger.log_codebase()  # log codebase before training, to be invariant to train crashes/stops
                     mlflow_logger.log_command_line()  # log command line used to execute the script, if available
                     last_test_loss = self._fit_model(mlflow_run=run)
                     if self.do_checkpoint:
@@ -309,11 +314,12 @@ class Trainer(abc.ABC):
                 try:
                     mlflow_logger.log_hyperparams(self._get_hyperparams())
                     mlflow_logger.snapshot_codebase()  # snapshot before training as the files may change in-between
-                    mlflow_logger.log_codebase()  # log codebase before training, to be invariant to training crashes and stops
+                    mlflow_logger.log_codebase()  # log codebase before training, to be invariant to train crashes/stops
                     mlflow_logger.log_command_line()  # log command line used to execute the script, if available
                     
                     precision, recall, f1_score, threshold = self.get_precision_recall_F1_score_validation()
-                    metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score, 'seg_threshold': threshold}
+                    metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score,
+                               'seg_threshold': threshold}
                     print(f'Evaluation metrics: {metrics}')
                     if mlflow_logger.logging_to_mlflow_enabled():
                         mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=0)
@@ -350,6 +356,13 @@ class Trainer(abc.ABC):
 
     @staticmethod
     def _fill_images_array(preds, batch_ys, images):
+        """
+        Create images that visualize TP/TN/FP/FN statistics and add them to the given 'images' list
+        Args:
+            preds (np.ndarray): batch of images predicted by some model
+            batch_ys (np.ndarray): batch of groundtruth images
+            images (list): List to append the visualizations to
+        """
         if batch_ys is None:
             batch_ys = np.zeros_like(preds)
         if len(batch_ys.shape) > len(preds.shape):
@@ -365,7 +378,10 @@ class Trainer(abc.ABC):
 
     @staticmethod
     def _save_image_array(images, file_path):
-
+        """
+        Given a list of visualization images, create one big image that concatenates all of them in an
+        optimal format
+        """
         def segmentation_to_image(x):
             x = (x * 255).astype(int)
             if len(x.shape) < 3:  # if this is true, there are probably bigger problems somewhere else
@@ -389,4 +405,4 @@ class Trainer(abc.ABC):
             arr.append(row)
         # Concatenate in the second-to-last dimension to get the final big image
         final = np.concatenate(arr, axis=-2)
-        K.preprocessing.image.save_img(file_path, segmentation_to_image(final), data_format="channels_first")
+        K.utils.save_img(file_path, segmentation_to_image(final), data_format="channels_first")
