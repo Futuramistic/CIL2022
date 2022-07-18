@@ -8,6 +8,7 @@ import pysftp
 import requests
 import shutil
 import tempfile
+from sklearn import preprocessing
 import tensorflow as tf
 import tensorflow.keras.callbacks as KC
 from urllib.parse import urlparse
@@ -28,7 +29,8 @@ class TFTrainer(Trainer, abc.ABC):
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None, evaluation_interval=None,
                  num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
-                 segmentation_threshold=None, use_channelwise_norm=False, blobs_removal_threshold=0, hyper_seg_threshold=False):
+                 segmentation_threshold=None, use_channelwise_norm=False, blobs_removal_threshold=0, hyper_seg_threshold=False,
+                 use_sample_weighting=False):
         """
         Abstract class for TensorFlow-based model trainers.
         Args:
@@ -38,7 +40,7 @@ class TFTrainer(Trainer, abc.ABC):
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
-                         blobs_removal_threshold, hyper_seg_threshold)
+                         blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
@@ -67,6 +69,7 @@ class TFTrainer(Trainer, abc.ABC):
             self.best_val_loss = 1e5
             self.do_visualize = self.trainer.num_samples_to_visualize is not None and \
                                 self.trainer.num_samples_to_visualize > 0
+            self.weights_temp = []
 
         def on_train_begin(self, logs=None):
             print('\nTraining started at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
@@ -108,12 +111,25 @@ class TFTrainer(Trainer, abc.ABC):
             # iteration
             # if self.original_checkpoint_hash is not None and os.path.isdir(f'original_checkpoint_{self.original_checkpoint_hash}.ckpt'):
             #     shutil.rmtree(f'original_checkpoint_{self.original_checkpoint_hash}.ckpt')
-
+            
+            if self.trainer.use_sample_weighting:
+                # normalize and update weights
+                self.weights_temp = np.asarray(self.weights_temp)[len(self.trainer.train_dataset_size)] # cut off if too many were saved due to the last batch
+                normalized = self.weights_temp / (2*np.max(np.absolute(self.weights_temp))) # between -0.5 and +0.5
+                self.trainer.weights = normalized + 0.5 # between 0 and 1
+                # probability of zero is not wished for
+                self.trainer.weights[self.trainer.weights == 0] = np.min(self.trainer.weights[self.trainer.weights != 0])
+                # tf.keras.backend.set_value(self.model.weighted_metrics, self.trainer.weights)
+                # weights don't have to add up to 1 --> Done
 
         def on_train_batch_begin(self, batch, logs=None):
             pass
 
         def on_train_batch_end(self, batch, logs=None):
+            if self.trainer.use_sample_weighting and logs is not None:
+                # log losses to later use as new training weights
+                loss = logs['loss']
+                self.weights_temp += [loss]*self.trainer.batch_size
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
                 precision, recall, f1_score, self.segmentation_threshold = self.trainer.get_precision_recall_F1_score_validation()
                 metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score, 'seg_threshold': self.segmentation_threshold}
@@ -255,18 +271,25 @@ class TFTrainer(Trainer, abc.ABC):
         if self.load_checkpoint_path is not None:
             self._load_checkpoint(self.load_checkpoint_path)
         
+        # don't shuffle if you use weightes samples, as this will refer the wrong weight to each sample
         self.train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                                     preprocessing=self.preprocessing)
         self.test_loader = self.dataloader.get_testing_dataloader(batch_size=1,
                                                                   preprocessing=self.preprocessing)
-        _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
-
+        self.train_dataset_size, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
+        
         callbacks = [TFTrainer.Callback(self, mlflow_run)]
         # model checkpointing functionality moved into TFTrainer.Callback to allow for custom checkpoint names
         
-        self.model.fit(self.train_loader, validation_data=self.test_loader.take(test_dataset_size), epochs=self.num_epochs,
-                       steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks, verbose=1 if IS_DEBUG else 2)
-        
+        if self.use_sample_weighting:
+            self.weights = [np.ones(shape=self.train_dataset_size)]
+            x, y = self.dataloader.get_training_data_for_one_epoch(split=self.split, batch_size=self.batch_size, preprocessing=self.preprocessing)
+            self.model.fit(x, y, validation_data=self.test_loader.take(test_dataset_size), batch_size=self.batch_size, epochs=self.num_epochs,
+                        sample_weight = self.weights, # weights are manipulated during callback after each epoch
+                        steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks, verbose=1 if IS_DEBUG else 2)
+        else:
+            self.model.fit(self.train_loader, validation_data=self.test_loader.take(test_dataset_size), epochs=self.num_epochs,
+                        steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks, verbose=1 if IS_DEBUG else 2)
         if self.do_checkpoint:
             # save final checkpoint
             keras.models.save_model(model=self.model,

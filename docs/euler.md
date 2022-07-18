@@ -107,7 +107,7 @@
 - if you've created/deleted/moved files/directories, you might have to press F5 to reload the current directory
 
 
-## Summary for quick start of a Run after Initialization is finished:
+## Summary for quick start of a Run after Initialization is finished (Anne's setup)
 - `cd CIL2022`
 - `source bin/activate`
 - `module load gcc/8.2.0 && module load python_gpu/3.9.9 && module load openmpi && module load eth_proxy`

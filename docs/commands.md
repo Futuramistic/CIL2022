@@ -15,9 +15,6 @@ Updated:
 `python main.py -m cranet -d original -E TestingWeightedSamplingTorch -R run1 -s 0.01 -e 3 -b 2 -i 2 -w True`
 Debugging:
 {
-    // Verwendet IntelliSense zum Ermitteln möglicher Attribute.
-    // Zeigen Sie auf vorhandene Attribute, um die zugehörigen Beschreibungen anzuzeigen.
-    // Weitere Informationen finden Sie unter https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
@@ -31,6 +28,9 @@ Debugging:
         }
     ]
 }
+
+# testing weightes samples (tf) via cranet
+`python main.py --model=unetexp --dataset=new_original_aug_6 -E=TestingWeightedSamplingTf -R=run1 --split=0.03 --batch_size=2 --blobs_removal_threshold=0 -i=1 --use_geometric_augmentation=True --use_color_augmentation=False --dropout=0.0 --num_epochs=3 --optimizer_or_lr=0.001 --hyper_seg_threshold=False -w=True`
 
 # Debugging with launch.json
 {

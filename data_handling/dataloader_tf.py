@@ -98,7 +98,7 @@ class TFDataLoader(DataLoader):
         """
         return tf.ones_like(self.__parse_data(image_path, channels))
 
-    def __get_image_data(self, img_paths, gt_paths=None, shuffle=True, preprocessing=None, offset=0, length=int(1e12)):
+    def __get_image_data(self, img_paths, gt_paths=None, shuffle=True, preprocessing=None, offset=0, length=int(1e12), return_dataloader=True):
         """
         Get images and masks
         Args:
@@ -108,8 +108,9 @@ class TFDataLoader(DataLoader):
            preprocessing: function to apply to the images
            offset (int): Offset from which we read the paths
            length (int): maximum length of the desired dataset
+           return_dataloader (bool): Whether to return a dataloader or just the data
         Returns:
-            Dataset
+            Dataset or Data depending on return_dataloader
         """
         # WARNING: must use lambda captures (see https://stackoverflow.com/q/10452770)
         # WARNING: scientific notation is not recognized as an integer
@@ -124,7 +125,11 @@ class TFDataLoader(DataLoader):
         if gt_paths is not None:
             gt_paths_tf = tf.convert_to_tensor(gt_paths[offset:offset + length])
             output_types = (parse_img(img_paths_tf[0]).dtype, parse_gt(gt_paths_tf[0]).dtype)
-            if shuffle:
+            if not return_dataloader:
+                # don't shuffle and do return data
+                return [parse_img(img_path) for _ in itertools.count() for img_path in img_paths_tf], \
+                    [parse_gt(gt_path) for _ in itertools.count() for gt_path in gt_paths_tf]
+            elif shuffle:
                 return tf.data.Dataset.from_generator(
                     lambda: ((parse_img(img_path), parse_gt(gt_path)) for _ in itertools.count()
                              for img_path, gt_path in zip(*utils.consistent_shuffling(img_paths_tf, gt_paths_tf))),
@@ -136,7 +141,10 @@ class TFDataLoader(DataLoader):
                     output_types=output_types)
         else:
             output_types = parse_img(img_paths_tf[0]).dtype
-            if shuffle:
+            if not return_dataloader:
+                # don't shuffle and do return data
+                return [(parse_img(img_path) for _ in itertools.count() for img_path in img_paths_tf)]
+            elif shuffle:
                 return tf.data.Dataset.from_generator(
                     lambda: (parse_img(img_path) for _ in itertools.count() for img_path in
                              utils.consistent_shuffling(img_paths_tf)[0]),
@@ -145,7 +153,29 @@ class TFDataLoader(DataLoader):
                 return tf.data.Dataset.from_generator(
                     lambda: (parse_img(img_path) for _ in itertools.count() for img_path in img_paths_tf),
                     output_types=output_types)
+                
+    def get_training_data_for_one_epoch(self, split, preprocessing=None, **args):
+        """
+        Create training/validation dataset split, used for dynamic weighting of samples by their loss
+        Args:
+           split (float): training/test splitting ratio, e.g. 0.8 for 80"%" training and 20"%" test data
+           preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
+                                     constructing the native dataloader
+        Returns:
+            X and Y training samples
+        """
+        dataset_size = len(self.training_img_paths)
+        train_size = int(dataset_size * split)
+        test_size = dataset_size - train_size
+        
+        training_data_x, training_data_y = self.__get_image_data(self.training_img_paths, self.training_gt_paths,
+                                                    preprocessing=preprocessing, offset=0, length=train_size, return_dataloader=False)
 
+        if self.use_geometric_augmentation:
+            return (training_data_x,training_data_y).map(self.augmentation, tf.data.AUTOTUNE).prefetch(tf.data.AUTOTUNE)
+
+        return training_data_x, training_data_y
+    
     def get_training_dataloader(self, split, batch_size, preprocessing=None, **args):
         """
         Create training/validation dataset split
@@ -165,9 +195,9 @@ class TFDataLoader(DataLoader):
         dataset_size = len(self.training_img_paths)
         train_size = int(dataset_size * split)
         test_size = dataset_size - train_size
-
+        
         self.training_data = self.__get_image_data(self.training_img_paths, self.training_gt_paths, shuffle=True,
-                                                   preprocessing=preprocessing, offset=0, length=train_size)
+                                                    preprocessing=preprocessing, offset=0, length=train_size)
         self.testing_data = self.__get_image_data(self.training_img_paths, self.training_gt_paths, shuffle=False,
                                                   preprocessing=preprocessing, offset=train_size, length=test_size)
         print(f'Train data consists of ({train_size}) samples')

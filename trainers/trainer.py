@@ -54,6 +54,7 @@ class Trainer(abc.ABC):
             segmentation_threshold: threshold >= which to consider the model's prediction for a given pixel to
                                     correspond to class 1 rather than class 0 (None to use default)
             hyper_seg_threshold: whether to use hyperopt to calculate the optimal threshold on the evaluation data (measured by F1 score)
+            use_sample_weighting: whether to use sample weighting to train more on samples with worse losses; weights are recalculated after each epoch
         """
         self.dataloader = dataloader
         self.model = model
@@ -220,6 +221,7 @@ class Trainer(abc.ABC):
             'from_checkpoint': self.load_checkpoint_path if self.load_checkpoint_path is not None else '',
             'session_id': SESSION_ID,
             'use_hyperopt_for_optimal_threshold': self.hyper_seg_threshold,
+            'use_sample_weighting': self.use_sample_weighting,
             **(optim_hyparam_serializer.serialize_optimizer_hyperparams(self.optimizer_or_lr)),
             **({f'loss_{k}': v for k, v in self.loss_function_hyperparams.items()})
         }
