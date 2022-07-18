@@ -1,5 +1,5 @@
 from typing import Iterable
-from loss_harmonizer import *
+from .loss_harmonizer import *
 import tensorflow.keras as K
 import tensorflow_addons as tfa
 
