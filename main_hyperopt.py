@@ -1,26 +1,29 @@
-"""Hyperopt runner file. Looks for the "--search_space" or "-s" command line argument to determine the feature_space to use,
-then passes the remaining command line arguments to a Hyperparameter optimizer."""
+"""
+Hyperopt runner file. Looks for the "--search_space" or "-s" command line argument to determine the
+feature_space to use, then passes the remaining command line arguments to a Hyperparameter optimizer.
+"""
 
 import argparse
-from contextlib import redirect_stderr, redirect_stdout
-from hyperopt_.hyper_optimizer import HyperParamOptimizer
-from hyperopt_ import *
-import os
-import time
-import warnings
 
+from contextlib import redirect_stderr, redirect_stdout
+from hyperopt_ import *
 from utils import *
 from utils.logging import pushbullet_logger
 
 
 def main_hyperopt():
-    warnings.filterwarnings("ignore", category=UserWarning) 
+    warnings.filterwarnings("ignore", category=UserWarning)
     # list of supported arguments
     filter_args = ['h', 'search_space', 's', 'num_runs', 'n']
 
-    parser = argparse.ArgumentParser(description='Implementation of Hyperparameter Optimizer that searches through the parameter space')
-    parser.add_argument('-s', '--search_space', type=str, help="Give the name of the search space, which has to be defined in 'hyperopt\\param_space_...' and imported in main_hyperopt")
-    parser.add_argument('-n', '--num_runs', type = int, help="The number of Hyperopt runs, aka models trained with different parameters from the search space")
+    parser = argparse.ArgumentParser(description='Implementation of Hyperparameter Optimizer '
+                                                 'that searches through the parameter space')
+    parser.add_argument('-s', '--search_space', type=str,
+                        help="Give the name of the search space, which has to be defined in "
+                             "'hyperopt\\param_space_...' and imported in main_hyperopt")
+    parser.add_argument('-n', '--num_runs', type=int,
+                        help="The number of Hyperopt runs, aka models trained with different parameters "
+                             "from the search space")
     params = parser.parse_args()
 
     try:
@@ -41,14 +44,14 @@ if __name__ == '__main__':
     for path in [stderr_path, stdout_path]:
         if os.path.isfile(path):
             os.unlink(path)
-    
+
     if IS_DEBUG:
         main_hyperopt()
-    else:
+    else:  # If not running in debug mode, redirect the stdout and stderr to some log files
         try:
             print(f'Session ID: {SESSION_ID}\n'
-                'Not running in debug mode\n'
-                'stderr and stdout will be written to "%s" and "%s", respectively\n' % (stderr_path, stdout_path))
+                  'Not running in debug mode\n'
+                  'stderr and stdout will be written to "%s" and "%s", respectively\n' % (stderr_path, stdout_path))
             # buffering=1: use line-by-line buffering
             with open(stderr_path, 'w', buffering=1) as stderr_f, open(stdout_path, 'w', buffering=1) as stdout_f:
                 with redirect_stderr(stderr_f), redirect_stdout(stdout_f):

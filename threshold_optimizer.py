@@ -1,14 +1,13 @@
 from functools import partial
 from hyperopt import STATUS_OK, fmin, tpe, Trials, STATUS_FAIL
 from hyperopt import hp
-import warnings
-
 from data_handling import *
 from utils.logging import pushbullet_logger
 
 
 class ThresholdOptimizer:
-    """Class for segmentation threshold optimization, based on the F1 score
+    """
+    Class for segmentation threshold optimization, based on the F1 score
     """
     def __init__(self):
         warnings.filterwarnings("ignore", category=UserWarning)
@@ -31,7 +30,8 @@ class ThresholdOptimizer:
         self.target = targets
         self.f1_score_function = f1_score_function
 
-        # run objective function n times with different variations of the parameter space and search for the variation minimizing the loss
+        # run objective function n times with different variations of the parameter space and search for
+        # the variation minimizing the loss
         best_run = fmin(
                 partial(self.objective),
                 space = self.space,
@@ -49,7 +49,7 @@ class ThresholdOptimizer:
         Args: 
             hyperparams (Dictionary) - search space
         Returns:
-        output (Dictionary[loss, status, and other things])
+            output (Dictionary[loss, status, and other things])
         """
         try:
             f1_scores = []
@@ -74,7 +74,8 @@ class ThresholdOptimizer:
         }
     
     def get_best_threshold(self):
-        # code adapted from https://stackoverflow.com/questions/54273199/how-to-save-the-best-hyperopt-optimized-keras-models-and-its-weights
+        # code adapted from
+        # https://stackoverflow.com/questions/54273199/how-to-save-the-best-hyperopt-optimized-keras-models-and-its-weights
         valid_trial_list = [trial for trial in self.trials if STATUS_OK == trial['result']['status']]
         losses = [float(trial['result']['loss']) for trial in valid_trial_list]
         index_having_minumum_loss = np.argmin(losses)

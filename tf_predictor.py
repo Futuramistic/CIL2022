@@ -4,10 +4,6 @@ from tqdm import tqdm
 
 from factory import Factory
 from losses.precision_recall_f1 import precision_recall_f1_score_tf
-from models.TF.UNetTF import UNetTF
-from data_handling.dataloader_tf import TFDataLoader
-from trainers.UnetTF import UNetTFTrainer
-import tensorflow as tf
 import tensorflow.keras as K
 from utils import *
 import numpy as np
@@ -15,12 +11,28 @@ from losses.loss_harmonizer import DEFAULT_TF_DIM_LAYOUT
 import argparse
 
 
+"""
+Given a trained model, make predictions on the test set
+"""
+
+
 model = None
 compute_best_threshold_split = 0.99  # ensure validation dataset has at least 1 sample
 
+# Fixed constants
+offset = 144  # Numbering of first test image
+dataset = 'original'
+test_set_size = 144
 
-# modify in tf_predictor.py as well!
+
 def compute_best_threshold(loader, apply_sigmoid):
+    """
+    Line search segmentation thresholds and select the one that works
+    the best on the training set.
+    Args:
+        loader: the dataset loader
+        apply_sigmoid (bool): whether to apply the sigmoid on the output of the model
+    """
     best_thresh = 0
     best_f1_score = 0
     for thresh in np.linspace(0, 1, 21):
@@ -46,12 +58,6 @@ def compute_best_threshold(loader, apply_sigmoid):
     return best_thresh
 
 
-# Fixed constants
-offset = 144  # Numbering of first test image
-dataset = 'original'
-test_set_size = 144
-
-
 def main():
     parser = argparse.ArgumentParser(description='Predictions maker for tensorflow models')
     parser.add_argument('-m', '--model', type=str, required=True)
@@ -63,12 +69,6 @@ def main():
     model_name = options.model
     trained_model_path = options.checkpoint
     apply_sigmoid = options.apply_sigmoid
-
-    # Parameters
-    # model_name = 'gldenseunet'                                           # <<<<<<<<<<<<<<<<<< Insert model type
-    # trained_model_path = 'original_checkpoint_0cddd7aeff8408184874efc38e60ae52.ckpt'       # <<<<<<<<<<<<<<<<<< Insert trained model name
-    # apply_sigmoid = False                                                # <<<<<<<<<<<<<<<< Specify whether Sigmoid should
-                                                                        # be applied to the model's output
 
     global model
     # Create loader, trainer etc. from factory
@@ -90,7 +90,6 @@ def main():
     train_dataset_size, _, _ = dataloader.get_dataset_sizes(split=compute_best_threshold_split)
     segmentation_threshold = compute_best_threshold(train_loader.take((train_dataset_size // train_bs) * train_bs),
                                                     apply_sigmoid=apply_sigmoid)
-    # segmentation_threshold = 0.5
 
     # Prediction
     i = 0

@@ -8,6 +8,11 @@ from utils import *
 import zipfile
 
 
+"""
+Script to download a scraped dataset from MLFlow
+"""
+
+
 curated = True  # set to True to download only curated part of dataset
 
 mlflow_ftp_pass = requests.get(MLFLOW_FTP_PASS_URL, auth=HTTPBasicAuth(MLFLOW_HTTP_USER, MLFLOW_HTTP_PASS)).text
@@ -70,4 +75,5 @@ ts_path = os.path.join(local_dir, "download_timestamp.txt")
 with open(ts_path, "w") as file:
     file.write(str(datetime.now()))
 
-print(f'Dataset saved to "{local_dir}"; number of samples: {num_samples}, of which {num_samples-25} training ({"%.5f" % ((num_samples-25)/num_samples)})')
+print(f'Dataset saved to "{local_dir}"; number of samples: {num_samples}, of which {num_samples-25} training '
+      f'({"%.5f" % ((num_samples-25)/num_samples)})')
