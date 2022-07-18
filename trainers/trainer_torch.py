@@ -132,7 +132,9 @@ class TorchTrainer(Trainer, abc.ABC):
             output = self.model(batch_xs)
             if type(output) is tuple:
                 output = output[0]
-            preds = (output >= self.segmentation_threshold).float().cpu().detach().numpy()
+
+            preds = collapse_channel_dim_torch((output >= self.segmentation_threshold).float(), take_argmax=True).detach().cpu().numpy()
+            
             # print('shape', preds.shape)
             preds_list = []
             for i in range(preds.shape[0]):
@@ -230,9 +232,11 @@ class TorchTrainer(Trainer, abc.ABC):
             last_train_loss = self._train_step(self.model, self.device, self.train_loader, callback_handler=callback_handler)
             last_test_loss = self._eval_step(self.model, self.device, self.test_loader)
             metrics = {'train_loss': last_train_loss, 'test_loss': last_test_loss}
-            if(self.do_checkpoint and best_val_loss > last_test_loss):
-                best_val_loss = last_test_loss
-                self._save_checkpoint(self.model,None,None,None,best="test_loss")
+
+            # if(self.do_checkpoint and best_val_loss > last_test_loss):
+            #    best_val_loss = last_test_loss
+            #    self._save_checkpoint(self.model,None,None,None,best="test_loss")
+            
             print('\nEpoch %i finished at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()) % epoch)
             print('Metrics: %s\n' % str(metrics))
 

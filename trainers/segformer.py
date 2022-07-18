@@ -1,17 +1,15 @@
 from .trainer_torch import TorchTrainer
 from utils import *
+from losses.precision_recall_f1 import *
 
+import math
 import torch
 from torch import optim
-import torch.nn as nn
-from torch.nn import functional as F
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torchvision import transforms
 
-
-class DeepLabV3Trainer(TorchTrainer):
+# based on https://github.com/NVlabs/SegFormer/blob/master/local_configs/segformer/B1/segformer.b1.1024x1024.city.160k.py
+class SegFormerTrainer(TorchTrainer):
     """
-    Trainer for the DeepLabV3 model.
+    Trainer for the SegFormer model.
     """
 
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
@@ -29,24 +27,26 @@ class DeepLabV3Trainer(TorchTrainer):
             batch_size = 4
 
         if num_epochs is None:
-            num_epochs = 1
+            num_epochs = 5000
 
         if optimizer_or_lr is None:
-            optimizer_or_lr = DeepLabV3Trainer.get_default_optimizer_with_lr(1e-4, model)
+            default_lr = 0.00006
+            optimizer_or_lr = SegFormerTrainer.get_default_optimizer_with_lr(default_lr, model.backbone)
+            self.optimizer_or_lr_head = SegFormerTrainer.get_default_optimizer_with_lr(default_lr * 10, model.head)
         elif isinstance(optimizer_or_lr, int) or isinstance(optimizer_or_lr, float):
-            optimizer_or_lr = DeepLabV3Trainer.get_default_optimizer_with_lr(optimizer_or_lr, model)
+            optimizer_or_lr = SegFormerTrainer.get_default_optimizer_with_lr(optimizer_or_lr, model.backbone)
+            self.optimizer_or_lr_head = SegFormerTrainer.get_default_optimizer_with_lr(optimizer_or_lr * 10, model.head)
 
         if scheduler is None:
-            scheduler = ReduceLROnPlateau(optimizer_or_lr, mode="min", patience=15, factor=0.5)
-            # scheduler = torch.optim.lr_scheduler.StepLR(optimizer_or_lr, step_size=1, gamma=1)
+            scheduler = torch.optim.lr_scheduler.StepLR(optimizer_or_lr, step_size=1, gamma=1)
 
         if loss_function is None:
-            loss_function = MixedLoss(10.0, 2.0)
+            self.ce_loss = torch.nn.CrossEntropyLoss()
+            loss_function = lambda input, target: self.ce_loss(input, target.long())
 
         if evaluation_interval is None:
-            evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs,
-                                                                             num_samples_to_visualize)
-        
+            evaluation_interval = dataloader.get_default_evaluation_interval(split, batch_size, num_epochs, num_samples_to_visualize)
+
         preprocessing = None
         if use_channelwise_norm and dataloader.dataset in DATASET_STATS:
             def channelwise_preprocessing(x, is_gt):
@@ -68,16 +68,18 @@ class DeepLabV3Trainer(TorchTrainer):
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
                          segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold)
-
+        
     def _train_step(self, model, device, train_loader, callback_handler):
+        
+        # use custom LR for head
+
         model.train()
         opt = self.optimizer_or_lr
         train_loss = 0
         for (x, y) in train_loader:
             x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
-            if x.shape[0] == 1:
-                continue  # drop if the last batch has size of 1 (otherwise the deeplabv3 model crashes)
-            preds = model(x)
+            y = torch.squeeze(y, dim=1)  # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
+            preds = model(x, softmax=False)
             loss = self.loss_function(preds, y)
             with torch.no_grad():
                 train_loss += loss.item()
@@ -88,68 +90,16 @@ class DeepLabV3Trainer(TorchTrainer):
             del x
             del y
         train_loss /= len(train_loader.dataset)
-        f1_score = callback_handler.on_epoch_end()
-        self.scheduler.step(f1_score)
+        callback_handler.on_epoch_end()
+        self.scheduler.step()
         return train_loss
-
-    def _eval_step(self, model, device, test_loader):
-        model.eval()
-        test_loss = 0
-        with torch.no_grad():
-            for (x, y) in test_loader:
-                x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
-                preds = model(x)
-                test_loss += self.loss_function(preds, y).item()
-                del x
-                del y
-        test_loss /= len(test_loader.dataset)
-        return test_loss
 
     def _get_hyperparams(self):
         return {**(super()._get_hyperparams()),
                 **({param: getattr(self.model, param)
-                    for param in ['n_channels', 'n_classes', 'bilinear']
-                    if hasattr(self.model, param)})}
-
+                   for param in ['n_channels', 'n_classes', 'bilinear']
+                   if hasattr(self.model, param)})}
+    
     @staticmethod
     def get_default_optimizer_with_lr(lr, model):
-        # return optim.RMSprop(model.parameters(), lr=1e-5, weight_decay=1e-8, momentum=0.9)
         return optim.Adam(model.parameters(), lr=lr)
-
-
-# Losses used by this model
-def dice_loss(input, target):
-    input = torch.sigmoid(input)
-    smooth = 1.0
-    iflat = input.view(-1)
-    tflat = target.view(-1)
-    intersection = (iflat * tflat).sum()
-    return ((2.0 * intersection + smooth) / (iflat.sum() + tflat.sum() + smooth))
-
-
-class FocalLoss(nn.Module):
-    def __init__(self, gamma):
-        super().__init__()
-        self.gamma = gamma
-
-    def forward(self, input, target):
-        if not (target.size() == input.size()):
-            raise ValueError("Target size ({}) must be the same as input size ({})"
-                             .format(target.size(), input.size()))
-        max_val = (-input).clamp(min=0)
-        loss = input - input * target + max_val + \
-               ((-max_val).exp() + (-input - max_val).exp()).log()
-        invprobs = F.logsigmoid(-input * (target * 2.0 - 1.0))
-        loss = (invprobs * self.gamma).exp() * loss
-        return loss.mean()
-
-
-class MixedLoss(nn.Module):
-    def __init__(self, alpha, gamma):
-        super().__init__()
-        self.alpha = alpha
-        self.focal = FocalLoss(gamma)
-
-    def forward(self, input, target):
-        loss = self.alpha * self.focal(input, target) - torch.log(dice_loss(input, target))
-        return loss.mean()
