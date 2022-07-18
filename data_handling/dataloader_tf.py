@@ -271,16 +271,12 @@ class TFDataLoader(DataLoader):
         # Image colour changes
         if self.use_color_augmentation:
             img_dtype = image.dtype
-            if img_dtype is not tf.float32:
-                # Convert to [0,1) range
-                image = tf.image.convert_image_dtype(image, dtype=tf.float32)
+            image = tf.image.convert_image_dtype(image, dtype=tf.float32)
             image = tf.image.random_brightness(image, max_delta=self.brightness, seed=None)
             image = tf.image.random_saturation(image, lower=self.saturation[0], upper=self.saturation[1], seed=None)
             image = tf.image.random_contrast(image, lower=self.contrast[0], upper=self.contrast[1], seed=None)
-            image = tf.clip_by_value(image, 0.0, 1.0)
-            if img_dtype is not tf.float32:
-                # Convert back to original range (clip values that over/underflow)
-                image = tf.image.convert_image_dtype(image, dtype=img_dtype, saturate=True)
+            image = tf.clip_by_value(image, 0.0, 0.99999)
+            image = tf.image.convert_image_dtype(image, dtype=img_dtype)
 
         # Rotate by 90 degrees only - if we rotate by an aribitrary -> road my disappear!
         i = tf.random.uniform([], minval=0, maxval=3, dtype=tf.dtypes.int32, seed=None)
