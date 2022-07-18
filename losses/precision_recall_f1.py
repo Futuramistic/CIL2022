@@ -1,6 +1,7 @@
 from typing import Iterable
-from .loss_harmonizer import *
-
+from loss_harmonizer import *
+import tensorflow.keras as K
+import tensorflow_addons as tfa
 
 """
 If we take the F1 score for both classes (corresponding to average='micro' for sklearn.metrics.f1_score),
@@ -138,39 +139,56 @@ def prediction_stats_tf(thresholded_prediction, targets, classes, dtype=tf.dtype
     return {'tp': tp, 'fp': fp, 'tn': tn, 'fn': fn}
 
 
-def precision_tf(thresholded_prediction, targets, classes, pred_stats=None):
+def precision_tf(thresholded_prediction, targets, target_class):
     """
     Compute prediction precision
     Args:
-        thresholded_prediction (Torch Tensor): binary prediction
-        targets (Torch Tensor): The target tensor
-        classes (list): List of classes for which we want to compute the statistics
-        pred_stats: Type of the tensors
+        thresholded_prediction (TF Tensor): binary prediction
+        targets (TF Tensor): The target tensor
+        target_class (int): Class to predict for
     """
-    if pred_stats is None:
-        pred_stats = prediction_stats_tf(thresholded_prediction, targets, classes)
-    if pred_stats['tp'] == tf.zeros_like(pred_stats['tp']):  # prevent NaNs
-        return tf.zeros_like(pred_stats['tp'])
-    return pred_stats['tp'] / (pred_stats['tp'] + pred_stats['fp'])
+    precision_metric = K.metrics.Precision(dtype=tf.float32)
+    precision_metric.update_state(targets,tf.equal(thresholded_prediction,target_class))
+    return precision_metric.result().numpy()
 
 
-def recall_tf(thresholded_prediction, targets, classes, pred_stats=None):
+def recall_tf(thresholded_prediction, targets, target_class):
     """
     Compute prediction recall
     Args:
-        thresholded_prediction (Torch Tensor): binary prediction
-        targets (Torch Tensor): The target tensor
-        classes (list): List of classes for which we want to compute the statistics
-        pred_stats: Type of the tensors
+        thresholded_prediction (TF Tensor): binary prediction
+        targets (TF Tensor): The target tensor
+        target_class (int): Class to predict for
     """
-    if pred_stats is None:
-        pred_stats = prediction_stats_tf(thresholded_prediction, targets, classes)
-    if pred_stats['tp'] == tf.zeros_like(pred_stats['tp']):  # prevent NaNs
-        return tf.zeros_like(pred_stats['tp'])
-    return pred_stats['tp'] / (pred_stats['tp'] + pred_stats['fn'])
+    recall_metric = K.metrics.Recall(dtype=tf.float32)
+    recall_metric.update_state(targets,tf.equal(thresholded_prediction,target_class))
+    return recall_metric.result().numpy()
 
+def f1_micro_tf(thresholded_prediction,targets,target_class):
+    """
+    Compute prediction F1 score (micro)
+    Args:
+        thresholded_prediction (TF Tensor): binary prediction
+        targets (TF Tensor): The target tensor
+        target_class (int): Class to predict for
+    """
+    f1_micro_metric = tfa.metrics.F1Score(num_classes=2, average='micro',dtype=tf.float32)
+    f1_micro_metric.update_state(targets,tf.cast(tf.equal(thresholded_prediction,target_class),tf.float32))
+    return f1_micro_metric.result().numpy()
 
-def precision_recall_f1_score_tf(thresholded_prediction, targets, classes=DEFAULT_F1_CLASSES):
+def tf_count(t, val):
+    """
+    Count number of occurrences of a class
+    Args:
+        t (TF Tensor): Tensor to calculate for
+        val (int32): value to count to occurrences of
+    """
+    elements_equal_to_value = tf.equal(t, val)
+    as_ints = tf.cast(elements_equal_to_value, tf.int32)
+    count = tf.reduce_sum(as_ints)
+    return count
+
+def precision_recall_f1_score_tf(thresholded_prediction, targets):
     """
     Compute precision, recall and f1 score
     Args:
@@ -178,17 +196,28 @@ def precision_recall_f1_score_tf(thresholded_prediction, targets, classes=DEFAUL
         targets (Torch Tensor): The target tensor
         classes (list): List of classes for which we want to compute the statistics
     """
-    # best value is at 1, worst at 0
-    pred_stats = prediction_stats_tf(thresholded_prediction, targets, classes)
-    precision = precision_tf(thresholded_prediction, targets, classes, pred_stats)
-    recall = recall_tf(thresholded_prediction, targets, classes, pred_stats)
-    if precision == tf.zeros_like(precision):  # prevent NaNs
-        return precision, recall, tf.zeros_like(precision)
-    f1_score = (tf.convert_to_tensor(2.0, dtype=precision.dtype) * precision * recall) / (precision + recall)
-    return precision, recall, f1_score
+
+    precision_road = precision_tf(thresholded_prediction,targets,1)
+    precision_bkgd = precision_tf(thresholded_prediction,targets,0)
+
+    recall_road = recall_tf(thresholded_prediction,targets,1)
+    recall_bkgd = recall_tf(thresholded_prediction,targets,0)
+
+    f1_micro_road = f1_micro_tf(thresholded_prediction,targets,1)
+    f1_micro_bkgd = f1_micro_tf(thresholded_prediction,targets,0)
+    
+    ones_weight =   tf_count(targets,1).numpy().item()/tf.size(targets,out_type=tf.int32).numpy().item()
+    zeros_weight =  tf_count(targets,0).numpy().item()/tf.size(targets,out_type=tf.int32).numpy().item()
+
+    f1_macro = (f1_micro_road+f1_micro_bkgd)/2.0
+    f1_weighted = ones_weight * f1_micro_road + zeros_weight * f1_micro_bkgd
+    
+    return (precision_road, recall_road, f1_micro_road, 
+            precision_bkgd, recall_bkgd, f1_micro_bkgd, 
+            f1_macro, f1_weighted)
 
 
-def f1_score_tf(thresholded_prediction, targets, classes=DEFAULT_F1_CLASSES):
+def f1_score_tf(thresholded_prediction, targets):
     """
     Compute the f1 score
     Args:
@@ -196,5 +225,5 @@ def f1_score_tf(thresholded_prediction, targets, classes=DEFAULT_F1_CLASSES):
         targets (Torch Tensor): The target tensor
         classes (list): List of classes for which we want to compute the statistics
     """
-    _, _, f1_score = precision_recall_f1_score_tf(thresholded_prediction, targets, classes)
-    return f1_score
+    _, _, _, _, _, _, _, f1_weighted = precision_recall_f1_score_tf(thresholded_prediction, targets)
+    return f1_weighted

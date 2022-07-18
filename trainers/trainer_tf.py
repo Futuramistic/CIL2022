@@ -109,8 +109,10 @@ class TFTrainer(Trainer, abc.ABC):
 
         def on_train_batch_end(self, batch, logs=None):
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
-                precision, recall, f1_score, self.segmentation_threshold = self.trainer.get_precision_recall_F1_score_validation()
-                metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score, 'seg_threshold': self.segmentation_threshold}
+                precision_road, recall_road, f1_micro_road, precision_bkgd, recall_bkgd, f1_micro_bkgd, f1_macro, f1_weighted, self.segmentation_threshold = self.trainer.get_precision_recall_F1_score_validation()
+                metrics = {'precision (road)': precision_road, 'recall (background)': recall_road, 'f1 micro road': f1_micro_road, 
+                        'precision (background)': precision_bkgd, 'recall (background)': recall_bkgd, 'f1 micro background': f1_micro_bkgd, 
+                        'f1 macro':f1_macro,'f1 weighted':f1_weighted,'seg_threshold': self.segmentation_threshold}
                 print('\nMetrics at aggregate iteration %i (ep. %i, ep.-it. %i): %s'
                       % (self.iteration_idx, self.epoch_idx, batch, str(metrics)))
                 if mlflow_logger.logging_to_mlflow_enabled():
@@ -118,8 +120,8 @@ class TFTrainer(Trainer, abc.ABC):
                     if self.do_visualize:
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx,self.epoch_idx,self.epoch_iteration_idx)
                 # save the best f1 score checkpoint
-                if self.trainer.do_checkpoint and self.best_score <= f1_score:
-                    self.best_score = f1_score
+                if self.trainer.do_checkpoint and self.best_score <= f1_weighted:
+                    self.best_score = f1_weighted
                     keras.models.save_model(model=self.model,filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_f1.ckpt"))
 
             if self.trainer.do_checkpoint\
@@ -267,11 +269,13 @@ class TFTrainer(Trainer, abc.ABC):
                                     filepath=os.path.join(CHECKPOINTS_DIR, "cp_final.ckpt"))
 
     def get_F1_score_validation(self):
-        _, _, f1_score, _ = self.get_precision_recall_F1_score_validation()
-        return f1_score
+        _, _, _, _, _, _, _, f1_weighted = self.get_precision_recall_F1_score_validation()
+        return f1_weighted
 
     def get_precision_recall_F1_score_validation(self):
-        precisions, recalls, f1_scores = [], [], []
+        precisions_road, recalls_road, f1_micro_road_scores = [], [], []
+        precisions_bkgd, recalls_bkgd, f1_micro_bkgd_scores = [], [], []
+        f1_macro_scores, f1_weighted_scores = [], []
         threshold = self.segmentation_threshold
         if self.hyper_seg_threshold:
             threshold = self.get_best_segmentation_threshold()
@@ -287,11 +291,20 @@ class TFTrainer(Trainer, abc.ABC):
             blb_input = preds.numpy()
             preds = remove_blobs(blb_input, threshold=self.blobs_removal_threshold)
             # print('tf preds 2', preds.shape)
-            precision, recall, f1_score = precision_recall_f1_score_tf(preds, y)
-            precisions.append(precision.numpy().item())
-            recalls.append(recall.numpy().item())
-            f1_scores.append(f1_score.numpy().item())
-        return np.mean(precisions), np.mean(recalls), np.mean(f1_scores), threshold
+            precision_road, recall_road, f1_micro_road, precision_bkgd, recall_bkgd, f1_micro_bkgd, f1_macro, f1_weighted = precision_recall_f1_score_tf(preds, y)
+
+            precisions_road.append(precision_road)
+            recalls_road.append(recall_road)
+            f1_micro_road_scores.append(f1_micro_road)
+            precisions_bkgd.append(precision_bkgd)
+            recalls_bkgd.append(recall_bkgd)
+            f1_micro_bkgd_scores.append(f1_micro_bkgd)
+            f1_macro_scores.append(f1_macro)
+            f1_weighted_scores.append(f1_weighted)
+
+        return (np.mean(precisions_road), np.mean(recalls_road), np.mean(f1_micro_road_scores), 
+                np.mean(precisions_bkgd), np.mean(recalls_bkgd), np.mean(f1_micro_bkgd_scores),
+                np.mean(f1_macro_scores), np.mean(f1_weighted_scores),threshold)
 
     ''' def find_best_segmentation_threshold(self,step=0.05):
         # Save original threshold
