@@ -1,6 +1,7 @@
 import abc
 import datetime
 import hashlib
+from this import d
 import numpy as np
 import pysftp
 import requests
@@ -412,7 +413,7 @@ class TFTrainer(Trainer, abc.ABC):
             if len(output.shape) == 5:
                 output = output[0]
             blb_input = tf.squeeze(output).numpy()
-            preds = remove_blobs(blb_input, threshold=self.blobs_removal_threshold)
+            preds = tf.cast(remove_blobs(blb_input, threshold=self.blobs_removal_threshold),dtype=tf.int8)
             predictions.append(preds)
             targets.append(y)
         best_threshold = threshold_optimizer.run(predictions, targets, f1_score_tf)
