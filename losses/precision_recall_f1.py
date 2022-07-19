@@ -1,9 +1,10 @@
 from typing import Iterable
-from .loss_harmonizer import *
+from loss_harmonizer import *
 import torch.nn.functional as F
 import tensorflow.keras as K
 import tensorflow_addons as tfa
 import tensorflow as tf
+import numpy as np
 
 """
 If we take the F1 score for both classes (corresponding to average='micro' for sklearn.metrics.f1_score),
@@ -293,8 +294,8 @@ def precision_recall_f1_score_tf(thresholded_prediction, targets):
         thresholded_prediction (TF Tensor): binary prediction
         targets (TF Tensor): The target tensor
     """
-    thresholded_prediction = tf.squeeze(thresholded_prediction)
-    targets = tf.squeeze(targets)
+    thresholded_prediction = tf.cast(tf.squeeze(thresholded_prediction),dtype=tf.int8)
+    targets = tf.cast(tf.squeeze(targets),dtype=tf.int8)
 
     precision_road = precision_tf(thresholded_prediction,targets,1)
     precision_bkgd = precision_tf(thresholded_prediction,targets,0)
@@ -318,7 +319,6 @@ def precision_recall_f1_score_tf(thresholded_prediction, targets):
             precision_bkgd, recall_bkgd, f1_bkgd, 
             f1_macro, f1_weighted,
             f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted)
-
 
 def f1_score_tf(thresholded_prediction, targets):
     """
