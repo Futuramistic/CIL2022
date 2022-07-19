@@ -413,7 +413,7 @@ class TFTrainer(Trainer, abc.ABC):
             if len(output.shape) == 5:
                 output = output[0]
             blb_input = tf.squeeze(output).numpy()
-            preds = tf.cast(remove_blobs(blb_input, threshold=self.blobs_removal_threshold),dtype=tf.int8)
+            preds = tf.cast(remove_blobs(blb_input, threshold=self.blobs_removal_threshold),dtype=tf.float32)
             predictions.append(preds)
             targets.append(y)
         best_threshold = threshold_optimizer.run(predictions, targets, f1_score_tf)
