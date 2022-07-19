@@ -1,10 +1,12 @@
-import warnings
+import os
 import torch
 from torch.utils.data import DataLoader as torchDL, Dataset, Subset
 from .torchDataset import SegmentationDataset
 from .dataloader import DataLoader
 from torchvision import transforms
 import utils
+import warnings
+
 from models import *
 
 
@@ -12,6 +14,14 @@ class TorchDataLoader(DataLoader):
     def __init__(self, dataset="original", use_geometric_augmentation=False, use_color_augmentation=False,
                  aug_contrast=[0.8,1.2], aug_brightness=[0.8, 1.2], aug_saturation=[0.8,1.2], use_rl_supervision=False):
         super().__init__(dataset)
+        
+        if use_rl_supervision:
+            # eliminate training samples without optimal brush radius data or non-maximum-suppressed data
+            filter_fn = lambda path: all([os.path.isfile(os.path.join(os.path.dirname(os.path.dirname(path)), d, os.path.basename(path)[:-4] + '.pkl'))
+                                          for d in ['opt_brush_radius', 'non_max_suppressed']])
+            self.training_img_paths = list(filter(filter_fn, self.training_img_paths))
+            self.training_gt_paths = list(filter(filter_fn, self.training_gt_paths))
+
         self.use_geometric_augmentation = use_geometric_augmentation
         self.use_color_augmentation = use_color_augmentation
         self.contrast = aug_contrast
@@ -70,7 +80,7 @@ class TorchDataLoader(DataLoader):
         # and may not be stochastic, so as to ensure comparability across models/runs
         # for the same reason, while the training set should be shuffled, the test set should not
 
-        training_data_len = int(len(self.training_img_paths)*split)
+        training_data_len = max(1, int(len(self.training_img_paths)*split))
         testing_data_len = len(self.training_img_paths)-training_data_len
 
         dataset = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing, training_data_len,

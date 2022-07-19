@@ -345,6 +345,7 @@ class SegmentationEnvironmentMinimal(Env):
             supervision_non_max_suppressed_map (torch.Tensor): map of values after performing non-maximum suppression on 
         """
         super(SegmentationEnvironmentMinimal, self).__init__()
+        print('SegmentationEnvironmentMinimal __init__ entered')
         self.patch_size = patch_size
         self.img = img
         self.gt = gt
@@ -394,16 +395,20 @@ class SegmentationEnvironmentMinimal(Env):
         self.supervision_optimal_brush_radius_map = supervision_optimal_brush_radius_map
         self.supervision_non_max_suppressed_map = supervision_non_max_suppressed_map
 
+        print('SegmentationEnvironmentMinimal __init__: about to call reset()')
+
         self.reset()     
+        
+        print('SegmentationEnvironmentMinimal __init__ left')
 
-    def get_neutral_action(self):
+    @staticmethod
+    def get_neutral_action():
         # returns a neutral action
-
-        if self.is_supervised:
-            # !!!!!!!!!! WARNING: if we return the angle instead of the angle delta, 0.0 may not be a *truly* neutral action!
-            return torch.tensor([0.0, 0.0, 0.0], dtype=torch.float, device=self.device)
-        else:
-            return torch.tensor([0.0, BRUSH_STATE_NOTHING], dtype=torch.float, device=self.device)
+        # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'
+        
+        # <<< diff: minimal only returns [0.0, BRUSH_STATE_NOTHING]
+        return torch.tensor([0.0, 0.0, BRUSH_STATE_NOTHING, 0.0, 0.0], dtype=torch.float,
+                            device='cuda' if torch.cuda.is_available() else 'cpu')
 
     def reset(self):
         self.agent_pos = [int(dim_size // 2) for dim_size in self.gt.shape]
@@ -461,6 +466,7 @@ class SegmentationEnvironmentMinimal(Env):
             self.policy_state = None
 
         self.info_sum = {'reward_decomp_quantities': {}, 'reward_decomp_sums': {}}
+        return torch.tensor(0)  # must return a Tensor
 
     def calculate_reward(self, stroke_ball, new_seen_pixels):
         # we penalize "brush radius changes performed at the same time as angle changes" less
@@ -515,11 +521,10 @@ class SegmentationEnvironmentMinimal(Env):
         return reward, reward_decomp_quantities, reward_decomp_sums
 
     def step(self, action):
-        # action has already been rounded/unnormalized!
+        # action has already been unnormalized!
 
         # returns: (new_observation, reward, done, new_info)
         # action is Tensor, with highest dimension containing: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'
-        # unpack
 
         def get_minimap_pixel_coords(original_coords):
             return tuple([int(pos // (self.img.shape[dim_idx+1] / self.patch_size[dim_idx])) for dim_idx, pos in enumerate(original_coords)])
@@ -534,8 +539,7 @@ class SegmentationEnvironmentMinimal(Env):
             # else, use model's outputs
 
             if None not in [self.supervision_optimal_brush_radius_map, self.supervision_non_max_suppressed_map]:
-                torch_inf = torch.tensor(float('inf'))
-                LARGE_VALUE = 2**30  # needed because "distance_map_no_brush" has dtype long
+                LARGE_VALUE = 2**30  # needed because "distance_map_no_brush" has dtype long; cannot use inf
 
                 distance_map_no_brush = torch.square(self.grid_y - self.agent_pos[0]) + torch.square(self.grid_x - self.agent_pos[1])
                 distance_map_no_brush[self.supervision_non_max_suppressed_map == 0] = LARGE_VALUE
@@ -593,7 +597,7 @@ class SegmentationEnvironmentMinimal(Env):
             # x: [0, 1, 2, 3, ...] (row vector)
             # y: [0, 1, 2, 3, ...] (column vector)
 
-            if np.round(new_brush_radius) > 0:
+            if torch.round(new_brush_radius) > 0:
                 distance_map = (torch.square(self.padded_grid_y - (int(self.agent_pos[0]) + self.paddings_per_dim[0][0]))
                                 + torch.square(self.padded_grid_x - (int(self.agent_pos[1]) + self.paddings_per_dim[0][1]) )
                                 - new_brush_radius**2) # 2D
@@ -682,7 +686,7 @@ class SegmentationEnvironmentMinimal(Env):
         if supervision_desired_outputs is not None:
             new_info['supervision_desired_outputs'] = supervision_desired_outputs
         
-        new_info['unpadded_segmentation'] = self.get_unpadded_segmentation().float().detach().cpu().numpy().astype(int)
+        new_info['unpadded_segmentation'] = self.get_unpadded_segmentation().float().detach()
         new_info['rounded_agent_pos'] = self.get_rounded_agent_pos()
 
 
@@ -690,7 +694,7 @@ class SegmentationEnvironmentMinimal(Env):
         self.info_sum['reward_decomp_sums'] = {k: self.info_sum['reward_decomp_sums'].get(k, 0.0) + v for k, v in reward_decomp_sums.items()}
 
         new_info['info_sum'] = self.info_sum
-        return new_observation, reward, terminated, new_info
+        return new_observation, reward, torch.tensor(terminated, device=self.img.device), new_info
     
     def get_unpadded_segmentation(self): # for trainer to calculate loss during testing
         paddings_dim_0, paddings_dim_1 = self.paddings_per_dim

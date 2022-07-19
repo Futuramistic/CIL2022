@@ -1,4 +1,7 @@
+# code partly from https://github.com/hill-a/stable-baselines/blob/master/stable_baselines/common/vec_env/subproc_vec_env.py
+
 import numpy as np
+import multiprocessing
 from multiprocessing import Process, Pipe
 from baselines.common.vec_env import VecEnv, CloudpickleWrapper
 
@@ -58,7 +61,20 @@ class SubprocVecEnvTorch(VecEnv):
     def step_wait(self):
         results = [remote.recv() for remote in self.remotes]
         self.waiting = False
-        obs, rews, dones, infos = zip(*results)
+        obs, rews, dones, infos = map(list, zip(*results))
+        # eliminate all "zero" observations (returned if an environment has terminated)
+        longest_shape_len = 0
+        longest_tensor = None
+
+        for obs_idx in range(len(obs)):
+            if len(obs[obs_idx].shape) > longest_shape_len:
+                longest_tensor = obs[obs_idx]
+                longest_shape_len = len(longest_tensor.shape)
+        
+        for obs_idx in range(len(obs)):
+            if len(obs[obs_idx].shape) < longest_shape_len:
+                obs[obs_idx] = torch.zeros_like(longest_tensor)
+
         return torch.stack(obs), torch.stack(rews), torch.stack(dones), infos
 
     def reset(self):

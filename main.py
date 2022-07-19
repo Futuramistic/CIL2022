@@ -5,6 +5,7 @@ import argparse
 from contextlib import redirect_stderr, redirect_stdout
 import itertools
 import json
+import multiprocessing
 import os
 import re
 
@@ -112,6 +113,8 @@ def main():
 
 
 if __name__ == '__main__':
+    multiprocessing.set_start_method('spawn')
+
     abs_logging_dir = os.path.join(ROOT_DIR, LOGGING_DIR)
     if not os.path.isdir(abs_logging_dir):
         os.makedirs(abs_logging_dir)

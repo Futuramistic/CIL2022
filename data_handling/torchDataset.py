@@ -106,13 +106,13 @@ class SegmentationDataset(Dataset):
                 with open(opt_brush_radius_path, 'rb') as f:
                     opt_brush_radii = torch.from_numpy(pickle.load(f))
             else:
-                opt_brush_radii = None
+                opt_brush_radii = torch.zeros(image.shape[1:])
             
             non_max_supp_path = os.path.join(sample_dir_parent_dir, 'non_max_suppressed', sample_filename.replace('.png', '.pkl'))
             if os.path.isfile(non_max_supp_path):
                 with open(non_max_supp_path, 'rb') as f:
                     non_max_suppressed = torch.from_numpy(pickle.load(f))
             else:
-                non_max_suppressed = None
+                non_max_suppressed = torch.zeros(image.shape[1:])
 
             return torch.cat((image, opt_brush_radii.unsqueeze(0), non_max_suppressed.unsqueeze(0)), axis=0), gt
