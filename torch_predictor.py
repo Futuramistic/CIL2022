@@ -6,7 +6,7 @@ import argparse
 import torchvision.transforms.functional as TF
 
 from factory import Factory
-from losses.precision_recall_f1 import precision_recall_f1_score_torch
+from losses.precision_recall_f1 import patchified_f1_scores_torch
 from processing.blobs_remover import remove_blobs
 from tqdm import tqdm
 from losses import *
@@ -51,8 +51,12 @@ def compute_best_threshold(loader, apply_sigmoid):
                 if apply_sigmoid:
                     output_ = sigmoid(output_)
                 preds = (output_ >= thresh).float()
-                _, _, f1_score = precision_recall_f1_score_torch(preds, y)
-                f1_scores.append(f1_score.cpu().numpy())
+                #_, _, _, _, _, _, _, f1_weighted, *_ = precision_recall_f1_score_torch(preds, y)
+                #f1_scores.append(f1_weighted.cpu().numpy())
+
+                _, _, f1_patchified_weighted = patchified_f1_scores_torch(preds, y)
+                f1_scores.append(f1_patchified_weighted.cpu().numpy())
+                
                 del x_
                 del y
         f1_score = np.mean(f1_scores)
