@@ -5,6 +5,16 @@ import numpy as np
 
 
 class DeepLabV3PlusGAN(nn.Module):
+    """
+    @Note: Custom Network
+
+    Adaptation of the original DeepLabV3 model with an additional Discriminator for GAN Training.
+    The idea is to train this hybrid model both with the original losses and with a GAN Loss retrieved from
+    a minimax game against a Discriminator that discriminates between real segmentations and generated ones.
+
+    The performed tests did not seem to given improvements and made training more unstable.
+    """
+
     def __init__(self, cnn_discriminator=True):
         super().__init__()
         self.model = deeplabv3(pretrained=True, progress=True)
@@ -26,6 +36,9 @@ class DeepLabV3PlusGAN(nn.Module):
 
 
 class CNN_Discriminator(nn.Module):
+    """
+    CNN-based discriminator
+    """
     def __init__(self):
         super(CNN_Discriminator, self).__init__()
 
@@ -36,7 +49,7 @@ class CNN_Discriminator(nn.Module):
             return block
 
         channels = 1
-        img_size = 400  # TODO parametrize this
+        img_size = 400
 
         self.model = nn.Sequential(
             *discriminator_block(channels, 16, bn=False),
@@ -58,10 +71,13 @@ class CNN_Discriminator(nn.Module):
 
 
 class FC_Discriminator(nn.Module):
+    """
+    Fully Connected discriminator
+    """
     def __init__(self):
         super(FC_Discriminator, self).__init__()
 
-        img_shape = (400, 400)  # TODO parametrize this
+        img_shape = (400, 400)
         self.model = nn.Sequential(
             nn.Linear(int(np.prod(img_shape)), 512),
             nn.LeakyReLU(0.2, inplace=True),

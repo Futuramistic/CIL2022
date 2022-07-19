@@ -1,5 +1,7 @@
-# Define UNet
-# Adjusted from https://github.com/milesial/Pytorch-UNet
+"""
+U-Network, adjusted from https://github.com/milesial/Pytorch-UNet
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -48,9 +50,11 @@ class Up(nn.Module):
         # if bilinear, use the normal convolutions to reduce the number of channels
         if bilinear:
             self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-            self.conv = DoubleConv(in_channels, torch.div(out_channels, 2, rounding_mode='trunc'), torch.div(in_channels, 2, rounding_mode='trunc'))
+            self.conv = DoubleConv(in_channels, torch.div(out_channels, 2, rounding_mode='trunc'),
+                                   torch.div(in_channels, 2, rounding_mode='trunc'))
         else:
-            self.up = nn.ConvTranspose2d(in_channels , torch.div(in_channels, 2, rounding_mode='trunc'), kernel_size=2, stride=2)
+            self.up = nn.ConvTranspose2d(in_channels , torch.div(in_channels, 2, rounding_mode='trunc'),
+                                         kernel_size=2, stride=2)
             self.conv = DoubleConv(in_channels, out_channels)
 
     def forward(self, x1, x2):

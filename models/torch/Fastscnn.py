@@ -1,15 +1,18 @@
-# code taken from https://github.com/alpemek/aerial-segmentation
-# Define FastSCNN
-# Model is taken from https://github.com/Tramac/Fast-SCNN-pytorch/blob/master/models/fast_scnn.py
+"""
+code taken from https://github.com/alpemek/aerial-segmentation
+Define FastSCNN
+Model is taken from https://github.com/Tramac/Fast-SCNN-pytorch/blob/master/models/fast_scnn.py
+"""
 
-
-"""Fast Segmentation Convolutional Neural Network"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
 class FastSCNN(nn.Module):
+    """
+    Fast Segmentation Convolutional Neural Network
+    """
     def __init__(self, num_classes, **kwargs):
         super(FastSCNN, self).__init__()
         self.learning_to_downsample = LearningToDownsample(32, 48, 64)
