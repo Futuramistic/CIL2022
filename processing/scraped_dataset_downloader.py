@@ -1,3 +1,4 @@
+import argparse
 from datetime import datetime
 import pysftp
 import requests
@@ -13,9 +14,7 @@ Script to download a scraped dataset from MLFlow
 """
 
 
-def main():
-    curated = True  # set to True to download only curated part of dataset
-
+def main(curated):
     mlflow_ftp_pass = requests.get(MLFLOW_FTP_PASS_URL, auth=HTTPBasicAuth(MLFLOW_HTTP_USER, MLFLOW_HTTP_PASS)).text
 
     print(f'Requesting dataset generation (could take some time)...')
@@ -81,4 +80,9 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    desc_str = 'Script to download a scraped dataset from MLFlow'
+    parser = argparse.ArgumentParser(description=desc_str)
+    parser.add_argument('-c', '--curated', required=True, type=bool,
+                        help='Download curated version of scraped dataset')
+    options = parser.parse_args()
+    main(options.curated)

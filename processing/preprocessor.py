@@ -36,8 +36,8 @@ def required_length(nmin, nmax):
 
 def main():
     # Define the parser
-    parser = argparse.ArgumentParser(description='Implementation of Preprocessor that augments and segments the '
-                                                 'dataset into patches')
+    desc_str = 'Implementation of Preprocessor that augments and segments the dataset into patches'
+    parser = argparse.ArgumentParser(description=desc_str)
     parser.add_argument('-d', '--dataset', type=str, default='original')
     parser.add_argument('-o', '--output_dir', type=str)
 

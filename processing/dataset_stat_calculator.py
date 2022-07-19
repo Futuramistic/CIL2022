@@ -1,6 +1,8 @@
+import argparse
 import numpy as np
 import os
 from PIL import Image
+from tqdm import tqdm
 
 
 """
@@ -8,11 +10,8 @@ Compute the statistics of a given dataset (mean and standard deviation for each 
 """
 
 
-ds_name = 'ext_original_aug_6_oversampled'
-ds_images_dir = f'dataset/{ds_name}/training/images'
-
-
-def main():
+def main(dataset):
+    ds_images_dir = os.path.join('dataset', dataset, 'training', 'images')
     if not os.path.isdir(ds_images_dir):
         print(f'Directory "{ds_images_dir}" (supposed to contain images from which to compute '
               f'dataset stats) does not exist')
@@ -34,7 +33,7 @@ def main():
     pixel_sum_2 = 0
 
     # calculate means
-    for filename in png_filenames:
+    for filename in tqdm(png_filenames):
         with Image.open(os.path.join(ds_images_dir, filename)) as img:
             arr = np.asarray(img)
             pixel_sum_0 += arr[0].sum()
@@ -64,8 +63,13 @@ def main():
 
     vals = {'pixel_mean_0': pixel_mean_0, 'pixel_mean_1': pixel_mean_1, 'pixel_mean_2': pixel_mean_2,
             'pixel_std_0': pixel_std_0, 'pixel_std_1': pixel_std_1, 'pixel_std_2': pixel_std_2}
-    print(f'Stats for "{ds_name}" dataset: {vals}')
-    
+
+    print(f'Stats for "{dataset}" dataset: {vals}')
+
 
 if __name__ == '__main__':
-    main()
+    desc_str = 'Compute the statistics of a given dataset (mean and standard deviation for each channel)'
+    parser = argparse.ArgumentParser(description=desc_str)
+    parser.add_argument('-d', '--dataset', required=True, type=str, help='Dataset to compute stats for')
+    options = parser.parse_args()
+    main(options.dataset)
