@@ -328,5 +328,5 @@ def f1_score_tf(thresholded_prediction, targets):
         targets (Torch Tensor): The target tensor
         classes (list): List of classes for which we want to compute the statistics
     """
-    *_, f1_patchified_weighted = precision_recall_f1_score_tf(thresholded_prediction, targets)
-    return f1_patchified_weighted
+    *_, f1_weighted,_,_,_ = precision_recall_f1_score_tf(thresholded_prediction, targets)
+    return f1_weighted
