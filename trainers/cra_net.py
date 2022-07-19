@@ -1,11 +1,11 @@
+import torch
+
 from losses.precision_recall_f1 import precision_recall_f1_score_torch
 from .trainer_torch import TorchTrainer
 from utils import *
-
-import torch
 from torch import optim
 from torch.autograd import Variable
-from losses.cra_losses import cra_loss, cra_loss_with_vgg
+from losses.cra_losses import cra_loss
 
 
 class CRANetTrainer(TorchTrainer):
@@ -17,9 +17,15 @@ class CRANetTrainer(TorchTrainer):
                  batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None,
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
-                 use_channelwise_norm=False, loss_function_name=None, blobs_removal_threshold=None, hyper_seg_threshold=False, use_sample_weighting=False):
-        # set omitted parameters to model-specific defaults, then call superclass __init__ function
-        # warning: some arguments depend on others not being None, so respect this order!
+                 use_channelwise_norm=False, loss_function_name=None, blobs_removal_threshold=None,
+                 hyper_seg_threshold=False, use_sample_weighting=False):
+        """
+        Set omitted parameters to model-specific defaults, then call superclass __init__ function
+        @Warning: some arguments depend on others not being None, so respect this order!
+
+        Args:
+            Refer to the TorchTrainer superclass for more details on the arguments
+        """
 
         if split is None:
             split = DEFAULT_TRAIN_FRACTION
@@ -37,8 +43,8 @@ class CRANetTrainer(TorchTrainer):
 
         if scheduler is None:
             # Official
-            # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_or_lr, mode="max", factor=0.5, patience=5,
-            #                                                       verbose=True, min_lr=0.00001)
+            # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_or_lr,
+            # mode="max", factor=0.5, patience=5, verbose=True, min_lr=0.00001)
             # Alternative
             scheduler = torch.optim.lr_scheduler.StepLR(optimizer_or_lr, step_size=30, gamma=0.1)
 
@@ -71,13 +77,25 @@ class CRANetTrainer(TorchTrainer):
         super().__init__(dataloader, model, preprocessing, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
-                         segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting)
+                         segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold,
+                         use_sample_weighting)
 
         if loss_function_name is not None:
             self.loss_function_name = loss_function_name
 
     def _train_step(self, model, device, train_loader, callback_handler):
+        """
+        Train the model for one step
 
+        Args:
+            model: The model to train
+            device: either 'cuda' or 'cpu'
+            train_loader: train dataset loader object
+            callback_handler: To be called when the train step is over
+
+        Returns:
+            train loss (float)
+        """
         model.train()
         opt = self.optimizer_or_lr
         train_loss = 0
@@ -98,7 +116,8 @@ class CRANetTrainer(TorchTrainer):
                 threshold = getattr(self, 'last_hyper_threshold', self.segmentation_threshold)
                 # weight based on F1 score of batch
                 self.weights[sample_idx] =\
-                    1.0 - precision_recall_f1_score_torch((outputs.squeeze() >= threshold).float(), labels)[-1].mean().item()
+                    1.0 - precision_recall_f1_score_torch((outputs.squeeze() >= threshold)
+                                                          .float(), labels)[-1].mean().item()
 
             outputs = torch.squeeze(outputs, dim=1)
             refined = torch.squeeze(refined, dim=1)
@@ -116,6 +135,17 @@ class CRANetTrainer(TorchTrainer):
         return train_loss
 
     def _eval_step(self, model, device, test_loader):
+        """
+        Evaluate the model. Called at the end of each epoch
+
+        Args:
+            model: model to evaluate
+            device: either 'cuda' or 'cpu'
+            test_loader: loader for the samples to evaluate the model on
+
+        Returns:
+            test loss (float)
+        """
         model.eval()
         test_loss = 0
         with torch.no_grad():
@@ -142,6 +172,9 @@ class CRANetTrainer(TorchTrainer):
         return test_loss
 
     def _get_hyperparams(self):
+        """
+        Returns a dict of what is considered a hyperparameter
+        """
         return {**(super()._get_hyperparams()),
                 **({param: getattr(self.model, param)
                     for param in ['n_channels', 'n_classes', 'bilinear']
@@ -149,4 +182,10 @@ class CRANetTrainer(TorchTrainer):
 
     @staticmethod
     def get_default_optimizer_with_lr(lr, model):
+        """
+        Return the default optimizer for this network.
+        Args:
+            lr (float): Learning rate of the optimizer
+            model: Model whose parameters we want to train
+        """
         return optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-2)

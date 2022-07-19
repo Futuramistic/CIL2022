@@ -1,14 +1,8 @@
-import math
-import os
-
-import mlflow
 import tensorflow as tf
 import tensorflow.keras as K
 
 from .trainer_tf import TFTrainer
 from utils import *
-
-from losses import DiceLoss
 
 
 class GLDenseUNetTrainer(TFTrainer):
@@ -21,8 +15,13 @@ class GLDenseUNetTrainer(TFTrainer):
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
                  blobs_removal_threshold=0, hyper_seg_threshold=False):
-        # set omitted parameters to model-specific defaults, then call superclass __init__ function
-        # warning: some arguments depend on others not being None, so respect this order!
+        """
+        Set omitted parameters to model-specific defaults, then call superclass __init__ function
+        @Warning: some arguments depend on others not being None, so respect this order!
+
+        Args:
+            Refer to the TFTrainer superclass for more details on the arguments
+        """
 
         if split is None:
             split = DEFAULT_TRAIN_FRACTION
@@ -76,6 +75,9 @@ class GLDenseUNetTrainer(TFTrainer):
                          segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold)
 
     def _get_hyperparams(self):
+        """
+        Returns a dict of what is considered a hyperparameter
+        """
         return {**(super()._get_hyperparams()),
                 **({param: getattr(self.model, param)
                    for param in ['growth_rate', 'layers_per_block', 'conv2d_activation', 'num_classes',
@@ -84,8 +86,15 @@ class GLDenseUNetTrainer(TFTrainer):
 
     @staticmethod
     def get_default_optimizer_with_lr(lr, model):
-        # uses learning rate decay; see
-        # https://github.com/cugxyy/GL-Dense-U-Net/blob/ce104189692dd8e1a22ddcabc9f2f685a8345806/Model/multi_gpu_train.py
+        """
+        Return the default optimizer for this network.
+        Args:
+            lr (float): Learning rate of the optimizer
+            model: Model whose parameters we want to train
+
+        @Note: Uses learning rate decay, see:
+        https://github.com/cugxyy/GL-Dense-U-Net/blob/ce104189692dd8e1a22ddcabc9f2f685a8345806/Model/multi_gpu_train.py
+        """
         lr_schedule = K.optimizers.schedules.ExponentialDecay(initial_learning_rate=lr, decay_rate=0.1,
                                                               decay_steps=30000, staircase=True)
         return K.optimizers.Adam(lr_schedule)

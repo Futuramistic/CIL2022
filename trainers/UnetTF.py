@@ -1,12 +1,7 @@
-import math
-import os
-
-import mlflow
 import tensorflow as tf
 import tensorflow.keras as K
 
 from losses import DiceLoss
-from losses.loss_harmonizer import expand_channel_dim_tf
 from .trainer_tf import TFTrainer
 from utils import *
 
@@ -21,8 +16,13 @@ class UNetTFTrainer(TFTrainer):
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, pre_process=None, use_channelwise_norm=False,
                  blobs_removal_threshold=0, hyper_seg_threshold=False):
-        # set omitted parameters to model-specific defaults, then call superclass __init__ function
-        # warning: some arguments depend on others not being None, so respect this order!
+        """
+        Set omitted parameters to model-specific defaults, then call superclass __init__ function
+        @Warning: some arguments depend on others not being None, so respect this order!
+
+        Args:
+            Refer to the TFTrainer superclass for more details on the arguments
+        """
 
         if split is None:
             split = DEFAULT_TRAIN_FRACTION
@@ -89,6 +89,9 @@ class UNetTFTrainer(TFTrainer):
                          segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold)
 
     def _get_hyperparams(self):
+        """
+        Returns a dict of what is considered a hyperparameter
+        """
         return {**(super()._get_hyperparams()),
                 **({param: getattr(self.model, param)
                    for param in ['dropout', 'kernel_init', 'normalize', 'kernel_regularizer', 'up_transpose']
@@ -96,7 +99,14 @@ class UNetTFTrainer(TFTrainer):
     
     @staticmethod
     def get_default_optimizer_with_lr(lr):
-        # no mention on learning rate decay; can be reintroduced
+        """
+        Return the default optimizer for this network.
+        Args:
+            lr (float): Learning rate of the optimizer
+            model: Model whose parameters we want to train
+
+        @Note: No mention on learning rate decay; can be reintroduced
+        """
         # lr_schedule = K.optimizers.schedules.ExponentialDecay(initial_learning_rate=lr, decay_rate=0.1,
         #                                                      decay_steps=30000, staircase=True)
         return K.optimizers.Adam(learning_rate=lr)

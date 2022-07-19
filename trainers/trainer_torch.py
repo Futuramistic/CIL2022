@@ -1,7 +1,6 @@
 import abc
 import datetime
 import hashlib
-import numpy as np
 import pysftp
 import requests
 import torch.cuda
@@ -9,8 +8,6 @@ import torch.cuda
 from torch.utils.data import DataLoader, Subset
 from urllib.parse import urlparse
 from requests.auth import HTTPBasicAuth
-
-from losses.loss_harmonizer import collapse_channel_dim_torch
 from losses.precision_recall_f1 import *
 from .trainer import Trainer
 from utils import *
@@ -356,7 +353,7 @@ class TorchTrainer(Trainer, abc.ABC):
 
     def _eval_step(self, model, device, test_loader):
         """
-        Evaluate the mode. Called at the end of each epoch
+        Evaluate the model. Called at the end of each epoch
 
         Args:
             model: model to evaluate
