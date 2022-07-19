@@ -1,5 +1,4 @@
 from .blobs_remover import *
-from .checkpoint_scraper import *
 from .dataset_stat_calculator import *
 from .ensembled_submission_creator import *
 from .img_gt_merger import *

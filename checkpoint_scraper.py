@@ -72,7 +72,7 @@ def main(model_name, sftp_paths_file, checkpoints_output_dir, output_predictions
     if model_name is not None:
         model_name = model_name.lower().replace('-', '').replace('_', '')
 
-    # Make sure the user wants to overwrite the current checkponts directory
+    # Make sure the user wants to overwrite the current checkpoints directory
     if os.path.exists(checkpoints_output_dir):
         answer = input(f'{checkpoints_output_dir} already exists. Do you want to overwrite it? [y/n]')
         if answer.lower() == 'y':
@@ -122,13 +122,13 @@ def main(model_name, sftp_paths_file, checkpoints_output_dir, output_predictions
         os.system(f'{move_command} dummy_submission.csv {output_predictions_dir}/{idx}.csv')
 
     # Ensemble all predictions
-    os.system(f'python -m processing.ensembled_submission_creator')
+    os.system(f'python processing/ensembled_submission_creator.py')
 
 
 if __name__ == '__main__':
-    desc_str = 'Given a list of sftp urls, retrieve the corresponding checkpoints, load them into their respective' \
-               ' models and let each model make a prediction, before ensembling all predictions into a single ' \
-               ' submission file'
+    desc_str = 'Given a list of sftp urls, retrieve the corresponding checkpoints, load them into their respective ' \
+               'models and let each model make a prediction, before ensembling all predictions into a single ' \
+               'submission file'
     parser = argparse.ArgumentParser(description=desc_str)
     parser.add_argument('-m', '--model', type=str, default=None, help='Default model name (can specify different '
                                                                       'names in sftp_paths_file)')

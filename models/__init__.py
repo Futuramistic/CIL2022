@@ -3,7 +3,6 @@ from .torch.Unet import UNet
 from .torch.Fastscnn import FastSCNN
 from .torch.Deeplabv3 import *
 from .TF.UNetTF import UNetTF
-from .TF.UNetTF_AML import UNetTF_AML
 from .TF.AttUNetTF import AttUnetTF
 from .TF.AttUNetPlusPlusTF import AttUNetPlusPlusTF
 from .TF.UNetPlusPlusTF import UNetPlusPlusTF
