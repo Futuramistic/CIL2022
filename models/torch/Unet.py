@@ -113,7 +113,4 @@ class UNet(nn.Module):
         x = self.up3(x, x2)
         x = self.up4(x, x1)
         logits = self.outc(x)
-        if self.training:
-            return logits
-        else:
-            return torch.nn.Sigmoid()(logits)
+        return logits
