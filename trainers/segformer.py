@@ -1,24 +1,30 @@
+import torch
+
 from .trainer_torch import TorchTrainer
 from utils import *
-from losses.precision_recall_f1 import *
-
-import math
-import torch
 from torch import optim
 
-# based on https://github.com/NVlabs/SegFormer/blob/master/local_configs/segformer/B1/segformer.b1.1024x1024.city.160k.py
+
 class SegFormerTrainer(TorchTrainer):
     """
     Trainer for the SegFormer model.
+    Based on :
+    based on https://github.com/NVlabs/SegFormer/blob/master/local_configs/segformer/B1/segformer.b1.1024x1024.city.160k.py
     """
 
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
                  batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None,
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
-                 use_channelwise_norm=True, blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False):
-        # set omitted parameters to model-specific defaults, then call superclass __init__ function
-        # warning: some arguments depend on others not being None, so respect this order!
+                 use_channelwise_norm=True, blobs_removal_threshold=0, hyper_seg_threshold=False,
+                 use_sample_weighting=False):
+        """
+        Set omitted parameters to model-specific defaults, then call superclass __init__ function
+        @Warning: some arguments depend on others not being None, so respect this order!
+
+        Args:
+            Refer to the TFTrainer superclass for more details on the arguments
+        """
 
         if split is None:
             split = DEFAULT_TRAIN_FRACTION
@@ -77,11 +83,22 @@ class SegFormerTrainer(TorchTrainer):
         super().__init__(dataloader, model, preprocessing, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
-                         segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting)
+                         segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold,
+                         use_sample_weighting)
         
     def _train_step(self, model, device, train_loader, callback_handler):
-        
-        # use custom LR for head
+        """
+        Train the model for one step. Uses Custom LR for head
+
+        Args:
+            model: The model to train
+            device: either 'cuda' or 'cpu'
+            train_loader: train dataset loader object
+            callback_handler: To be called when the train step is over
+
+        Returns:
+            train loss (float)
+        """
 
         model.train()
         opt_backbone = self.optimizer_or_lr
@@ -108,6 +125,17 @@ class SegFormerTrainer(TorchTrainer):
         return train_loss
 
     def _eval_step(self, model, device, test_loader):
+        """
+        Evaluate the model. Called at the end of each epoch
+
+        Args:
+            model: model to evaluate
+            device: either 'cuda' or 'cpu'
+            test_loader: loader for the samples to evaluate the model on
+
+        Returns:
+            test loss (float)
+        """
         model.eval()
         test_loss = 0
         with torch.no_grad():
@@ -122,6 +150,9 @@ class SegFormerTrainer(TorchTrainer):
         return test_loss
 
     def _get_hyperparams(self):
+        """
+        Returns a dict of what is considered a hyperparameter
+        """
         return {**(super()._get_hyperparams()),
                 **({f'opt_{param}': getattr(self, param)
                    for param in ['head_lr', 'backbone_lr']
@@ -131,13 +162,20 @@ class SegFormerTrainer(TorchTrainer):
                    if hasattr(self.model, param)}),
                 **({f'bb_{param}': getattr(self.model.backbone, param)
                    for param in ['num_classes', 'depths', 'img_size', 'patch_size', 'in_chans', 'embed_dims',
-                                 'num_heads', 'mlp_ratios', 'qkv_bias', 'qk_scale', 'drop_rate', 'attn_drop_rate', 'drop_path_rate',
-                                 'depths', 'sr_ratios']
+                                 'num_heads', 'mlp_ratios', 'qkv_bias', 'qk_scale', 'drop_rate', 'attn_drop_rate',
+                                 'drop_path_rate', 'depths', 'sr_ratios']
                    if hasattr(self.model.backbone, param)}),
                 **({f'head_{param}': getattr(self.model.head, param)
-                   for param in ['in_channels', 'num_classes', 'feature_strides', 'dropout_rate', 'embedding_dim', 'dropout_rate']
+                   for param in ['in_channels', 'num_classes', 'feature_strides', 'dropout_rate', 'embedding_dim',
+                                 'dropout_rate']
                    if hasattr(self.model.backbone, param)})}
     
     @staticmethod
     def get_default_optimizer_with_lr(lr, model):
+        """
+        Return the default optimizer for this network.
+        Args:
+            lr (float): Learning rate of the optimizer
+            model: Model whose parameters we want to train
+        """
         return optim.Adam(model.parameters(), lr=lr)
