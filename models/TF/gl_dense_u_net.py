@@ -1,5 +1,7 @@
-# code re-written based on original TF-slim implementation from
-# https://github.com/cugxyy/GL-Dense-U-Net/blob/master/Model/GL_Dense_U_Net.py
+"""
+code re-written based on original TF-slim implementation from:
+https://github.com/cugxyy/GL-Dense-U-Net/blob/master/Model/GL_Dense_U_Net.py
+"""
 
 import tensorflow as tf
 import tensorflow.keras as K
@@ -14,9 +16,14 @@ def GLDenseUNet(input_shape=DEFAULT_TF_INPUT_SHAPE,
                 num_classes=2,
                 input_resize_dim=256,
                 l2_regularization_param=1e-5):
-    # This is a function and not a tf.keras.Model subclass because we're using the Keras functional API here to
-    # construct the model's non-linear topology, and the functional API is not compatible with subclassing
-    # tf.keras.Model. Yet, we want to maintain the illusion of "GLDenseUNet" returning a tf.keras.Model.
+    """
+    GLDenseUNet model.
+
+    @Note:
+    This is a function and not a tf.keras.Model subclass because we're using the Keras functional API here to
+    construct the model's non-linear topology, and the functional API is not compatible with subclassing
+    tf.keras.Model. Yet, we want to maintain the illusion of "GLDenseUNet" returning a tf.keras.Model.
+    """
 
     if isinstance(layers_per_block, str):
         layers_per_block = list(eval(layers_per_block))
