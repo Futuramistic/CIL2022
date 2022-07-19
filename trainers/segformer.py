@@ -1,27 +1,29 @@
+import torch
+
 from .trainer_torch import TorchTrainer
 from utils import *
-from losses.precision_recall_f1 import *
 from torch import optim
 
 
-class UNetTrainer(TorchTrainer):
+class SegFormerTrainer(TorchTrainer):
     """
-    Trainer for the U-Net model.
-    Some parameters taken from https://github.com/milesial/Pytorch-UNet/blob/master/train.py
+    Trainer for the SegFormer model.
+    Based on :
+    based on https://github.com/NVlabs/SegFormer/blob/master/local_configs/segformer/B1/segformer.b1.1024x1024.city.160k.py
     """
 
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
                  batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None,
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
-                 use_channelwise_norm=False, blobs_removal_threshold=0, hyper_seg_threshold=False,
+                 use_channelwise_norm=True, blobs_removal_threshold=0, hyper_seg_threshold=False,
                  use_sample_weighting=False):
         """
         Set omitted parameters to model-specific defaults, then call superclass __init__ function
         @Warning: some arguments depend on others not being None, so respect this order!
 
         Args:
-            Refer to the TorchTrainer superclass for more details on the arguments
+            Refer to the TFTrainer superclass for more details on the arguments
         """
 
         if split is None:
@@ -31,18 +33,32 @@ class UNetTrainer(TorchTrainer):
             batch_size = 4
 
         if num_epochs is None:
-            num_epochs = 10
+            num_epochs = 5000
+
+        default_lr = 0.00006
+        head_lr_mult = 10
 
         if optimizer_or_lr is None:
-            optimizer_or_lr = UNetTrainer.get_default_optimizer_with_lr(1e-5, model)
+            self.backbone_lr = default_lr
+            self.head_lr = self.backbone_lr * head_lr_mult
+            optimizer_or_lr = SegFormerTrainer.get_default_optimizer_with_lr(default_lr, model.backbone)
+            self.optimizer_or_lr_head = SegFormerTrainer.get_default_optimizer_with_lr(self.head_lr, model.head)
         elif isinstance(optimizer_or_lr, int) or isinstance(optimizer_or_lr, float):
-            optimizer_or_lr = UNetTrainer.get_default_optimizer_with_lr(optimizer_or_lr, model)
+            self.backbone_lr = optimizer_or_lr
+            self.head_lr = self.backbone_lr * head_lr_mult
+            optimizer_or_lr = SegFormerTrainer.get_default_optimizer_with_lr(self.backbone_lr, model.backbone)
+            self.optimizer_or_lr_head = SegFormerTrainer.get_default_optimizer_with_lr(self.head_lr, model.head)
+        else:
+            self.backbone_lr = getattr(optimizer_or_lr, 'lr', None)
+            self.head_lr = (self.backbone_lr if self.backbone_lr is not None else default_lr) * head_lr_mult
+            self.optimizer_or_lr_head = SegFormerTrainer.get_default_optimizer_with_lr(self.head_lr, model.head)
 
         if scheduler is None:
             scheduler = torch.optim.lr_scheduler.StepLR(optimizer_or_lr, step_size=1, gamma=1)
 
         if loss_function is None:
-            loss_function = torch.nn.BCELoss()
+            self.ce_loss = torch.nn.CrossEntropyLoss()
+            loss_function = lambda input, target: self.ce_loss(input, target.long())
 
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)
@@ -72,53 +88,61 @@ class UNetTrainer(TorchTrainer):
         
     def _train_step(self, model, device, train_loader, callback_handler):
         """
-        Train the model. Called at the end of each epoch
-
-        @Note: Unet may not be squeezed like in torch trainer, dtype is float for BCE
+        Train the model for one step. Uses Custom LR for head
 
         Args:
-            model: model to evaluate
+            model: The model to train
             device: either 'cuda' or 'cpu'
-            train_loader: loader for the samples to evaluate the model on
+            train_loader: train dataset loader object
+            callback_handler: To be called when the train step is over
 
         Returns:
-            test loss (float)
+            train loss (float)
         """
+
         model.train()
-        opt = self.optimizer_or_lr
+        opt_backbone = self.optimizer_or_lr
+        opt_head = self.optimizer_or_lr_head
         train_loss = 0
         for (x, y, sample_idx) in train_loader:
             x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
-            preds = model(x)
+            y = torch.squeeze(y, dim=1)  # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
+            preds = model(x, softmax=False)
             loss = self.loss_function(preds, y)
             with torch.no_grad():
                 train_loss += loss.item()
-            opt.zero_grad()
+            opt_backbone.zero_grad()
+            opt_head.zero_grad()
             loss.backward()
-            opt.step()
+            opt_backbone.step()
+            opt_head.step()
             callback_handler.on_train_batch_end()
-            if self.use_sample_weighting:
-                threshold = getattr(self, 'last_hyper_threshold', self.segmentation_threshold)
-                # weight based on F1 score of batch
-                self.weights[sample_idx] =\
-                    1.0 - precision_recall_f1_score_torch((preds.squeeze() >= threshold).float(), y)[-1].mean().item()
             del x
             del y
         train_loss /= len(train_loader.dataset)
         callback_handler.on_epoch_end()
         self.scheduler.step()
         return train_loss
-    
+
     def _eval_step(self, model, device, test_loader):
         """
-        @Note: Unet may not be squeezed like in torch trainer, dtype is float for BCE
+        Evaluate the model. Called at the end of each epoch
+
+        Args:
+            model: model to evaluate
+            device: either 'cuda' or 'cpu'
+            test_loader: loader for the samples to evaluate the model on
+
+        Returns:
+            test loss (float)
         """
         model.eval()
         test_loss = 0
         with torch.no_grad():
-            for (x, y, _) in test_loader:
-                x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
-                preds = model(x)
+            for (x, y, sample_idx) in test_loader:
+                x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.long)
+                y = torch.squeeze(y, dim=1)
+                preds = model(x, softmax=False)
                 test_loss += self.loss_function(preds, y).item()
                 del x
                 del y
@@ -130,9 +154,21 @@ class UNetTrainer(TorchTrainer):
         Returns a dict of what is considered a hyperparameter
         """
         return {**(super()._get_hyperparams()),
+                **({f'opt_{param}': getattr(self, param)
+                   for param in ['head_lr', 'backbone_lr']
+                   if hasattr(self, param)}),
                 **({param: getattr(self.model, param)
-                   for param in ['n_channels', 'n_classes', 'bilinear']
-                   if hasattr(self.model, param)})}
+                   for param in ['align_corners', 'pretrained_backbone_path']
+                   if hasattr(self.model, param)}),
+                **({f'bb_{param}': getattr(self.model.backbone, param)
+                   for param in ['num_classes', 'depths', 'img_size', 'patch_size', 'in_chans', 'embed_dims',
+                                 'num_heads', 'mlp_ratios', 'qkv_bias', 'qk_scale', 'drop_rate', 'attn_drop_rate',
+                                 'drop_path_rate', 'depths', 'sr_ratios']
+                   if hasattr(self.model.backbone, param)}),
+                **({f'head_{param}': getattr(self.model.head, param)
+                   for param in ['in_channels', 'num_classes', 'feature_strides', 'dropout_rate', 'embedding_dim',
+                                 'dropout_rate']
+                   if hasattr(self.model.backbone, param)})}
     
     @staticmethod
     def get_default_optimizer_with_lr(lr, model):
@@ -142,4 +178,4 @@ class UNetTrainer(TorchTrainer):
             lr (float): Learning rate of the optimizer
             model: Model whose parameters we want to train
         """
-        return optim.RMSprop(model.parameters(), lr=1e-5, weight_decay=1e-8, momentum=0.9)
+        return optim.Adam(model.parameters(), lr=lr)

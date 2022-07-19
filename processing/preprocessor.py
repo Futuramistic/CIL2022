@@ -10,8 +10,19 @@ from torchvision import transforms
 from tqdm import tqdm
 
 
-# taken from https://stackoverflow.com/questions/4194948/python-argparse-is-there-a-way-to-specify-a-range-in-nargs
+"""
+Create a new dataset from some original dataset by augmenting data, patchifying etc.
+"""
+
+
 def required_length(nmin, nmax):
+    """
+    Forces an argument from the ArgumentParser object to have a given dimension
+    Taken from: https://stackoverflow.com/questions/4194948/python-argparse-is-there-a-way-to-specify-a-range-in-nargs
+    Args:
+        nmin (int): minimum dimension length
+        nmax (max): maximum dimension length
+    """
     class RequiredLength(argparse.Action):
         def __call__(self, parser, args, values, option_string=None):
             if not nmin <= len(values) <= nmax:
@@ -25,8 +36,8 @@ def required_length(nmin, nmax):
 
 def main():
     # Define the parser
-    parser = argparse.ArgumentParser(description='Implementation of Preprocessor that augments and segments the '
-                                                 'dataset into patches')
+    desc_str = 'Implementation of Preprocessor that augments and segments the dataset into patches'
+    parser = argparse.ArgumentParser(description=desc_str)
     parser.add_argument('-d', '--dataset', type=str, default='original')
     parser.add_argument('-o', '--output_dir', type=str)
 
@@ -46,7 +57,6 @@ def main():
     # Whether to create smaller patches
     parser.add_argument('-p', '--patchify', type=int, default=0)
 
-    # TODO what are good ranges for these parameters?
     parser.add_argument('--brightness', type=float, nargs=2, action=required_length(2, 2), default=[0.8, 1.2])
     parser.add_argument('--contrast', type=float, nargs=2, action=required_length(2, 2), default=[0.8, 1.2])
     parser.add_argument('--saturation', type=float, nargs=2, action=required_length(2, 2), default=[0.8, 1.2])
@@ -79,6 +89,7 @@ def main():
     noise_ratio = params.noise
     deletion_ratio = params.deletion
 
+    # Create a dictionary to more easily pass the parameters around
     preprocessing_params = {
         'dataset': dataset,
         'output_dir': output_dir,
@@ -109,6 +120,8 @@ def main():
     gt_path = f'dataset/{dataset}/training/groundtruth'
 
     # check whether the output directory does not already exist
+    # If yes confirm the user does want to overwrite it or let it specify
+    # another directory
     output_path = f'{ROOT_DIR}/dataset/{output_dir}'
     if os.path.exists(output_path):
         retry = True
@@ -184,6 +197,13 @@ def main():
 
 
 def __patchify_test_set(dataset, output_test_dir, patchify_function):
+    """
+    Patchify the test set
+    Args:
+        dataset: The test set to patchify
+        output_test_dir (str): Where to output the patchified test set
+        patchify_function: function to use for patchification
+    """
     torch.manual_seed(42)
     nb_images = dataset.__len__()
 
@@ -204,6 +224,9 @@ def __patchify_test_set(dataset, output_test_dir, patchify_function):
 def __pixelate_noisy_channel(image, noise_ratio):
     """
     This filter deletes channel values (independently) following a Bernoulli(deletion_ratio) law
+    Args:
+        image (Tensor): Image to apply noise on
+        noise_ratio (float): proportion of pixels to apply noise on
     """
     mask = torch.ones((1, *image[0].shape)) * (1 - noise_ratio)
     mask = torch.cat((mask, mask, mask), dim=0)
@@ -214,6 +237,9 @@ def __pixelate_noisy_channel(image, noise_ratio):
 def __pixelate_deletion_channel(image, deletion_ratio):
     """
     This filter deletes pixels (all channels) following a Bernoulli(deletion_ratio) law
+    Args:
+        image (Tensor): Image to apply deletion on
+        deletion_ratio (float): proportion of pixels to delete
     """
     mask = torch.ones((1, *image[0].shape)) * (1 - deletion_ratio)
     mask = torch.bernoulli(mask)
@@ -222,11 +248,19 @@ def __pixelate_deletion_channel(image, deletion_ratio):
 
 
 def __process_dataset(dataset, output_img_path, output_gt_path, augmentation_parameters):
+    """
+    Augment/Patchify the dataset
+    Args:
+        dataset: The dataset to process
+        output_img_path (str): Path to the output image dir
+        output_gt_path (str): Path to the output groundtruth dir
+        augmentation_parameters (dict): The parameters to use for the dataset processing
+    """
     torch.manual_seed(42)
     nb_images = dataset.__len__()
 
     # Define transformations
-    patching_function = augmentation_parameters['patching_transform']  # (dataset.shape[1])
+    patching_function = augmentation_parameters['patching_transform']
     patching_transform = transforms.Compose([
         patching_function,
         transforms.Lambda(lambda crops: list(crops))
@@ -253,7 +287,6 @@ def __process_dataset(dataset, output_img_path, output_gt_path, augmentation_par
         image = image / 255.  # transform from ByteTensor to FloatTensor
         gt = gt / 255.  # transform from ByteTensor to FloatTensor
 
-        # TODO: this assumes RGBA format. Must handle RGB and grayscale formats as well
         concatenated = torch.cat((gt, image), dim=0)
 
         if patching_function is None:
@@ -284,7 +317,12 @@ def __process_dataset(dataset, output_img_path, output_gt_path, augmentation_par
 
 
 def __create_file_structure(destination_path, create_test_dir):
-    # create paths
+    """
+    Create the file structure for the output dataset
+    Args:
+        destination_path (str): Path to which we create the root of the new dataset
+        create_test_dir (bool): If True also create a directory for test data
+    """
     try:
         os.makedirs(destination_path)
         os.makedirs(f"{destination_path}/training/images")

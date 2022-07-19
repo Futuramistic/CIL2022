@@ -21,6 +21,7 @@ import imageio
 
 from PIL import Image, ImageDraw
 
+# TODO: Comment this file when the reinforcement branch is merged
 
 # TODO: try letting the policy network output sigma parameters of distributions as well!
 

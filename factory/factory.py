@@ -55,8 +55,8 @@ class Factory(abc.ABC):
             return SimpleRLCNNFactory()
         elif model_name_lower_no_sep == "simplerlcnnminimal":
             return SimpleRLCNNMinimalFactory()
-        elif model_name_lower_no_sep == "fftunet":
-            return FFT_UNetFactory()
+        elif model_name_lower_no_sep == "segformer":
+            return SegFormerFactory()
         else:
             print(f"The factory for the model {model_name} doesn't exist. Check if you wrote the model name "
                   f"correctly and implemented a corresponding factory in factory.py.")
@@ -216,12 +216,12 @@ class UNet3PlusFactory(Factory):
         return TFDataLoader
 
 
-class FFT_UNetFactory(Factory):
+class SegFormerFactory(Factory):
     def get_trainer_class(self):
-        return FFT_UNetTrainer
+        return SegFormerTrainer
 
     def get_model_class(self):
-        return FFT_UNet
+        return SegFormer
 
     def get_dataloader_class(self):
         return TorchDataLoader

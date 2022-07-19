@@ -44,7 +44,8 @@ def split_image_gt(input_dir, output_dir):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    desc_str = 'Split a directory with merged image/groundtruths into 2 separate directories'
+    parser = argparse.ArgumentParser(description=desc_str)
     parser.add_argument('-i', '--input_dir', required=True, type=str, help='Path to input directory')
     parser.add_argument('-o', '--output_dir', required=True, type=str, help='Path to output directory')
     options = parser.parse_args()

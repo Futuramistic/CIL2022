@@ -24,7 +24,7 @@ class DataLoader(abc.ABC):
             Refer to util.py for all the dataset names
         """
         self.dataset = dataset
-        check = self.__download_data(dataset)
+        check = self._download_data(dataset)
         if check == -1:
             print("Using default dataset from the CIL 2022 competition")
             self.dataset = "original"
@@ -208,7 +208,7 @@ class DataLoader(abc.ABC):
         raise NotImplementedError('must be defined for torch or tensorflow loader')
 
     @staticmethod
-    def __download_data(dataset_name):
+    def _download_data(dataset_name):
         """
         Given a dataset name, download it from the network
         Args:
@@ -227,7 +227,7 @@ class DataLoader(abc.ABC):
                 warnings.warn(f"Dataset '{dataset_name}' is a local dataset. Consider uploading it to polybox")
                 return 1
             else:
-                warnings.warn(f"Dataset '{dataset_name}' unknown... error in Dataloader.__download_data()")
+                warnings.warn(f"Dataset '{dataset_name}' unknown... error in Dataloader._download_data()")
                 return -1
 
         # check if data already downloaded; use timestamp file written *after* successful download for the check

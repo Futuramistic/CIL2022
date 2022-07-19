@@ -1,5 +1,7 @@
 import argparse
 import hashlib
+import os
+import sys
 import pysftp
 import requests
 
@@ -18,10 +20,6 @@ and let each model make a prediction, before ensembling all predictions into a s
 os.environ['MLFLOW_TRACKING_USERNAME'] = MLFLOW_HTTP_USER
 os.environ['MLFLOW_TRACKING_PASSWORD'] = MLFLOW_HTTP_PASS
 
-sftp_paths_file = 'sftp_paths.txt'
-checkpoints_output_dir = 'model_checkpoints'
-output_predictions_dir = 'submissions_to_ensemble'
-
 
 def sftp_url_to_command(url):
     """
@@ -34,7 +32,7 @@ def sftp_url_to_command(url):
     return command
 
 
-def load_checkpoint(checkpoint_path):
+def load_checkpoint(checkpoint_path, checkpoints_output_dir):
     """
     Download a model checkpoint either locally or from the network
     Args:
@@ -70,23 +68,18 @@ def load_checkpoint(checkpoint_path):
         return final_checkpoint_path
 
 
-def main():
-    parser = argparse.ArgumentParser(description='Downloads the given checkpoints and creates an ensembled prediction')
-    parser.add_argument('-m', '--model', type=str, default=None, help='Default model name (can specify different '
-                                                                      'names in "sftp_paths.txt")')
-    options = parser.parse_args()
-    model_name = options.model
+def main(model_name, sftp_paths_file, checkpoints_output_dir, output_predictions_dir):
     if model_name is not None:
         model_name = model_name.lower().replace('-', '').replace('_', '')
 
-    # Make sure the user wants to overwrite the current checkponts directory
+    # Make sure the user wants to overwrite the current checkpoints directory
     if os.path.exists(checkpoints_output_dir):
         answer = input(f'{checkpoints_output_dir} already exists. Do you want to overwrite it? [y/n]')
         if answer.lower() == 'y':
             shutil.rmtree(checkpoints_output_dir)
         else:
             print('Exiting...')
-            exit(-1)
+            return
     os.mkdir(checkpoints_output_dir)
 
     # Read the checkpoint paths
@@ -108,7 +101,7 @@ def main():
     # Load the checkpoints from paths
     checkpoint_paths = []
     for sftp_path in sftp_paths:
-        checkpoint_paths.append(load_checkpoint(sftp_path))
+        checkpoint_paths.append(load_checkpoint(sftp_path, checkpoints_output_dir))
 
     if os.path.exists(output_predictions_dir):
         shutil.rmtree(output_predictions_dir)
@@ -117,7 +110,8 @@ def main():
     # Make one prediction per checkpoint
     for idx, checkpoint in enumerate(checkpoint_paths):
         fact = Factory.get_factory(model_name=sftp_path_model_names[idx])
-        is_torch = issubclass(fact.get_dataloader_class(), TorchDataLoader)  # also captures torch RL models with different trainer
+        # also captures torch RL models with different trainer:
+        is_torch = issubclass(fact.get_dataloader_class(), TorchDataLoader)
         predictor_script = 'torch_predictor' if is_torch else 'tf_predictor'
         command = f"python {predictor_script}.py -m {model_name} -c {checkpoints_output_dir}/{checkpoint}"
         if model_name in ['deeplabv3', 'cranet']:
@@ -128,9 +122,22 @@ def main():
         os.system(f'{move_command} dummy_submission.csv {output_predictions_dir}/{idx}.csv')
 
     # Ensemble all predictions
-    os.system(f'python ensembled_submission_creator.py')
+    os.system(f'python processing/ensembled_submission_creator.py')
 
 
 if __name__ == '__main__':
-    main()
+    desc_str = 'Given a list of sftp urls, retrieve the corresponding checkpoints, load them into their respective ' \
+               'models and let each model make a prediction, before ensembling all predictions into a single ' \
+               'submission file'
+    parser = argparse.ArgumentParser(description=desc_str)
+    parser.add_argument('-m', '--model', type=str, default=None, help='Default model name (can specify different '
+                                                                      'names in sftp_paths_file)')
+    parser.add_argument('-f', '--sftp_paths_file', required=False, default='sftp_paths.txt', type=str,
+                        help='Path to file with SFTP paths of checkpoints to use to create ensembles')
+    parser.add_argument('-c', '--checkpoints_output_dir', required=False, default='model_checkpoints', type=str,
+                        help='Path to directory in which to store downloaded model checkpoints')
+    parser.add_argument('-o', '--output_predictions_dir', required=False, default='submissions_to_ensemble', type=str,
+                        help='Path to directory in which to store submissions to ensemble')
 
+    options = parser.parse_args()
+    main(options.model, options.sftp_paths_file, options.checkpoints_output_dir, options.output_predictions_dir)

@@ -63,7 +63,8 @@ def merge_image_gt(groundtruths, images_dir, output_dir):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    desc_str = 'Merge an image directory with the corresponding groundtruths directory'
+    parser = argparse.ArgumentParser(description=desc_str)
     parser.add_argument('-d', '--dataset_dir', required=True, type=str, help='Path to the root '
                                                                              'directory of the dataset')
     parser.add_argument('--ratio_low', default=0.0, type=float, help='Lower bound on accepted white/black ratio')

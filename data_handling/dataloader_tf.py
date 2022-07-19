@@ -305,7 +305,7 @@ class TFDataLoader(DataLoader):
             image = tf.image.random_brightness(image, max_delta=self.brightness, seed=None)
             image = tf.image.random_saturation(image, lower=self.saturation[0], upper=self.saturation[1], seed=None)
             image = tf.image.random_contrast(image, lower=self.contrast[0], upper=self.contrast[1], seed=None)
-            image = tf.clip_by_value(image, 0.0, 1.0)
+            image = tf.clip_by_value(image, 0.0, 0.99999)
             image = tf.image.convert_image_dtype(image, dtype=img_dtype)
 
         # Rotate by 90 degrees only - if we rotate by an aribitrary -> road my disappear!

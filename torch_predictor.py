@@ -1,27 +1,21 @@
 # Imports
 import torch
-from tqdm import tqdm
-import pexpect
-import argparse
-
-import torchvision.transforms.functional as TF
-from factory import Factory
-from losses.precision_recall_f1 import precision_recall_f1_score_torch
-from models.learning_aerial_image_segmenation_from_online_maps.Unet import UNet
-from data_handling.dataloader_torch import TorchDataLoader
-from trainers.u_net import UNetTrainer
-from utils import *
-from blobs_remover import remove_blobs
-
-from losses import *
 import numpy as np
 import tensorflow.keras as K
+import argparse
+import torchvision.transforms.functional as TF
+
+from factory import Factory
+from losses.precision_recall_f1 import patchified_f1_scores_torch
+from processing.blobs_remover import remove_blobs
+from tqdm import tqdm
+from losses import *
 from utils import *
 
 
 # Fixed constants
 offset = 144  # Numbering of first test image
-dataset = 'original'
+dataset = 'original'  # dataset name
 sigmoid = torch.nn.Sigmoid()
 
 device = None
@@ -30,8 +24,19 @@ test_loader = None
 blob_threshold = None
 
 
-# modify in tf_predictor.py as well!
+"""
+Given a trained model, make predictions on the test set
+"""
+
+
 def compute_best_threshold(loader, apply_sigmoid):
+    """
+    Line search segmentation thresholds and select the one that works
+    the best on the training set.
+    Args:
+        loader: the dataset loader
+        apply_sigmoid (bool): whether to apply the sigmoid on the output of the model
+    """
     best_thresh = 0
     best_f1_score = 0
     for thresh in np.linspace(0, 1, 21):
@@ -46,8 +51,12 @@ def compute_best_threshold(loader, apply_sigmoid):
                 if apply_sigmoid:
                     output_ = sigmoid(output_)
                 preds = (output_ >= thresh).float()
-                _, _, f1_score = precision_recall_f1_score_torch(preds, y)
-                f1_scores.append(f1_score.cpu().numpy())
+                #_, _, _, _, _, _, _, f1_weighted, *_ = precision_recall_f1_score_torch(preds, y)
+                #f1_scores.append(f1_weighted.cpu().numpy())
+
+                _, _, f1_patchified_weighted = patchified_f1_scores_torch(preds, y)
+                f1_scores.append(f1_patchified_weighted.cpu().numpy())
+                
                 del x_
                 del y
         f1_score = np.mean(f1_scores)
@@ -60,7 +69,14 @@ def compute_best_threshold(loader, apply_sigmoid):
 
 
 def predict(segmentation_threshold, apply_sigmoid, with_augmentation=False):
-    # Prediction
+    """
+    Make predictions using a trained model
+    Args:
+        segmentation_threshold (float): the threshold determining the boundary between pixel classes
+        apply_sigmoid (bool): whether to apply the sigmoid on the output of the model
+        with_augmentation (bool): If true, augment the images, predict on each augmented version,
+        then ensemble the predictions
+    """
     with torch.no_grad():
         i = 0
         for x in tqdm(test_loader):
@@ -89,6 +105,13 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=False):
 
 # Transformation functions
 def rotation_transform(image, angle, inverse=False):
+    """
+    Apply a rotation transformation on an image
+    Args:
+        image (Tensor): Input image
+        angle (float): rotation angle
+        inverse (bool): If true apply the inverse transformation
+    """
     if not inverse:
         image = TF.rotate(image, angle)
     else:
@@ -97,11 +120,17 @@ def rotation_transform(image, angle, inverse=False):
 
 
 def v_flip_transform(image):
+    """
+    Flip the given image vertically
+    """
     image = TF.vflip(image)
     return image
 
 
 def h_flip_transform(image):
+    """
+    Flip the given image horizontally
+    """
     image = TF.hflip(image)
     return image
 
@@ -161,6 +190,7 @@ def main():
     parser.add_argument('-m', '--model', type=str, required=True)
     parser.add_argument('-c', '--checkpoint', type=str, required=True)
     parser.add_argument('--apply_sigmoid', dest='apply_sigmoid', action='store_true', required=False)
+    parser.add_argument('--blob_threshold', type=int, default=250, help='The threshold for the blob processing')
     parser.set_defaults(apply_sigmoid=False)
     options = parser.parse_args()
 
@@ -169,12 +199,7 @@ def main():
     model_name = options.model
     trained_model_path = options.checkpoint
     apply_sigmoid = options.apply_sigmoid
-
-    # Parameters
-    blob_threshold = 250
-    # model_name = 'cranet'                               # <<<<<<<<<<<<<<<<<< Insert model type
-    # trained_model_path = 'cra_ext_aug_better_2720.pt'   # <<<<<<<<<<<<<<<<<< Insert trained model name
-    # apply_sigmoid = False                               # <<<<<<<<<<<<<<<< Apply sigmoid or not to model's output
+    blob_threshold = options.blob_threshold
 
     # Create loader, trainer etc. from factory
     factory = Factory.get_factory(model_name)
@@ -201,8 +226,10 @@ def main():
 
     create_or_clean_directory(OUTPUT_PRED_DIR)
 
+    # Compute the best threshold
     segmentation_threshold = compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
 
+    # Make the final predictions
     predict(segmentation_threshold, apply_sigmoid=apply_sigmoid, with_augmentation=False)
 
 
