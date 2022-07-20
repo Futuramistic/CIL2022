@@ -9,7 +9,7 @@ from utils import *
 import numpy as np
 from losses.loss_harmonizer import DEFAULT_TF_DIM_LAYOUT
 import argparse
-
+import tensorflow as tf
 
 """
 Given a trained model, make predictions on the test set
@@ -24,6 +24,28 @@ offset = 144  # Numbering of first test image
 dataset = 'original'
 test_set_size = 144
 
+def get_saliency_map(model, image):
+    with tf.GradientTape() as tape:
+        tape.watch(image)
+        predictions = model(image)
+        
+        loss = predictions
+    
+    # Get the gradients of the loss w.r.t to the input image.
+    gradient = tape.gradient(loss, image)
+    
+    # take maximum across channels
+    gradient = tf.reduce_max(gradient, axis=-1)
+    
+    # convert to numpy
+    gradient = gradient.numpy()
+    
+    # normalize between 0 and 1
+    min_val, max_val = np.min(gradient), np.max(gradient)
+    smap = (gradient - min_val) / (max_val - min_val + K.backend.epsilon())
+    
+    saliency_image_gray =tf.expand_dims(tf.squeeze(tf.convert_to_tensor(smap)),-1)
+    return tf.image.grayscale_to_rgb(saliency_image_gray)
 
 def compute_best_threshold(loader, apply_sigmoid):
     """
