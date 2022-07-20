@@ -35,12 +35,12 @@ def main():
                     'load_checkpoint_path', 'C', 'segmentation_threshold', 't', 'use_channelwise_norm', 'history_size',
                     'max_rollout_len', 'std', 'reward_discount_factor', 'num_policy_epochs', 'policy_batch_size',
                     'sample_from_action_distributions', 'visualization_interval', 'min_steps', 'rollout_len',
-                    'blobs_removal_threshold', 'T', 'hyper_seg_threshold', 'w', 'use_sample_weighting']
+                    'blobs_removal_threshold', 'T', 'hyper_seg_threshold', 'w', 'use_sample_weighting', 'adaboost', 'a']
     dataloader_args = ['dataset', 'd', 'use_geometric_augmentation', 'use_color_augmentation',
-                       'aug_brightness', 'aug_contrast', 'aug_saturation']
+                       'aug_brightness', 'aug_contrast', 'aug_saturation', 'adaboost', 'a']
 
     # list of other arguments to avoid passing to constructor of model class
-    filter_args = ['h', 'model', 'm', 'evaluate', 'eval', 'V', 'seed', 'S']
+    filter_args = ['h', 'model', 'm', 'evaluate', 'eval', 'V', 'seed', 'S', 'adaboost_runs', 'A']
 
     parser = argparse.ArgumentParser(description='Implementation of ETHZ CIL Road Segmentation 2022 project')
     parser.add_argument('-m', '--model', type=str, required=True)
@@ -69,6 +69,10 @@ def main():
     parser.add_argument('-w', '--use_sample_weighting', type=bool, required=False, default=False,
                         help="If True, use sample weighting during training to train more on samples with big errors.\
                             Currently only working with torch")
+    parser.add_argument('-a', '--adaboost', type=bool, required=False, default=False,
+                        help="If True, apply the Adaboost algorithm to the training")
+    parser.add_argument('-A', '--adaboost_runs', type=int, required=False, default=20,
+                        help="Only if adaboost is used, specify the number of models to ensemble")
     known_args, unknown_args = parser.parse_known_args()
 
     # Process the commandline arguments
@@ -101,36 +105,61 @@ def main():
     factory = Factory.get_factory(known_args.model)
     # Create the dataloader using the commandline arguments
     dataloader = factory.get_dataloader_class()(**{k: v for k, v in arg_dict.items() if k.lower() in dataloader_args})
-    # Create the model using the commandline arguments
-    model = factory.get_model_class()(**{k: v for k, v in arg_dict.items() if k.lower() not in [*trainer_args,
-                                                                                                *dataloader_args,
-                                                                                                *filter_args]})
-    # Create the trainer using the commandline arguments
-    trainer = factory.get_trainer_class()(dataloader=dataloader, model=model,
-                                          **{k: v for k, v in arg_dict.items() if k.lower() in trainer_args})
+    
+    # model weights used for adaboost for later ensembling
+    model_weights = np.zeros(num_model)
+    
+    # loop for executing training and evaluation is only run once if adaboost is not used
+    for num_model in range(known_args_dict["adaboost_runs"]):
+        
+        if num_model == 0:
+            data_weights = ... # (make function in dataloader)
+        
+        # Create the model using the commandline arguments
+        model = factory.get_model_class()(**{k: v for k, v in arg_dict.items() if k.lower() not in [*trainer_args,
+                                                                                                    *dataloader_args,
+                                                                                                    *filter_args]})
+        
+        # Create the trainer using the commandline arguments
+        trainer = factory.get_trainer_class()(dataloader=dataloader, model=model,
+                                            **{k: v for k, v in arg_dict.items() if k.lower() in trainer_args})
+        
+        # if adaboost is used, adapt the experiment name for each new model
+        if known_args_dict["adaboost"]:
+            old_name = trainer.mlflow_experiment_name
+            trainer.mlflow_experiment_name = f"{str(old_name)}_run_{num_model}" if old_name is not None else f"Run_{num_model}"
+        # TODO: trainer and dataloader both get adaboost info --> dataloader has to save the data weights whereas trainer has
+        # to call specific functions from the dataloader, depending on torch or tensorflow
+        # TODO: add argument to all trainers and dataloaders
 
-    # do not move these Pushbullet messages into the Trainer class, as this may lead to a large amount of
-    # messages when using Hyperopt
+        # do not move these Pushbullet messages into the Trainer class, as this may lead to a large amount of
+        # messages when using Hyperopt
 
-    if ('evaluate' in known_args_dict and known_args_dict['evaluate']) or \
-            ('eval' in known_args_dict and known_args_dict['eval']):
-        # evaluate
-        if trainer.load_checkpoint_path is not None:
-            trainer._init_mlflow()
-            trainer._load_checkpoint(trainer.load_checkpoint_path)
-        metrics = trainer.eval()
-        if not IS_DEBUG:
-            pushbullet_logger.send_pushbullet_message(('Evaluation finished. Metrics: %s\n' % str(metrics)) + \
-                                                      f'Hyperparameters:\n{trainer._get_hyperparams()}')
-    else:
-        # train
-        if not IS_DEBUG:
-            pushbullet_logger.send_pushbullet_message('Training started.\n' + \
-                                                      f'Hyperparameters:\n{trainer._get_hyperparams()}')
-        last_test_loss = trainer.train()
-        if not IS_DEBUG:
-            pushbullet_logger.send_pushbullet_message(('Training finished. Last test loss: %.4f\n' % last_test_loss) + \
-                                                      f'Hyperparameters:\n{trainer._get_hyperparams()}')
+        if ('evaluate' in known_args_dict and known_args_dict['evaluate']) or \
+                ('eval' in known_args_dict and known_args_dict['eval']):
+            # evaluate
+            if trainer.load_checkpoint_path is not None:
+                trainer._init_mlflow()
+                trainer._load_checkpoint(trainer.load_checkpoint_path)
+            metrics = trainer.eval()
+            if not IS_DEBUG:
+                pushbullet_logger.send_pushbullet_message(('Evaluation finished. Metrics: %s\n' % str(metrics)) + \
+                                                        f'Hyperparameters:\n{trainer._get_hyperparams()}')
+        else:
+            # train
+            if not IS_DEBUG:
+                pushbullet_logger.send_pushbullet_message('Training started.\n' + \
+                                                        f'Hyperparameters:\n{trainer._get_hyperparams()}')
+            last_test_loss = trainer.train()
+            if not IS_DEBUG:
+                pushbullet_logger.send_pushbullet_message(('Training finished. Last test loss: %.4f\n' % last_test_loss) + \
+                                                        f'Hyperparameters:\n{trainer._get_hyperparams()}')
+        
+        if known_args_dict["adaboost"]:
+            ... # TODO: calculate the model weight
+        
+        else:
+            break
 
 
 if __name__ == '__main__':
