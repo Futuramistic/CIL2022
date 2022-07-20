@@ -152,7 +152,7 @@ class TorchTrainer(Trainer, abc.ABC):
 
         for (batch_xs, batch_ys, _) in subset_dl:
             batch_xs, batch_ys = batch_xs.to(self.device), batch_ys.numpy()
-            output = self.model(batch_xs)
+            output = self.model(batch_xs, apply_activation=True)
             if type(output) is tuple:
                 output = output[0]
 
@@ -330,7 +330,7 @@ class TorchTrainer(Trainer, abc.ABC):
         for (x, y, sample_idx) in train_loader:
             x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.long)
             y = torch.squeeze(y, dim=1)  # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
-            preds = model(x)
+            preds = model(x, apply_activation=False)
             loss = self.loss_function(preds, y)
             with torch.no_grad():
                 train_loss += loss.item()
@@ -368,7 +368,7 @@ class TorchTrainer(Trainer, abc.ABC):
             for (x, y, _) in test_loader:
                 x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.long)
                 y = torch.squeeze(y, dim=1)
-                preds = model(x)
+                preds = model(x, apply_activation=False)
                 test_loss += self.loss_function(preds, y).item()
                 del x
                 del y
@@ -402,7 +402,7 @@ class TorchTrainer(Trainer, abc.ABC):
         for (x, y, _) in self.test_loader:
             x = x.to(self.device, dtype=torch.float32)
             y = y.to(self.device, dtype=torch.float32)
-            output = self.model(x)
+            output = self.model(x, apply_activation=True)
             if type(output) is tuple:
                 output = output[0]
             preds = collapse_channel_dim_torch((output >= threshold).float(), take_argmax=True)
@@ -447,7 +447,7 @@ class TorchTrainer(Trainer, abc.ABC):
             for (sample_x, sample_y, _) in self.seg_thresh_dataloader:  # batch size is 1
                 x, y = sample_x.to(self.device, dtype=torch.float32), sample_y.to(self.device, dtype=torch.long)
                 y = torch.squeeze(y, dim=1)  # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
-                output = self.model(x)
+                output = self.model(x, apply_activation=True)
                 if type(output) is tuple:
                     output = output[0]
 

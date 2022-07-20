@@ -30,9 +30,11 @@ class DeepLabV3PlusGAN(nn.Module):
     def get_discriminator(self):
         return self.discriminator
 
-    def forward(self, x):
-        o1 = self.model(x)["out"]
-        return o1
+    def forward(self, x, apply_activation=True):
+        out = self.model(x)["out"]
+        if apply_activation:
+            out = self.sigmoid(out)
+        return out
 
 
 class CNN_Discriminator(nn.Module):

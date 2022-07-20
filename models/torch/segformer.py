@@ -389,8 +389,10 @@ class DWConv(nn.Module):
 
         return x
 
+# difference across mit backbones lies in depths and embedding dims
 
-class mit_b0(MixVisionTransformer):
+
+class mit_bzero(MixVisionTransformer):
     def __init__(self, pretrained_backbone_path=None, **kwargs):
         super(mit_b0, self).__init__(
             img_size=400, patch_size=4, embed_dims=[32, 64, 160, 256], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
@@ -398,7 +400,7 @@ class mit_b0(MixVisionTransformer):
             drop_rate=0.0, drop_path_rate=0.1, pretrained_backbone_path=pretrained_backbone_path)
 
 
-class mit_b1(MixVisionTransformer):
+class mit_bone(MixVisionTransformer):
     def __init__(self, pretrained_backbone_path=None, **kwargs):
         super(mit_b1, self).__init__(
             img_size=400, patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
@@ -406,7 +408,7 @@ class mit_b1(MixVisionTransformer):
             drop_rate=0.0, drop_path_rate=0.1, pretrained_backbone_path=pretrained_backbone_path)
 
 
-class mit_b2(MixVisionTransformer):
+class mit_btwo(MixVisionTransformer):
     def __init__(self, pretrained_backbone_path=None, **kwargs):
         super(mit_b2, self).__init__(
             img_size=400, patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
@@ -414,7 +416,7 @@ class mit_b2(MixVisionTransformer):
             drop_rate=0.0, drop_path_rate=0.1, pretrained_backbone_path=pretrained_backbone_path)
 
 
-class mit_b3(MixVisionTransformer):
+class mit_bthree(MixVisionTransformer):
     def __init__(self, pretrained_backbone_path=None, **kwargs):
         super(mit_b3, self).__init__(
             img_size=400, patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
@@ -422,17 +424,16 @@ class mit_b3(MixVisionTransformer):
             drop_rate=0.0, drop_path_rate=0.1, pretrained_backbone_path=pretrained_backbone_path)
 
 
-class mit_b4(MixVisionTransformer):
+class mit_bfour(MixVisionTransformer):
     def __init__(self, pretrained_backbone_path=None, **kwargs):
         super(mit_b4, self).__init__(
             patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 8, 27, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1, pretrained_backbone_path=pretrained_backbone_path)
 
-
-class mit_b5(MixVisionTransformer):
+class mit_bfive(MixVisionTransformer):
     def __init__(self, pretrained_backbone_path=None, **kwargs):
-        super(mit_b5, self).__init__(
+        super(mit_bfive, self).__init__(
             patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 6, 40, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1, pretrained_backbone_path=pretrained_backbone_path)
@@ -571,7 +572,14 @@ class SegFormerHead(nn.Module):
 
 class SegFormer(nn.Module):
     def __init__(self, align_corners=False,
-                 pretrained_backbone_path='https://polybox.ethz.ch/index.php/s/Yj3EGcUlcMnqUgY/download'):
+                 pretrained_backbone_path='https://polybox.ethz.ch/index.php/s/5j6rsXjTvcRWgSP/download',
+                 backbone_name='mit_bfive'):
+        
+        # backbone paths:
+        # https://polybox.ethz.ch/index.php/s/Yj3EGcUlcMnqUgY/download for mit_b1
+        # https://polybox.ethz.ch/index.php/s/5j6rsXjTvcRWgSP for mit_b5
+        
+
         super(SegFormer, self).__init__()
         if pretrained_backbone_path is not None and pretrained_backbone_path.lower().startswith('http'):
             os.makedirs('pretrained', exist_ok=True)
@@ -581,12 +589,13 @@ class SegFormer(nn.Module):
                 urllib.request.urlretrieve(pretrained_backbone_path, target_path)
             pretrained_backbone_path = target_path
 
-        self.backbone = mit_b1(pretrained_backbone_path=pretrained_backbone_path)
+        self.backbone = eval(backbone_name)(pretrained_backbone_path=pretrained_backbone_path)
+        self.backbone_name = backbone_name
         self.head = SegFormerHead()
         self.align_corners = align_corners
         self.pretrained_backbone_path = pretrained_backbone_path
 
-    def forward(self, x, softmax=True):
+    def forward(self, x, apply_activation=True):
         B, C, H, W = x.shape
         feats = self.backbone(x)
         head_out = self.head(feats)
@@ -594,6 +603,6 @@ class SegFormer(nn.Module):
         if H_H < H or H_W < W:
             # see https://github.com/NVlabs/SegFormer/blob/08c5998dfc2c839c3be533e01fce9c681c6c224a/mmseg/models/segmentors/encoder_decoder.py
             head_out = resize(head_out, (H, W), mode='bilinear', align_corners=self.align_corners)
-        if softmax:
+        if apply_activation:
             head_out = F.softmax(head_out)
         return head_out

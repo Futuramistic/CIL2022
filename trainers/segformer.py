@@ -107,7 +107,7 @@ class SegFormerTrainer(TorchTrainer):
         for (x, y, sample_idx) in train_loader:
             x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
             y = torch.squeeze(y, dim=1)  # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
-            preds = model(x, softmax=False)
+            preds = model(x, apply_activation=False)
             loss = self.loss_function(preds, y)
             with torch.no_grad():
                 train_loss += loss.item()
@@ -142,7 +142,7 @@ class SegFormerTrainer(TorchTrainer):
             for (x, y, sample_idx) in test_loader:
                 x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.long)
                 y = torch.squeeze(y, dim=1)
-                preds = model(x, softmax=False)
+                preds = model(x, apply_activation=False)
                 test_loss += self.loss_function(preds, y).item()
                 del x
                 del y

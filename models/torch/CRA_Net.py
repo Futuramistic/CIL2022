@@ -237,10 +237,12 @@ class OurDinkNet50(nn.Module):
         self.finalrelu2 = nonlinearity
         self.finalconv3 = nn.Conv2d(32, num_classes, 1)
 
+        self.softmax = nn.Softmax()
+
         self.lam1 = Variable(torch.rand([]), requires_grad=True)
         self.lam2 = Variable(torch.rand([]), requires_grad=True)
 
-    def forward(self, input):
+    def forward(self, input, apply_activation=True):
         # Encoder
         x = self.firstconv(input)
         x = self.firstbn(x)
@@ -267,4 +269,6 @@ class OurDinkNet50(nn.Module):
         out = self.finalrelu2(out)
         res = self.finalconv3(out)
         refine = self.sample_conv(out)
+        if apply_activation:
+            res = self.softmax(res)
         return res, refine

@@ -19,8 +19,9 @@ class FastSCNN(nn.Module):
         self.global_feature_extractor = GlobalFeatureExtractor(64, [64, 96, 128], 128, 6, [3, 3, 3])
         self.feature_fusion = FeatureFusionModule(64, 128, 128)
         self.classifier = Classifer(128, num_classes)
+        self.activation = nn.Softmax() if num_classes > 1 else nn.Sigmoid()
 
-    def forward(self, x):
+    def forward(self, x, apply_activation=True):
         size = x.size()[2:]
         higher_res_features = self.learning_to_downsample(x)
         x = self.global_feature_extractor(higher_res_features)
@@ -28,6 +29,8 @@ class FastSCNN(nn.Module):
         x = self.classifier(x)
         outputs = []
         x = F.interpolate(x, size, mode='bilinear', align_corners=True)
+        if apply_activation:
+            x = self.activation(x)
         return x
 
 

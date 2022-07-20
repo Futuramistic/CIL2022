@@ -13,6 +13,10 @@ class Deeplabv3(nn.Module):
         super().__init__()
         self.model = deeplabv3(pretrained=True, progress=True)
         self.model.classifier = DeepLabHead(2048, 1)
+        self.sigmoid = nn.Sigmoid()
 
-    def forward(self, x):
-        return self.model(x)["out"]
+    def forward(self, x, apply_activation=True):
+        out = self.model(x)["out"]
+        if apply_activation:
+            out = self.sigmoid(out)
+        return out

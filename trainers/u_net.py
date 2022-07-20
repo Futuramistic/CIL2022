@@ -89,7 +89,7 @@ class UNetTrainer(TorchTrainer):
         train_loss = 0
         for (x, y, sample_idx) in train_loader:
             x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
-            preds = model(x)
+            preds = model(x, apply_activation=False)
             loss = self.loss_function(preds, y)
             with torch.no_grad():
                 train_loss += loss.item()
@@ -118,7 +118,7 @@ class UNetTrainer(TorchTrainer):
         with torch.no_grad():
             for (x, y, _) in test_loader:
                 x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
-                preds = model(x)
+                preds = model(x, apply_activation=False)
                 test_loss += self.loss_function(preds, y).item()
                 del x
                 del y

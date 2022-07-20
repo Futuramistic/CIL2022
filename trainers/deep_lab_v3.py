@@ -97,7 +97,7 @@ class DeepLabV3Trainer(TorchTrainer):
             x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
             if x.shape[0] == 1:
                 continue  # drop if the last batch has size of 1 (otherwise the deeplabv3 model crashes)
-            preds = model(x)
+            preds = model(x, apply_activation=False)
             loss = self.loss_function(preds, y)
             with torch.no_grad():
                 train_loss += loss.item()
@@ -134,7 +134,7 @@ class DeepLabV3Trainer(TorchTrainer):
         with torch.no_grad():
             for (x, y, _) in test_loader:
                 x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
-                preds = model(x)
+                preds = model(x, apply_activation=False)
                 test_loss += self.loss_function(preds, y).item()
                 del x
                 del y
