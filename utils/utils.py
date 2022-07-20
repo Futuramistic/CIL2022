@@ -113,7 +113,19 @@ DATASET_ZIP_URLS = {
     # augmentation procedure, the second city class oversampled, and with 25 samples from original dataset excluded from
     # augmentation procedure to avoid data leakage; same 25 samples as in "new_original", "new_ext_original" and
     # "new_original_aug_6" datasets; use split of 0.9875 to use exactly these 25 samples as the validation set
-    "ext_original_aug_6_oversampled": "https://polybox.ethz.ch/index.php/s/9hDXLlX7mB5Xljq/download"
+    "ext_original_aug_6_oversampled": "https://polybox.ethz.ch/index.php/s/9hDXLlX7mB5Xljq/download",
+
+    # validation split 1 of original dataset (samples "satimage_0.png" to "satimage_24.png" from "original" dataset
+    # used as validation set)
+    "original_split_1": "https://polybox.ethz.ch/index.php/s/EhNndrS2fIWfWZF/download",
+    
+    # validation split 2 of original dataset (samples "satimage_25.png" to "satimage_49.png" from "original" dataset
+    # used as validation set)
+    "original_split_2": "https://polybox.ethz.ch/index.php/s/TKzv8THbJPEdH9i/download",
+    
+    # validation split 3 of original dataset (samples "satimage_50.png" to "satimage_74.png" from "original" dataset
+    # used as validation set)
+    "original_split_3": "https://polybox.ethz.ch/index.php/s/eQdRlIKlIGJ7EWg/download",
 }
 DATASET_STATS = {
     "original": {
