@@ -25,6 +25,16 @@ dataset = 'original'
 test_set_size = 144
 
 def get_saliency_map(model, image):
+    """
+    Given a model and an image, compute its saliency map
+    WARNING: Extremly high memory usage; unused in code due to this issue!
+    !!! Should only be run on high-memory GPUs !!!
+    Args:
+        model: TF model
+        image (Tensor): Image to compute the saliency map for
+    Returns: 
+        Tensor - saliency map of an image
+    """
     with tf.GradientTape() as tape:
         tape.watch(image)
         predictions = model(image)
