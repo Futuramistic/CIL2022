@@ -137,7 +137,7 @@ def rotation_transform(image, angle, inverse=False):
     Apply a rotation transformation on an image
     Args:
         image (Tensor): Input image
-        angle (float): rotation angle
+        angle (float): rotation angle, in degrees
         inverse (bool): If true apply the inverse transformation
     """
     if not inverse:
@@ -181,18 +181,12 @@ def _augment(image):
     Args:
         image (Tensor [1, ..., H, W])
     Returns:
-        augmented tensor (Tensor [6, ..., H, W])
+        augmented tensor (Tensor [8, ..., H, W])
     """
     xs = []
     for i in range(4):
         xs.append(rotation_transform(image, i * 90, inverse=False))
     flipped = v_flip_transform(image)
-    for i in range(4):
-        xs.append(rotation_transform(flipped, i * 90, inverse=False))
-    flipped = h_flip_transform(image)
-    for i in range(4):
-        xs.append(rotation_transform(flipped, i * 90, inverse=False))
-    flipped = v_flip_transform(h_flip_transform(image))
     for i in range(4):
         xs.append(rotation_transform(flipped, i * 90, inverse=False))
     augmented = torch.stack(xs, dim=0)
@@ -204,7 +198,7 @@ def _unify(images):
     Perform the inverse operation from augment. First the inverse transforms are applied,
     then the predictions are ensembled into one image.
     Args:
-        images (Tensor [6, ..., H, W])
+        images (Tensor [8, ..., H, W])
     Returns:
         a single ensembled image (Tensor [1, ..., H, W])
     """
@@ -215,12 +209,6 @@ def _unify(images):
     for i in range(4):
         img_i = rotation_transform(images[i+4].unsqueeze(0), i * 90, inverse=True)
         ll.append(v_flip_transform(img_i))
-    for i in range(4):
-        img_i = rotation_transform(images[i+8].unsqueeze(0), i * 90, inverse=True)
-        ll.append(h_flip_transform(img_i))
-    for i in range(4):
-        img_i = rotation_transform(images[i+12].unsqueeze(0), i * 90, inverse=True)
-        ll.append(h_flip_transform(v_flip_transform(img_i)))
     images = torch.cat(ll, dim=0)
     return _ensemble(images)
 

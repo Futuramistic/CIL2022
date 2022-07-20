@@ -258,7 +258,7 @@ def tf_count(t, val):
     return tf.cast(count,tf.float32)
 
 
-def patchified_f1_scores_tf(thresholded_prediction, targets):
+def patchified_f1_scores_tf(thresholded_prediction, targets, patch_thresh=0.25):
     patch_sums_pred = tf.zeros([*thresholded_prediction.shape[:-2],
                                  thresholded_prediction.shape[-2] // 16,
                                  thresholded_prediction.shape[-1] // 16]).numpy()
@@ -275,7 +275,7 @@ def patchified_f1_scores_tf(thresholded_prediction, targets):
     patch_sums_pred =  tf.convert_to_tensor(patch_sums_pred, dtype=tf.float32)
     patch_sums_gt   =  tf.convert_to_tensor(patch_sums_gt,   dtype=tf.float32)
     # > and ratio of 0.25 (0.25 * 256 = 64) used in "mask_to_submission.py"
-    patchified_prediction = tf.cast(patch_sums_pred > 64, dtype=tf.int32)
+    patchified_prediction = tf.cast(patch_sums_pred > int(patch_thresh * 256), dtype=tf.int32)
     patchified_targets = tf.cast(patch_sums_gt > 64, dtype=tf.int32)
 
     zeros_weight_patchified =   tf_count(patchified_targets,0).numpy().item() / num_patches
