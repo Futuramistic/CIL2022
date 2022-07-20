@@ -13,6 +13,11 @@ research process and results.
 * Anne Marx
 * Noureddine Gueddach
 
+## Our image segmentation Framework
+We conceived our framework to be able to handle both tensorflow-based models and torch-based models, as both are ubiquitous in the literature. To track our experiments, we used the MLFlow framework. Although it makes the code base a bit more complex, it allowed us to have a centralized space where we could log and **share** our experiments, model checkpoints, hyperparameters and so on. For hyperparameter tuning, we use [HyperOpt](http://hyperopt.github.io/hyperopt/), a framework conceived to optimize hyper parameter searches.
+
+The overall structure of the repository is described below.
+
 ## Code structure
 
 ```
