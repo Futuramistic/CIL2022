@@ -151,6 +151,7 @@ CHECKPOINTS_DIR = os.path.join("checkpoints", str(SESSION_ID))
 LOGGING_DIR = "logs/"
 COMMAND_LINE_FILE_NAME = "command_line.txt"
 OUTPUT_PRED_DIR = "output_preds"
+OUTPUT_PRED_DIR = "saliency_maps"
 MLFLOW_FTP_USER = "mlflow_user"
 MLFLOW_HTTP_USER = "cil22"
 MLFLOW_HTTP_PASS = "equilibrium"

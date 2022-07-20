@@ -95,12 +95,15 @@ def main():
     parser.add_argument('-m', '--model', type=str, required=True)
     parser.add_argument('-c', '--checkpoint', type=str, required=True)
     parser.add_argument('--apply_sigmoid', dest='apply_sigmoid', action='store_true', required=False)
+    parser.add_argument('--saliency', dest='compute_saliency', action='store_true', required=False)
     parser.set_defaults(apply_sigmoid=False)
+    parser.set_defaults(compute_saliency=False)
     options = parser.parse_args()
 
     model_name = options.model
     trained_model_path = options.checkpoint
     apply_sigmoid = options.apply_sigmoid
+    compute_saliency = options.compute_saliency
 
     global model
     # Create loader, trainer etc. from factory
@@ -126,6 +129,8 @@ def main():
     # Prediction
     i = 0
     for x in tqdm(test_loader):
+        if compute_saliency:
+            K.preprocessing.image.save_img(f'{SALIENCY_MAP_DIR}/saliency_map_{offset+i}.png', get_saliency_map(model,x))
         output = model.predict(x)
         channel_dim_idx = DEFAULT_TF_DIM_LAYOUT.find('C')
         data_format = "channels_last" if channel_dim_idx == 3 else "channels_first"
