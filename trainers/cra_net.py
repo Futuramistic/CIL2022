@@ -46,7 +46,9 @@ class CRANetTrainer(TorchTrainer):
             # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_or_lr,
             # mode="max", factor=0.5, patience=5, verbose=True, min_lr=0.00001)
             # Alternative
-            scheduler = torch.optim.lr_scheduler.StepLR(optimizer_or_lr, step_size=30, gamma=0.1)
+            # scheduler = torch.optim.lr_scheduler.StepLR(optimizer_or_lr, step_size=30, gamma=0.1)
+            
+            scheduler = torch.optim.lr_scheduler.StepLR(optimizer_or_lr, step_size=180, gamma=0.1)
 
         if loss_function is None:
             loss_function = cra_loss()
