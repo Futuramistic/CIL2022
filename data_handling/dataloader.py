@@ -51,6 +51,7 @@ class DataLoader(abc.ABC):
         self.training_data = None
         self.testing_data = None
         self.unlabeled_testing_data = None
+        
 
     @staticmethod
     def get_img_gt_paths(img_dir, gt_dir, initial_shuffle=True):

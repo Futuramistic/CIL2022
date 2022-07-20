@@ -258,7 +258,7 @@ class TorchTrainer(Trainer, abc.ABC):
         print('Hyperparameters:')
         print(self._get_hyperparams())
         print('')
-
+        
         self.train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                                     preprocessing=self.preprocessing)
         self.test_loader = self.dataloader.get_testing_dataloader(batch_size=1, preprocessing=self.preprocessing)
@@ -272,8 +272,11 @@ class TorchTrainer(Trainer, abc.ABC):
         # use self.Callback instead of TorchTrainer.Callback, to allow subclasses to overwrite the callback handler
         callback_handler = self.Callback(self, mlflow_run, self.model)
         best_val_loss = 1e12
-        # init all samples with the same weight, is overwritten in _train_step()
-        self.weights = np.zeros((len(self.train_loader.dataset)), dtype=np.float16)
+        
+        if self.use_sample_weighting:
+            # init all samples with the same weight, is overwritten in _train_step()
+            self.weights = np.zeros((len(self.train_loader.dataset)), dtype=np.float16)
+        
         for epoch in range(self.num_epochs):
             if self.use_sample_weighting and epoch != 0:
                 # TODO: incoorperate adaboost

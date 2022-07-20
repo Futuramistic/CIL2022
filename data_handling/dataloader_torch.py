@@ -3,6 +3,7 @@ import torch
 from torch.utils.data import DataLoader as torchDL, Subset, WeightedRandomSampler
 from .torchDataset import SegmentationDataset
 from .dataloader import DataLoader
+import numpy as np
 
 
 class TorchDataLoader(DataLoader):
@@ -11,7 +12,7 @@ class TorchDataLoader(DataLoader):
     """
 
     def __init__(self, dataset="original", use_geometric_augmentation=False, use_color_augmentation=False,
-                 aug_contrast=[0.8, 1.2], aug_brightness=[0.8, 1.2], aug_saturation=[0.8, 1.2]):
+                 aug_contrast=[0.8, 1.2], aug_brightness=[0.8, 1.2], aug_saturation=[0.8, 1.2], adaboost_run_name=None):
         """
         Args:
             dataset (string): type of Dataset ("original" [from CIL2022 Competition], "Massachusets", ...)
@@ -21,6 +22,7 @@ class TorchDataLoader(DataLoader):
             aug_contrast (list): range of values for the contrast augmentation
             aug_brightness (list): range of values for the brightness augmentation
             aug_saturation (list): range of values for the saturation augmentation
+            adaboost_run_name (str): adaboost run name if adaboost is used
         """
         super().__init__(dataset)
         self.use_geometric_augmentation = use_geometric_augmentation
@@ -28,6 +30,12 @@ class TorchDataLoader(DataLoader):
         self.contrast = aug_contrast
         self.brightness = aug_brightness
         self.saturation = aug_saturation
+        
+        # if adaboost is used, the dataloader is used to store the current sample weights as the same dataloader is used for all
+        # trainers and models
+        self.use_adaboost = adaboost_run_name is not None
+        if self.use_adaboost:
+            self.weights = None # create sample weights
 
     def get_dataset_sizes(self, split):
         """
@@ -86,15 +94,26 @@ class TorchDataLoader(DataLoader):
         training_data_len = int(len(self.training_img_paths)*split)
         testing_data_len = len(self.training_img_paths)-training_data_len
         
-        if weights is None or len(weights) == 0:
-            # if weighting is not used / has not been used yet, self.dataset is not yet set
+        # self.dataset is not yet set in these three cases:
+        if weights is None or len(weights) == 0 or self.use_adaboost:
             self.dataset_obj = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing, training_data_len,
                                                    self.use_geometric_augmentation, self.use_color_augmentation, self.contrast,
                                                    self.brightness, self.saturation)
             self.training_data = Subset(self.dataset_obj, list(range(training_data_len)))
             self.testing_data = Subset(self.dataset_obj, list(range(training_data_len, len(self.dataset_obj))))
-            ret = torchDL(self.training_data, batch_size, shuffle=True, **args)
+            
+            if self.use_adaboost:
+                if self.weights is None:
+                    # init with equal weights, the weights do not have to add up to one
+                    self.weights = np.ones(training_data_len)
+                sampler = WeightedRandomSampler(self.weights, training_data_len, replacement=True)
+                ret = torchDL(self.training_data, batch_size, sampler = sampler, **args) # shuffling is mutually exclusive with sampler
+            
+            else:
+                ret = torchDL(self.training_data, batch_size, shuffle=True, **args)
+            
         else:
+            # sample weighting is mutually exclusive with adaboost
             sampler = WeightedRandomSampler(weights, training_data_len, replacement=True)
             ret = torchDL(self.training_data, batch_size, sampler = sampler, **args) # shuffling is mutually exclusive with sampler
         ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)

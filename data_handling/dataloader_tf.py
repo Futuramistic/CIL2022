@@ -13,7 +13,7 @@ class TFDataLoader(DataLoader):
     """
 
     def __init__(self, dataset="original", pad32=False, use_geometric_augmentation=False, use_color_augmentation=False,
-                 aug_contrast=[0.8, 1.2], aug_brightness=0.2, aug_saturation=[0.8, 1.2]):
+                 aug_contrast=[0.8, 1.2], aug_brightness=0.2, aug_saturation=[0.8, 1.2], adaboost_run_name=None):
         """
         Args:
             dataset (string): type of Dataset ("original" [from CIL2022 Competition], "Massachusets", ...)
@@ -24,6 +24,7 @@ class TFDataLoader(DataLoader):
             aug_contrast (list): range of values for the contrast augmentation
             aug_brightness (list): range of values for the brightness augmentation
             aug_saturation (list): range of values for the saturation augmentation
+            adaboost_run_name (str): adaboost run name if adaboost is used
         """
         super().__init__(dataset)
         self.pad32 = pad32
@@ -33,6 +34,12 @@ class TFDataLoader(DataLoader):
         self.brightness = aug_brightness
         self.use_geometric_augmentation = use_geometric_augmentation
         self.use_color_augmentation = use_color_augmentation
+        
+        # if adaboost is used, the dataloader is used to store the current sample weights as the same dataloader is used for all
+        # trainers and models
+        self.use_adaboost = adaboost_run_name is not None
+        if self.use_adaboost:
+            self.weights = None # create sample weights
 
     def get_dataset_sizes(self, split):
         """
