@@ -78,7 +78,8 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True):
                 if with_augmentation:
                     x_ = _augment(tf.squeeze(x_))
 
-                output_ = model.predict(x_, verbose=0)
+                # will not work on larger samples otherwise
+                output_ = tf.concat([model.predict(tf.expand_dims(sample, 0), verbose=0) for sample in x_], axis=0)
                 if type(output_) is tuple:
                     output_ = output_[0]
                 
@@ -216,19 +217,20 @@ def main():
 
         if apply_sigmoid:
             output = K.layers.Activation('sigmoid')(output)
-
-        if with_augmentation:
-            output = _unify(tf.squeeze(output))
-
+        
         channel_dim_idx = DEFAULT_TF_DIM_LAYOUT.find('C')
         data_format = "channels_last" if channel_dim_idx == 3 else "channels_first"
+
         if output.shape[channel_dim_idx] > 1:
             output = np.argmax(output, axis=channel_dim_idx)
             output = np.expand_dims(output, axis=channel_dim_idx)
+
+        if with_augmentation:
+            output = tf.expand_dims(_unify(tf.squeeze(output)), -1)  # add channel dimension back in
         
         while len(output.shape) > 3:
             output = output[0]
-        pred = (output >= segmentation_threshold).astype(int) * 255
+        pred = tf.cast(output >= segmentation_threshold, tf.int32) * 255
         K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred, data_format=data_format)
         del x
         if i >= test_set_size - 1:
