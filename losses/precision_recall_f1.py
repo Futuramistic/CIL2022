@@ -96,7 +96,7 @@ def f1_torch(thresholded_prediction, targets, classes):
     return (2.0 * precision * recall) / (precision + recall)
 
 
-def patchified_f1_scores_torch(thresholded_prediction, targets):
+def patchified_f1_scores_torch(thresholded_prediction, targets, patch_thresh=0.25):
     patch_sums_pred = torch.zeros([*thresholded_prediction.shape[:-2],
                                     thresholded_prediction.shape[-2] // 16,
                                     thresholded_prediction.shape[-1] // 16])
@@ -112,7 +112,7 @@ def patchified_f1_scores_torch(thresholded_prediction, targets):
             num_patches += 1
 
     # > and ratio of 0.25 (0.25 * 256 = 64) used in "mask_to_submission.py"
-    patchified_prediction = (patch_sums_pred > 64).int()
+    patchified_prediction = (patch_sums_pred > int(patch_thresh*256)).int()
     patchified_targets = (patch_sums_gt > 64).int()
 
     zeros_weight_patchified = (patchified_targets == 0).sum() / num_patches

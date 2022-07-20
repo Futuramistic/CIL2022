@@ -1,12 +1,14 @@
 # Imports
 import torch
-import numpy as np
+import tensorflow as tf
 import tensorflow.keras as K
+import numpy as np
 import argparse
 import torchvision.transforms.functional as TF
 
 from factory import Factory
 from losses.precision_recall_f1 import patchified_f1_scores_torch
+from losses.loss_harmonizer import collapse_channel_dim_torch
 from processing.blobs_remover import remove_blobs
 from tqdm import tqdm
 from losses import *
@@ -29,7 +31,7 @@ Given a trained model, make predictions on the test set
 """
 
 
-def compute_best_threshold(loader, apply_sigmoid):
+def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True):
     """
     Line search segmentation thresholds and select the one that works
     the best on the training set.
@@ -37,38 +39,60 @@ def compute_best_threshold(loader, apply_sigmoid):
         loader: the dataset loader
         apply_sigmoid (bool): whether to apply the sigmoid on the output of the model
     """
-    best_thresh = 0
+    best_seg_thresh = 0
+    best_patch_thresh = 0
     best_f1_score = 0
-    for thresh in np.linspace(0, 1, 21):
-        f1_scores = []
-        with torch.no_grad():
-            for (x_, y) in tqdm(loader):
-                x_ = x_.to(device, dtype=torch.float32)
-                y = y.to(device, dtype=torch.float32)
-                output_ = model(x_)
-                if type(output_) is tuple:
-                    output_ = output_[0]
-                if apply_sigmoid:
-                    output_ = sigmoid(output_)
-                preds = (output_ >= thresh).float()
-                #_, _, _, _, _, _, _, f1_weighted, *_ = precision_recall_f1_score_torch(preds, y)
-                #f1_scores.append(f1_weighted.cpu().numpy())
+    best_blob_thresh = 0
+    for blob_thresh in [0]: # np.linspace(0, 400, 8):
+        for patch_thresh in [0.25]:  # np.linspace(0, 1, 21)
+            for seg_thresh in np.linspace(0, 1, 41):
+                f1_scores = []
+                with torch.no_grad():
+                    for (x_, y, _) in tqdm(loader):
+                        x_ = x_.to(device, dtype=torch.float32)
+                        
+                        if with_augmentation:
+                            x_ = _augment(x_.squeeze())
 
-                _, _, f1_patchified_weighted = patchified_f1_scores_torch(preds, y)
-                f1_scores.append(f1_patchified_weighted.cpu().numpy())
-                
-                del x_
-                del y
-        f1_score = np.mean(f1_scores)
-        print('Threshold', thresh, '- F1 score:', f1_score)
-        if f1_score > best_f1_score:
-            best_thresh = thresh
-            best_f1_score = f1_score
-    print('Best F1-score on train set:', best_f1_score, 'achieved with a threshold of:', best_thresh)
-    return best_thresh
+                        y = y.to(device, dtype=torch.float32)
+                        output_ = model(x_)
+                        if type(output_) is tuple:
+                            output_ = output_[0]
+
+                        output_ = collapse_channel_dim_torch(output_, take_argmax=False)
+                        
+                        # models not requiring "apply_sigmoid" will have applied it here already, so this should be
+                        # before the unification to ensure consistency
+                        if apply_sigmoid: 
+                            output_ = sigmoid(output_)
+
+                        if with_augmentation:
+                            output_ = _unify(output_.squeeze()) # torch.stack([_unify(output_[idx]) for idx in range(output_.shape[0])])
+
+                        preds = (output_ >= seg_thresh).float()
+                        #_, _, _, _, _, _, _, f1_weighted, *_ = precision_recall_f1_score_torch(preds, y)
+                        #f1_scores.append(f1_weighted.cpu().numpy())
+                        
+                        preds = remove_blobs(preds, threshold=blob_thresh)
+
+                        _, _, f1_patchified_weighted = patchified_f1_scores_torch(preds, y, patch_thresh=patch_thresh)
+                        f1_scores.append(f1_patchified_weighted.cpu().numpy())
+                        
+                        del x_
+                        del y
+                f1_score = np.mean(f1_scores)
+                print('Segmentation threshold', seg_thresh, '/ patch threshold', patch_thresh, '/ blob threshold', blob_thresh, '- F1 score:', f1_score)
+                if f1_score > best_f1_score:
+                    best_seg_thresh = seg_thresh
+                    best_patch_thresh = patch_thresh
+                    best_f1_score = f1_score
+                    best_blob_thresh = blob_thresh
+    print('Best F1-score on train set:', best_f1_score, 'achieved with a segmentation threshold of', best_seg_thresh,
+          ', a patch threshold of', best_patch_thresh, ', a blob threshold of', best_blob_thresh)
+    return best_seg_thresh, best_patch_thresh
 
 
-def predict(segmentation_threshold, apply_sigmoid, with_augmentation=False):
+def predict(segmentation_threshold, apply_sigmoid, with_augmentation=True):
     """
     Make predictions using a trained model
     Args:
@@ -81,13 +105,15 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=False):
         i = 0
         for x in tqdm(test_loader):
             x = x.to(device, dtype=torch.float32)
+        
             if with_augmentation:
-                x = _augment(x)
+                x = _augment(x.squeeze())
             output = model(x)
-            if with_augmentation:
-                output = _unify(output)
             if type(output) is tuple:
                 output = output[0]
+            output = collapse_channel_dim_torch(output, take_argmax=False)
+            if with_augmentation:
+                output = _unify(output.squeeze())
             if apply_sigmoid:
                 output = sigmoid(output)
             pred = (output >= segmentation_threshold).cpu().detach().numpy().astype(int)
@@ -97,8 +123,10 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=False):
             pred *= 255
             while len(pred.shape) == 2:
                 pred = pred[None, :, :]
-            K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred,
-                                           data_format="channels_first")
+            #K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred,
+            #                               data_format="channels_first")
+            tf.keras.utils.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred,
+                                    data_format="channels_first")
             i += 1
             del x
 
@@ -161,7 +189,13 @@ def _augment(image):
     flipped = v_flip_transform(image)
     for i in range(4):
         xs.append(rotation_transform(flipped, i * 90, inverse=False))
-    augmented = torch.cat(xs, dim=0)
+    flipped = h_flip_transform(image)
+    for i in range(4):
+        xs.append(rotation_transform(flipped, i * 90, inverse=False))
+    flipped = v_flip_transform(h_flip_transform(image))
+    for i in range(4):
+        xs.append(rotation_transform(flipped, i * 90, inverse=False))
+    augmented = torch.stack(xs, dim=0)
     return augmented
 
 
@@ -176,16 +210,29 @@ def _unify(images):
     """
     ll = []
     for i in range(4):
-        img_i = torch.unsqueeze(rotation_transform(images[i], i * 90, inverse=True), dim=0)
+        img_i = rotation_transform(images[i].unsqueeze(0), i * 90, inverse=True)
         ll.append(img_i)
     for i in range(4):
-        img_i = rotation_transform(images[i+4], i * 90, inverse=True)
-        ll.append(torch.unsqueeze(v_flip_transform(img_i), dim=0))
+        img_i = rotation_transform(images[i+4].unsqueeze(0), i * 90, inverse=True)
+        ll.append(v_flip_transform(img_i))
+    for i in range(4):
+        img_i = rotation_transform(images[i+8].unsqueeze(0), i * 90, inverse=True)
+        ll.append(h_flip_transform(img_i))
+    for i in range(4):
+        img_i = rotation_transform(images[i+12].unsqueeze(0), i * 90, inverse=True)
+        ll.append(h_flip_transform(v_flip_transform(img_i)))
     images = torch.cat(ll, dim=0)
     return _ensemble(images)
 
 
 def main():
+    # seed everything
+
+    random.seed(1)
+    torch.manual_seed(1)
+    np.random.seed(1)
+    tf.random.set_seed(1)
+
     parser = argparse.ArgumentParser(description='Predictions maker for torch models')
     parser.add_argument('-m', '--model', type=str, required=True)
     parser.add_argument('-c', '--checkpoint', type=str, required=True)
@@ -227,10 +274,10 @@ def main():
     create_or_clean_directory(OUTPUT_PRED_DIR)
 
     # Compute the best threshold
-    segmentation_threshold = compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
+    segmentation_threshold, *_ = compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
 
     # Make the final predictions
-    predict(segmentation_threshold, apply_sigmoid=apply_sigmoid, with_augmentation=False)
+    predict(segmentation_threshold, apply_sigmoid=apply_sigmoid, with_augmentation=True)
 
 
 if __name__ == '__main__':
