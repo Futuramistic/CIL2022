@@ -70,7 +70,7 @@ def load_checkpoint(checkpoint_path, checkpoints_output_dir):
         return final_checkpoint_path
 
 
-def compute_majority_vote_prediction(model_name, checkpoint_paths, sftp_path_model_names, checkpoints_output_dir,
+def compute_majority_vote_prediction(checkpoint_paths, sftp_path_model_names, checkpoints_output_dir,
                                      output_predictions_dir):
     # Make one prediction per checkpoint
     for idx, checkpoint in enumerate(checkpoint_paths):
@@ -78,8 +78,8 @@ def compute_majority_vote_prediction(model_name, checkpoint_paths, sftp_path_mod
         # also captures torch RL models with different trainer:
         is_torch = issubclass(fact.get_dataloader_class(), TorchDataLoader)
         predictor_script = 'torch_predictor' if is_torch else 'tf_predictor'
-        command = f"python {predictor_script}.py -m {model_name} -c {checkpoints_output_dir}/{checkpoint}"  # TODO should be sftp_path_model_names[idx] instead of model_name probably
-        if model_name in ['deeplabv3', 'cranet']:
+        command = f"python {predictor_script}.py -m {sftp_path_model_names[idx]} -c {checkpoint}"
+        if sftp_path_model_names[idx] in ['deeplabv3', 'cranet']:
             command += ' --apply_sigmoid'
         os.system(command)
         os.system('python mask_to_submission.py')
@@ -164,7 +164,7 @@ def main(model_name, sftp_paths_file, checkpoints_output_dir, output_predictions
     os.mkdir(output_predictions_dir)
 
     if majority_vote:
-        compute_majority_vote_prediction(model_name, checkpoint_paths, sftp_path_model_names, checkpoints_output_dir,
+        compute_majority_vote_prediction(checkpoint_paths, sftp_path_model_names, checkpoints_output_dir,
                                          output_predictions_dir)
     else:
         averaged_outputs_prediction(checkpoint_paths, sftp_path_model_names, checkpoints_output_dir)
