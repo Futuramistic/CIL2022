@@ -4,10 +4,10 @@
 
 VRAM usage ca. 7GB with BS 4
 One run takes ca. 3h with the specified number of epochs
--> 20 runs: 60 hours
+-> e.g. 20 runs: 60 hours
 reduce or increase if seen fit (try not to reduce)
 
-`python3 main_hyperopt.py -s cranet_baseline_eval -n 20`
+`python3 main_hyperopt.py -s cranet_baseline_eval -n 100`
 
 ## DeepLabV3
 
