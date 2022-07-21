@@ -35,7 +35,8 @@ def main():
                     'load_checkpoint_path', 'C', 'segmentation_threshold', 't', 'use_channelwise_norm', 'history_size',
                     'max_rollout_len', 'std', 'reward_discount_factor', 'num_policy_epochs', 'policy_batch_size',
                     'sample_from_action_distributions', 'visualization_interval', 'min_steps', 'rollout_len',
-                    'blobs_removal_threshold', 'T', 'hyper_seg_threshold', 'w', 'use_sample_weighting']
+                    'blobs_removal_threshold', 'T', 'hyper_seg_threshold', 'w', 'use_sample_weighting',
+                    'f1_threshold_to_log_checkpoint']
     dataloader_args = ['dataset', 'd', 'use_geometric_augmentation', 'use_color_augmentation',
                        'aug_brightness', 'aug_contrast', 'aug_saturation']
 
@@ -58,6 +59,8 @@ def main():
     parser.add_argument('-c', '--checkpoint_interval', type=int, required=False)
     parser.add_argument('-C', '--load_checkpoint_path', '--from_checkpoint', type=str, required=False)
     parser.add_argument('-t', '--segmentation_threshold', type=float, default=DEFAULT_SEGMENTATION_THRESHOLD,
+                        required=False)
+    parser.add_argument('-f', '--f1_threshold_to_log_checkpoint', type=float, default=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT,
                         required=False)
     parser.add_argument('-B', '--blobs_removal_threshold', type=int, default=DEFAULT_BLOBS_REMOVAL_THRESHOLD,
                         required=False)

@@ -29,7 +29,8 @@ class TFTrainer(Trainer, abc.ABC):
                  optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None, evaluation_interval=None,
                  num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
                  segmentation_threshold=None, use_channelwise_norm=False, blobs_removal_threshold=0,
-                 hyper_seg_threshold=False, use_sample_weighting=False):
+                 hyper_seg_threshold=False, use_sample_weighting=False,
+                 f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
         """
         Initializes a Tensorflow trainer
         Args:
@@ -41,7 +42,8 @@ class TFTrainer(Trainer, abc.ABC):
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
-                         blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting)
+                         blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting,
+                         f1_threshold_to_log_checkpoint)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
@@ -122,7 +124,8 @@ class TFTrainer(Trainer, abc.ABC):
             # checkpoint, we simply check at the end of each epoch whether there are any checkpoints to upload
             # and upload them if necessary
 
-            if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']:
+            if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']\
+               and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint:
                 self.best_val_loss = logs['val_loss']
                 keras.models.save_model(model=self.model,
                                         filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"))
@@ -181,12 +184,14 @@ class TFTrainer(Trainer, abc.ABC):
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx, self.epoch_idx,
                                                          self.epoch_iteration_idx)
                 # save the best f1 score checkpoint
-                if self.trainer.do_checkpoint and self.best_f1_score <= f1_weighted:
+                if self.best_f1_score <= f1_weighted:
                     self.best_f1_score = f1_weighted
-                    keras.models.save_model(model=self.model, filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_f1.ckpt"))
+                    if self.trainer.do_checkpoint and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint:
+                        keras.models.save_model(model=self.model, filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_f1.ckpt"))
 
             if self.trainer.do_checkpoint \
                     and self.iteration_idx % self.trainer.checkpoint_interval == 0 \
+                    and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint\
                     and self.iteration_idx > 0:  # avoid creating checkpoints at iteration 0
                 checkpoint_path = f'{CHECKPOINTS_DIR}/cp_ep-{"%05i" % self.epoch_idx}' + \
                                   f'_it-{"%05i" % self.epoch_iteration_idx}' + \
