@@ -269,7 +269,7 @@ class TorchTrainer(Trainer, abc.ABC):
             self._load_checkpoint(self.load_checkpoint_path)
 
         # use self.Callback instead of TorchTrainer.Callback, to allow subclasses to overwrite the callback handler
-        callback_handler = self.Callback(self, mlflow_run, self.model)
+        self.callback_handler = self.Callback(self, mlflow_run, self.model)
         best_val_loss = 1e12
         # init all samples with the same weight, is overwritten in _train_step()
         self.weights = np.zeros((len(self.train_loader.dataset)), dtype=np.float16)
@@ -279,8 +279,7 @@ class TorchTrainer(Trainer, abc.ABC):
                                                                             batch_size=self.batch_size,
                                                                             weights=self.weights,
                                                                             preprocessing=self.preprocessing)
-            last_train_loss = self._train_step(self.model, self.device, self.train_loader,
-                                               callback_handler=callback_handler)
+            last_train_loss = self._train_step(self.model, self.device, self.train_loader, self.callback_handler)
             if self.use_sample_weighting:  # update sample weight
                 # normalize
                 weights_set_during_training = self.weights[self.weights != 0]
@@ -298,7 +297,7 @@ class TorchTrainer(Trainer, abc.ABC):
             print('\nEpoch %i finished at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()) % epoch)
             print('Metrics: %s\n' % str(metrics))
 
-            mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=callback_handler.iteration_idx)
+            mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=self.callback_handler.iteration_idx)
             mlflow_logger.log_logfiles()
         if self.do_checkpoint:
             # save final checkpoint

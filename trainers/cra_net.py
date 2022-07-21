@@ -37,7 +37,7 @@ class CRANetTrainer(TorchTrainer):
             num_epochs = 1
 
         if optimizer_or_lr is None:
-            optimizer_or_lr = CRANetTrainer.get_default_optimizer_with_lr(5e-3, model)
+            optimizer_or_lr = CRANetTrainer.get_default_optimizer_with_lr(1e-4, model)
         elif isinstance(optimizer_or_lr, int) or isinstance(optimizer_or_lr, float):
             optimizer_or_lr = CRANetTrainer.get_default_optimizer_with_lr(optimizer_or_lr, model)
 
@@ -190,4 +190,4 @@ class CRANetTrainer(TorchTrainer):
             lr (float): Learning rate of the optimizer
             model: Model whose parameters we want to train
         """
-        return optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-2)
+        return optim.Adam(model.parameters(), lr=lr, weight_decay=1e-2)

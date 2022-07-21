@@ -25,8 +25,10 @@ class HyperParamOptimizer:
         factory = Factory.get_factory(param_space['model']['model_type'].lower())
         self.model_class = factory.get_model_class()
         self.trainer_class = factory.get_trainer_class()
-        # already initializer dataloader, because only one is needed
-        self.dataloader = factory.get_dataloader_class()(param_space['dataset']['name'])
+        # already initialize dataloader, because only one is needed
+        self.dataloader = (factory.get_dataloader_class()
+                                                       (**{'dataset': param_space['dataset']['name'],
+                                                        **param_space['dataset'].get('dataloader_params', {})}))
         # hyperopt can only minimize loss functions --> change sign if loss has to be maximized
         self.minimize_loss = param_space['training']['minimize_loss']
         # specify names for mlflow
@@ -116,16 +118,20 @@ class HyperParamOptimizer:
             if 'optimizer_params' in hyperparams['training']:
                 optimizer = self.trainer_class.get_default_optimizer_with_lr(
                     hyperparams['training']['optimizer_params']['optimizer_lr'], model)
-                scheduler_args = hyperparams['training']['optimizer_params']['scheduler_args']
-                scheduler_name = scheduler_args['scheduler_name']
-                scheduler_kwargs = scheduler_args['kwargs']
-                scheduler = get_torch_scheduler(optimizer, scheduler_name, scheduler_kwargs)
-                hyperparams['training']['trainer_params']['scheduler'] = scheduler
+
+                if 'scheduler_args' in hyperparams['training']['optimizer_params']:
+                    scheduler_args = hyperparams['training']['optimizer_params']['scheduler_args']
+                    scheduler_name = scheduler_args['scheduler_name']
+                    scheduler_kwargs = scheduler_args['kwargs']
+                    scheduler = get_torch_scheduler(optimizer, scheduler_name, scheduler_kwargs)
+                    hyperparams['training']['trainer_params']['scheduler'] = scheduler
+            else:
+                optimizer = None
             
             trainer = self.trainer_class(**training_params, dataloader=self.dataloader, model=model,
-                                         experiment_name=self.exp_name, run_name=run_name)
+                                         experiment_name=self.exp_name, run_name=run_name,
+                                         optimizer_or_lr=optimizer)
             trainer.train()
-            average_f1_score = trainer.get_F1_score_validation()
         except RuntimeError as r:
             err_msg = f"Hyperopt failed.\nCurrent hyperparams that lead to error:\n{hyperparams}" +\
                       f"\n\nError message:\n{r}"
@@ -140,7 +146,7 @@ class HyperParamOptimizer:
         with open(self.trials_path, 'wb') as handle:
             cloudpickle.dump(self.trials, handle)
         return {
-            'loss': 1-average_f1_score, 
+            'loss': 1-trainer.callback_handler.best_f1_score, 
             'status': STATUS_OK,
             'trained_model': model,
             'params': hyperparams

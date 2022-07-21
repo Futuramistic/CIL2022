@@ -10,11 +10,11 @@ space_for_tf = {
         'model_type': ...,  # string, to search for the corresponding factory using factory.py
         'saving_directory': f"{ROOT_DIR}/archive/models/...",
         # use kwargs for class-specific parameters, as hyperopt is written generically
-        'kwargs': {...
-                   }
+        'kwargs': { ... }
     },
     'dataset': {
         'name': ...,
+        'dataloader_params': { ... }
     },
     'training': {
         'minimize_loss': True,  # always specify, as hyperopt can only minimize losses and therefore adapts the sign
@@ -46,6 +46,7 @@ space_for_torch = {
     },
     'dataset': {
         'name': ...,
+        'dataloader_params': { ... }
     },
     'training': {
         'minimize_loss': True,  # always specify, as hyperopt can only minimize losses and therefore adapts the sign

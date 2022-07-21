@@ -74,7 +74,7 @@ class TFTrainer(Trainer, abc.ABC):
             self.iteration_idx = 0
             self.epoch_iteration_idx = 0
             self.epoch_idx = 0
-            self.best_score = -1
+            self.best_f1_score = -1
             self.best_val_loss = 1e5
             self.do_visualize = self.trainer.num_samples_to_visualize is not None and \
                                 self.trainer.num_samples_to_visualize > 0
@@ -181,8 +181,8 @@ class TFTrainer(Trainer, abc.ABC):
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx, self.epoch_idx,
                                                          self.epoch_iteration_idx)
                 # save the best f1 score checkpoint
-                if self.trainer.do_checkpoint and self.best_score <= f1_weighted:
-                    self.best_score = f1_weighted
+                if self.trainer.do_checkpoint and self.best_f1_score <= f1_weighted:
+                    self.best_f1_score = f1_weighted
                     keras.models.save_model(model=self.model, filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_f1.ckpt"))
 
             if self.trainer.do_checkpoint \
@@ -333,7 +333,8 @@ class TFTrainer(Trainer, abc.ABC):
                                                                   preprocessing=self.preprocessing)
         self.train_dataset_size, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
         
-        callbacks = [TFTrainer.Callback(self, mlflow_run)]
+        self.callback_handler = TFTrainer.Callback(self, mlflow_run)
+        callbacks = [self.callback_handler]
         # model checkpointing functionality moved into TFTrainer.Callback to allow for custom checkpoint names
         
         if self.use_sample_weighting:

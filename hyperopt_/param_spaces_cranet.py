@@ -4,7 +4,7 @@ import numpy as np
 from utils import ROOT_DIR
 
 
-param_space_cranet = {
+cranet_baseline_eval = {
     'model': {
         'model_type': 'cranet',
         'saving_directory': f"{ROOT_DIR}/archive/models/cranet",
@@ -21,10 +21,11 @@ param_space_cranet = {
     'training': {
         'minimize_loss': True,  # always specify, as hyperopt can only minimize losses and therefore adapts the sign
         'trainer_params': {
-            'experiment_name': 'Baseline evaluation',
+            'experiment_name': 'CRANet_Hyperopt',
             'split': 0.827,
             'num_epochs': 300,
-            'batch_size': hp.logquniform('batch_size', low=2, high=16, q=2),
+            # scope.int: cast sampled value to integer
+            'batch_size': scope.int(hp.qloguniform('batch_size', np.log(2), np.log(16), 2)),
             'checkpoint_interval': 250,
             'hyper_seg_threshold': True
 
