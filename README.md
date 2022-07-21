@@ -165,24 +165,87 @@ python main.py -d original -m deeplabv3 -E training_run
 
 >📋  TODO put commands for our final models/RL models
 
+When a model is trained, checkpoints appear in the `checkpoints` folder.
+
 ## Evaluation
 
-When a model is trained, checkpoints appear in the `checkpoints` folder.
-To evaluate a model, run:
+#### Torch models
+To evaluate a Torch model, run:
 
 ```eval
 python torch_predictor.py -m <model-name> -c <checkpoint-name>
 ```
 
-if it's a Torch model or:
+#### Tensorflow models
+To evaluate a Tensorflow model, run:
 
 ```eval
 python tf_predictor.py -m <model-name> -c <checkpoint-name>
 ```
 
-if it's a Tensorflow model.
+#### RL models
+To evaluate an RL model, run:
+
+```eval
+python todo
+```
 
 The predictions appear in the `output_preds` directory
+
+## Reproducibility
+
+To reproduce our results, run the following commands:
+
+#### Baselines
+
+1) U-Net:
+```reproduce
+python todo
+```
+2) U-Net3+:
+```reproduce
+python todo
+```
+3) CRA-Net:
+```reproduce
+python todo
+```
+4) DeepLabV3:
+```reproduce
+python todo
+```
+5) SegFormer:
+```reproduce
+python todo
+```
+
+#### Our Contributions
+
+1) UNet Exp:
+```reproduce
+python todo
+```
+2) RL Seg:
+```reproduce
+python todo
+```
+
+#### Our Ensemble submission
+
+Please follow the following steps:
+
+1) Do blabla
+```ensemble
+python todo
+```
+2) Then do blabla
+```ensemble
+python todo
+```
+2) Finally do blabla
+```ensemble
+python todo
+```
 
 ## Pre-trained Models
 
