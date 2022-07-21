@@ -25,7 +25,8 @@ class TorchTrainer(Trainer, abc.ABC):
                  optimizer_or_lr=None, scheduler=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
-                 blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False):
+                 blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False,
+                 f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
         """
         Initializes a Torch Trainer
         Args:
@@ -39,7 +40,8 @@ class TorchTrainer(Trainer, abc.ABC):
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
-                         blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting)
+                         blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting,
+                         f1_threshold_to_log_checkpoint)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.scheduler = scheduler
@@ -99,11 +101,12 @@ class TorchTrainer(Trainer, abc.ABC):
                     
                 if self.best_f1_score < self.f1_score:
                     self.best_f1_score = self.f1_score    
-                    if self.trainer.do_checkpoint:
+                    if self.trainer.do_checkpoint and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint:
                         self.trainer._save_checkpoint(self.trainer.model, None, None, None, best="f1")
 
                 if self.trainer.do_checkpoint \
                         and self.iteration_idx % self.trainer.checkpoint_interval == 0 \
+                        and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint \
                         and self.iteration_idx > 0:  # avoid creating checkpoints at iteration 0
                     self.trainer._save_checkpoint(self.trainer.model, self.epoch_idx, self.epoch_iteration_idx,
                                                   self.iteration_idx)

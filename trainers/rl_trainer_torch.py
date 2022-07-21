@@ -35,7 +35,8 @@ class TorchRLTrainer(TorchTrainer):
                  load_checkpoint_path=None, segmentation_threshold=None, history_size=5, use_channelwise_norm=False,
                  max_rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), std=[1e-3, 1e-3, 1e-3, 1e-3, 1e-2], reward_discount_factor=0.99,
                  num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20,
-                 min_steps=20, rewards = None, blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False):
+                 min_steps=20, rewards = None, blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False,
+                 f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
         """
         Trainer for RL-based models.
         Args:
