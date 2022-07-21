@@ -3,7 +3,7 @@ import tensorflow as tf
 import warnings
 import math
 import utils
-
+import tensorflow.keras as K
 from .dataloader import DataLoader
 
 
@@ -13,7 +13,7 @@ class TFDataLoader(DataLoader):
     """
 
     def __init__(self, dataset="original", pad32=False, use_geometric_augmentation=False, use_color_augmentation=False,
-                 aug_contrast=[0.8, 1.2], aug_brightness=0.2, aug_saturation=[0.8, 1.2]):
+                 aug_contrast=[0.8, 1.2], aug_brightness=0.2, aug_saturation=[0.8, 1.2], use_vgg_preprocessing = False):
         """
         Args:
             dataset (string): type of Dataset ("original" [from CIL2022 Competition], "Massachusets", ...)
@@ -33,6 +33,7 @@ class TFDataLoader(DataLoader):
         self.brightness = aug_brightness
         self.use_geometric_augmentation = use_geometric_augmentation
         self.use_color_augmentation = use_color_augmentation
+        self.use_vgg_preprocessing = use_vgg_preprocessing
 
     def get_dataset_sizes(self, split):
         """
@@ -307,6 +308,9 @@ class TFDataLoader(DataLoader):
             image = tf.image.random_contrast(image, lower=self.contrast[0], upper=self.contrast[1], seed=None)
             image = tf.clip_by_value(image, 0.0, 0.99999)
             image = tf.image.convert_image_dtype(image, dtype=img_dtype)
+        
+        if self.use_vgg_preprocessing:
+            image = K.applications.vgg19.preprocess_input(tf.cast(image,dtype=tf.float32))
 
         # Rotate by 90 degrees only - if we rotate by an aribitrary -> road my disappear!
         i = tf.random.uniform([], minval=0, maxval=3, dtype=tf.dtypes.int32, seed=None)
