@@ -186,6 +186,7 @@ class TorchTrainer(Trainer, abc.ABC):
             total_iteration (int): total number of iterations
             best (str): Name to give to the checkpoint if it achieves the best f1 score so far
         """
+        os.makedirs(CHECKPOINTS_DIR, exist_ok=True)
         if None not in [epoch, epoch_iteration, total_iteration]:
             checkpoint_path = f'{CHECKPOINTS_DIR}/cp_ep-{"%05i" % epoch}_epit-{"%05i" % epoch_iteration}' + \
                               f'_step-{total_iteration}.pt'
