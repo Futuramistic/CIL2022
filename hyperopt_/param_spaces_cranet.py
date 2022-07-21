@@ -26,7 +26,7 @@ cranet_baseline_eval = {
             'num_epochs': 300,
             # scope.int: cast sampled value to integer
             'batch_size': scope.int(hp.qloguniform('batch_size', np.log(2), np.log(16), 2)),
-            'checkpoint_interval': 250,
+            'checkpoint_interval': 1000,
             'hyper_seg_threshold': True
 
         },
