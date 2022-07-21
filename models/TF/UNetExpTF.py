@@ -46,12 +46,10 @@ def UNetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_regularizer': kernel_regularizer
         }
 
-        pool_fct = Down_Block_LearnablePool if use_learnable_pool else Down_Block
-
-        convo1, pool1 = pool_fct(name=name + "-down-block-1", filters=nb_filters[0], kernel_size=5, **down_args)(inputs)
-        convo2, pool2 = pool_fct(name=name + "-down-block-2", filters=nb_filters[1], kernel_size=5, **down_args)(pool1)
-        convo3, pool3 = pool_fct(name=name + "-down-block-3", filters=nb_filters[2], **down_args)(pool2)
-        convo4, pool4 = pool_fct(name=name + "-down-block-4", filters=nb_filters[3], **down_args)(pool3)
+        convo1, pool1 = Down_Block(name=name + "-down-block-1", filters=nb_filters[0], kernel_size=5, **down_args)(inputs)
+        convo2, pool2 = Down_Block(name=name + "-down-block-2", filters=nb_filters[1], kernel_size=5, **down_args)(pool1)
+        convo3, pool3 = Down_Block(name=name + "-down-block-3", filters=nb_filters[2], **down_args)(pool2)
+        convo4, pool4 = Down_Block(name=name + "-down-block-4", filters=nb_filters[3], **down_args)(pool3)
 
         convo5 = Convo_Block(name=name + "-convo-block", filters=nb_filters[4], dilation_rate=2, **down_args)(pool4)
 
@@ -111,12 +109,10 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_regularizer': kernel_regularizer
         }
 
-        pool_fct = Down_Block_LearnablePool if use_learnable_pool else Down_Block
-
-        convo1, pool1 = pool_fct(name=name + "-down-block-1", filters=nb_filters[0], **down_args)(inputs)
-        convo2, pool2 = pool_fct(name=name + "-down-block-2", filters=nb_filters[1], **down_args)(pool1)
-        convo3, pool3 = pool_fct(name=name + "-down-block-3", filters=nb_filters[2], **down_args)(pool2)
-        convo4, pool4 = pool_fct(name=name + "-down-block-4", filters=nb_filters[3], **down_args)(pool3)
+        convo1, pool1 = Down_Block(name=name + "-down-block-1", filters=nb_filters[0], **down_args)(inputs)
+        convo2, pool2 = Down_Block(name=name + "-down-block-2", filters=nb_filters[1], **down_args)(pool1)
+        convo3, pool3 = Down_Block(name=name + "-down-block-3", filters=nb_filters[2], **down_args)(pool2)
+        convo4, pool4 = Down_Block(name=name + "-down-block-4", filters=nb_filters[3], **down_args)(pool3)
 
         convo5 = Convo_Block(name=name + "-convo-block", filters=nb_filters[4], **down_args)(pool4)
 
@@ -300,9 +296,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             # Fully add vgg convolutions
             nb_filters_concat = [96, 192, 320, 512]
 
-        pool_fct = Down_Block_LearnablePool if use_learnable_pool else Down_Block
-
-        convo1, pool1 = pool_fct(name=name + "-down-block-1", filters=nb_filters[0], **down_args)(inputs)
+        convo1, pool1 = Down_Block(name=name + "-down-block-1", filters=nb_filters[0], **down_args)(inputs)
 
         if architecture is not None:
             pretrained[0] = Convo_Block(name=name + "maxpool_vgg_1", filters=nb_filters[1], **down_args)(pretrained[0])
@@ -310,7 +304,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
 
         pool1 = Convo_Block(name=name + "pool1", filters=nb_filters_concat[0], **down_args)(pool1)
 
-        convo2, pool2 = pool_fct(name=name + "-down-block-2", filters=nb_filters[1], **down_args)(pool1)
+        convo2, pool2 = Down_Block(name=name + "-down-block-2", filters=nb_filters[1], **down_args)(pool1)
 
         pool0_1 = MaxPool2D((4, 4), 4, 'same')(convo1)
         pool0_1 = Convo_Block(name=name + "maxpool0_1", filters=nb_filters[1], **down_args)(pool0_1)
@@ -325,7 +319,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
 
         pool2 = Convo_Block(name=name + "pool2", filters=nb_filters_concat[1], **down_args)(pool2)
 
-        convo3, pool3 = pool_fct(name=name + "-down-block-3", filters=nb_filters[2], **down_args)(pool2)
+        convo3, pool3 = Down_Block(name=name + "-down-block-3", filters=nb_filters[2], **down_args)(pool2)
 
         pool0_2 = MaxPool2D((8, 8), 8, 'same')(convo1)
         pool0_2 = Convo_Block(name=name + "maxpool0_2", filters=nb_filters[1], **down_args)(pool0_2)
@@ -342,7 +336,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
 
         pool3 = Convo_Block(name=name + "pool3", filters=nb_filters_concat[2], **down_args)(pool3)
 
-        convo4, pool4 = pool_fct(name=name + "-down-block-4", filters=nb_filters[3], **down_args)(pool3)
+        convo4, pool4 = Down_Block(name=name + "-down-block-4", filters=nb_filters[3], **down_args)(pool3)
 
         pool0_3 = MaxPool2D((16, 16), 16, 'same')(convo1)
         pool0_3 = Convo_Block(name=name + "maxpool0_3", filters=nb_filters[1], **down_args)(pool0_3)

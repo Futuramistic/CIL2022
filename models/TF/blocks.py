@@ -9,41 +9,23 @@ This file contains many Blocks used in various models
 """
 
 
-def gelu_(X):
-    return 0.5*X*(1.0 + tf.math.tanh(0.7978845608028654*(X + 0.044715*tf.math.pow(X, 3))))
-
-
-class GELU(tf.keras.layers.Layer):
-    def __init__(self, trainable=False, **kwargs):
-        super(GELU, self).__init__(**kwargs)
-        self.supports_masking = True
-        self.trainable = trainable
-
-    def build(self, input_shape):
-        super(GELU, self).build(input_shape)
-
-    def call(self, inputs, mask=None):
-        return gelu_(inputs)
-
-    def get_config(self):
-        config = {'trainable': self.trainable}
-        base_config = super(GELU, self).get_config()
-        return dict(list(base_config.items()) + list(config.items()))
-
-    def compute_output_shape(self, input_shape):
-        return input_shape
-
-
 class ConvoRelu_Block(tf.keras.layers.Layer):
     def __init__(self,name="ConvoRelu-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,
                  kernel_regularizer=K.regularizers.l2(),kernel_size=3,dilation_rate=1,activation='leaky_relu',**kwargs):
         super(ConvoRelu_Block, self).__init__(name=name,**kwargs)
-        self.normalize = normalize  
-        self.convo = Conv2D(filters=filters, kernel_size=kernel_size, padding='same', kernel_initializer=kernel_init,
-                            name=name+"-conv2D", kernel_regularizer=kernel_regularizer,dilation_rate=dilation_rate)
-        self.norm = BatchNormalization(name=name+"-batchNorm", axis=3)
-        self.actv = Activation(name=name+"-activation",activation=activation)
-        self.drop = Dropout(rate=dropout,name=name+"-drop")
+        self.dropout = dropout
+        self.filters = filters
+        self.normalize = normalize
+        self.kernel_init = kernel_init
+        self.kernel_regularizer = kernel_regularizer
+        self.dilation_rate = dilation_rate
+        self.kernel_size = kernel_size
+        self.activation = activation
+        self.convo = Conv2D(filters=self.filters, kernel_size=self.kernel_size, padding='same', kernel_initializer=self.kernel_init,
+                            name=name+"-conv2D", kernel_regularizer=self.kernel_regularizer,dilation_rate=self.dilation_rate)
+        self.norm = BatchNormalization(name=self.name+"-batchNorm", axis=3)
+        self.actv = Activation(name=self.name+"-activation",activation=self.activation)
+        self.drop = Dropout(rate=self.dropout,name=self.name+"-drop")
     
     # Expose training:
     # - Dropout -> only performed while training
@@ -55,6 +37,18 @@ class ConvoRelu_Block(tf.keras.layers.Layer):
         x = self.actv(x)
         x = self.drop(x,training)
         return x
+    
+    def get_config(self):
+        base_config = super(ConvoRelu_Block, self).get_config()
+        base_config['dropout'] = self.dropout
+        base_config['filters'] = self.filters
+        base_config['normalize'] = self.normalize
+        base_config['kernel_init'] = self.kernel_init
+        base_config['kernel_regularizer'] = self.kernel_regularizer
+        base_config['dilation_rate'] = self.dilation_rate
+        base_config['kernel_size'] = self.kernel_size
+        base_config['activation'] = self.activation 
+        return base_config
 
 
 class Convo_Block(tf.keras.layers.Layer):
@@ -62,14 +56,22 @@ class Convo_Block(tf.keras.layers.Layer):
                  kernel_regularizer=K.regularizers.l2(),
                  normalize=False, kernel_size=3, dilation_rate=1, activation='leaky_relu', **kwargs):
         super(Convo_Block, self).__init__(name=name, **kwargs)
-        self.convorelu1 = ConvoRelu_Block(name=name+"-convoRelu-1", dropout=dropout, filters=filters,
-                                          kernel_init=kernel_init,
-                                          normalize=normalize, kernel_regularizer=kernel_regularizer,
-                                          kernel_size=kernel_size, dilation_rate=dilation_rate, activation=activation)
-        self.convorelu2 = ConvoRelu_Block(name=name+"-convoRelu-2", dropout=dropout, filters=filters,
-                                          kernel_init=kernel_init,
-                                          normalize=normalize, kernel_regularizer=kernel_regularizer,
-                                          kernel_size=kernel_size, dilation_rate=dilation_rate, activation=activation)
+        self.dropout = dropout
+        self.filters = filters
+        self.normalize = normalize
+        self.kernel_init = kernel_init
+        self.kernel_regularizer = kernel_regularizer
+        self.dilation_rate = dilation_rate
+        self.kernel_size = kernel_size
+        self.activation = activation
+        self.convorelu1 = ConvoRelu_Block(name=self.name+"-convoRelu-1", dropout=self.dropout, filters=self.filters,
+                                          kernel_init=self.kernel_init,
+                                          normalize=self.normalize, kernel_regularizer=self.kernel_regularizer,
+                                          kernel_size=self.kernel_size, dilation_rate=self.dilation_rate, activation=self.activation)
+        self.convorelu2 = ConvoRelu_Block(name=self.name+"-convoRelu-2", dropout=self.dropout, filters=self.filters,
+                                          kernel_init=self.kernel_init,
+                                          normalize=self.normalize, kernel_regularizer=self.kernel_regularizer,
+                                          kernel_size=self.kernel_size, dilation_rate=self.dilation_rate, activation=self.activation)
 
     # Expose training:
     # - Dropout -> only performed while training
@@ -77,23 +79,55 @@ class Convo_Block(tf.keras.layers.Layer):
     def call(self, inputs, **kwargs):
         x = self.convorelu1(inputs, **kwargs)
         return self.convorelu2(x, **kwargs)
-
+    
+    def get_config(self):
+        base_config = super(Convo_Block, self).get_config()
+        base_config['dropout'] = self.dropout
+        base_config['filters'] = self.filters
+        base_config['normalize'] = self.normalize
+        base_config['kernel_init'] = self.kernel_init
+        base_config['kernel_regularizer'] = self.kernel_regularizer
+        base_config['dilation_rate'] = self.dilation_rate
+        base_config['kernel_size'] = self.kernel_size
+        base_config['activation'] = self.activation 
+        return base_config
 
 class Down_Block(tf.keras.layers.Layer):
     def __init__(self,name="down-block",dropout=0.5,filters=64,kernel_init='he_normal',
                  kernel_regularizer=K.regularizers.l2(),
                  normalize=False,kernel_size=3,dilation_rate=1,activation='leaky_relu',**kwargs):
         super(Down_Block,self).__init__(name=name,**kwargs)
-        self.convo_block = Convo_Block(name+"-convo-block",dropout=dropout,filters=filters,kernel_init=kernel_init,
-                                       normalize=normalize,kernel_regularizer=kernel_regularizer,
-                                       kernel_size=kernel_size,dilation_rate=dilation_rate,activation=activation)
-        self.pool = MaxPool2D(pool_size=(2,2),strides=2,padding='same',name=name+"-max-pool")
+        self.dropout = dropout
+        self.filters = filters
+        self.normalize = normalize
+        self.kernel_init = kernel_init
+        self.kernel_regularizer = kernel_regularizer
+        self.dilation_rate = dilation_rate
+        self.kernel_size = kernel_size
+        self.activation = activation
+        self.convo_block = Convo_Block(name=self.name+"-convo-block", dropout=self.dropout, filters=self.filters,
+                                          kernel_init=self.kernel_init,
+                                          normalize=self.normalize, kernel_regularizer=self.kernel_regularizer,
+                                          kernel_size=self.kernel_size, dilation_rate=self.dilation_rate, activation=self.activation)
+        self.pool = MaxPool2D(pool_size=(2,2),strides=2,padding='same',name=self.name+"-max-pool")
     
     # Expose training
     def call(self,input,**kwargs):
         x1 = self.convo_block(input,**kwargs)
         x2 = self.pool(x1,**kwargs)
         return (x1,x2)
+    
+    def get_config(self):
+        base_config = super(Down_Block, self).get_config()
+        base_config['dropout'] = self.dropout
+        base_config['filters'] = self.filters
+        base_config['normalize'] = self.normalize
+        base_config['kernel_init'] = self.kernel_init
+        base_config['kernel_regularizer'] = self.kernel_regularizer
+        base_config['dilation_rate'] = self.dilation_rate
+        base_config['kernel_size'] = self.kernel_size
+        base_config['activation'] = self.activation 
+        return base_config
 
 
 class Down_Block_LearnablePool(tf.keras.layers.Layer):
@@ -124,15 +158,20 @@ class Down_Block_LearnablePool(tf.keras.layers.Layer):
 
 class Transpose_Block(tf.keras.layers.Layer):
     def __init__(self,name="up-convo",filters=64,dropout=0.5,kernel_init='he_normal',normalize=False,
-                 kernel_regularizer=K.regularizers.l2(),**kwargs):
+                 kernel_regularizer=K.regularizers.l2(),activation='leaky_relu',**kwargs):
         super(Transpose_Block,self).__init__(name=name,**kwargs)
+        self.dropout = dropout
+        self.filters = filters
         self.normalize = normalize
-        self.transpose = Conv2DTranspose(filters=filters,kernel_size=(2, 2),strides=(2, 2), padding='same',
-                                         kernel_initializer=kernel_init,name=name+"-convo2DTranspose",
-                                         kernel_regularizer=kernel_regularizer)
-        self.norm = BatchNormalization(name=name+"-batchNorm",axis=3)
-        self.actv = Activation(activation='leaky_relu', name=name+"-activ")
-        self.drop = Dropout(rate=dropout,name=name+"-drop")
+        self.kernel_init = kernel_init
+        self.kernel_regularizer = kernel_regularizer
+        self.activation = activation
+        self.transpose = Conv2DTranspose(filters=self.filters,kernel_size=(4, 4),strides=(2, 2), padding='same',
+                                         kernel_initializer=self.kernel_init,name=self.name+"-convo2DTranspose",
+                                         kernel_regularizer=self.kernel_regularizer)
+        self.norm = BatchNormalization(name=self.name+"-batchNorm",axis=3)
+        self.actv = Activation(activation=self.activation, name=self.name+"-activ")
+        self.drop = Dropout(rate=self.dropout,name=self.name+"-drop")
     
     # Expose training:
     # - Dropout -> only performed while training
@@ -145,31 +184,64 @@ class Transpose_Block(tf.keras.layers.Layer):
         x = self.drop(x,training)
         return x
 
+    def get_config(self):
+        base_config = super(Transpose_Block, self).get_config()
+        base_config['dropout'] = self.dropout
+        base_config['filters'] = self.filters
+        base_config['normalize'] = self.normalize
+        base_config['kernel_init'] = self.kernel_init
+        base_config['kernel_regularizer'] = self.kernel_regularizer
+        base_config['activation'] = self.activation 
+        return base_config
+
 
 class UpSampleConvo_Block(tf.keras.layers.Layer):
     def __init__(self,name="attention-up-block",dropout=0.5,filters=64,kernel_init='he_normal',
-                 kernel_regularizer=K.regularizers.l2(),normalize=False,**kwargs):
+                 kernel_regularizer=K.regularizers.l2(),normalize=False,activation='leaky_relu',**kwargs):
         super(UpSampleConvo_Block,self).__init__(name=name,**kwargs)
-        self.up = UpSampling2D(name=name+"-upSample2D",size=(2,2))
-        self.conv = ConvoRelu_Block(name=name+"-convoRelu-block",dropout=dropout,filters=filters,
-                                    kernel_init=kernel_init,normalize=normalize,kernel_regularizer=kernel_regularizer)
+        self.dropout = dropout
+        self.filters = filters
+        self.normalize = normalize
+        self.kernel_init = kernel_init
+        self.kernel_regularizer = kernel_regularizer
+        self.activation = activation
+        self.up = UpSampling2D(name=self.name+"-upSample2D",size=(2,2))
+        self.conv = ConvoRelu_Block(name=self.name+"-convoRelu-block",dropout=self.dropout,filters=self.filters,
+                                    kernel_init=self.kernel_init,normalize=self.normalize,kernel_regularizer=self.kernel_regularizer,activation=self.activation)
 
     # Expose training
     def call(self, inputs,**kwargs):
         up = self.up(inputs,**kwargs)
         return self.conv(up,**kwargs)
+    
+    def get_config(self):
+        base_config = super(UpSampleConvo_Block, self).get_config()
+        base_config['dropout'] = self.dropout
+        base_config['filters'] = self.filters
+        base_config['normalize'] = self.normalize
+        base_config['kernel_init'] = self.kernel_init
+        base_config['kernel_regularizer'] = self.kernel_regularizer
+        base_config['activation'] = self.activation 
+        return base_config
 
 
 class Up_Block(tf.keras.layers.Layer):
     def __init__(self,name="up-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,
-                 up_convo = None,kernel_regularizer=K.regularizers.l2(),**kwargs):
-        super(Up_Block,self).__init__(name=name,**kwargs)  
-        self.up_convo = up_convo(name=name+"-up-convo",filters=filters,dropout=dropout,
-                                 kernel_init=kernel_init,normalize=normalize,kernel_regularizer=kernel_regularizer)
-        self.convorelu_block = ConvoRelu_Block(name+"-convoRelu-block",dropout=dropout,
-                                               filters=filters,kernel_init=kernel_init,normalize=normalize,
-                                               kernel_regularizer=kernel_regularizer)
-        self.concat = Concatenate(axis=3,name=name+"-concat")
+                 up_convo = Transpose_Block, kernel_regularizer=K.regularizers.l2(),activation='leaky_relu',**kwargs):
+        super(Up_Block,self).__init__(name=name,**kwargs) 
+        self.dropout = dropout
+        self.filters = filters
+        self.normalize = normalize
+        self.kernel_init = kernel_init
+        self.kernel_regularizer = kernel_regularizer
+        self.activation = activation 
+        self.up_convo_block = up_convo
+        self.up_convo = self.up_convo_block(name=self.name+"-up-convo",filters=self.filters,dropout=self.dropout,
+                                 kernel_init=self.kernel_init,normalize=self.normalize,kernel_regularizer=self.kernel_regularizer)
+        self.convorelu_block = ConvoRelu_Block(name=self.name+"-convoRelu-block",dropout=self.dropout,
+                                               filters=self.filters,kernel_init=self.kernel_init,normalize=self.normalize,
+                                               kernel_regularizer=self.kernel_regularizer)
+        self.concat = Concatenate(axis=3,name=self.name+"-concat")
 
     #Expose training
     def call(self, x, merger,**kwargs):
@@ -181,6 +253,16 @@ class Up_Block(tf.keras.layers.Layer):
         x = self.concat(merger,**kwargs)
         return self.convorelu_block(x,**kwargs)
 
+    def get_config(self):
+        base_config = super(Up_Block, self).get_config()
+        base_config['dropout'] = self.dropout
+        base_config['filters'] = self.filters
+        base_config['normalize'] = self.normalize
+        base_config['kernel_init'] = self.kernel_init
+        base_config['kernel_regularizer'] = self.kernel_regularizer
+        base_config['activation'] = self.activation 
+        base_config['up_convo'] = self.up_convo_block 
+        return base_config
 
 class Attention(tf.keras.layers.Layer):
     def __init__(self,name="attention",filters=64,normalize=False,kernel_init='he_normal',
