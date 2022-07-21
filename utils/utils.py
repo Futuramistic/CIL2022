@@ -25,6 +25,7 @@ DEFAULT_TRAIN_FRACTION = 0.8
 DEFAULT_NUM_SAMPLES_TO_VISUALIZE = 36
 DEFAULT_BLOBS_REMOVAL_THRESHOLD = 100
 DEFAULT_TF_INPUT_SHAPE = (None, None, 3)
+DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT = 0.85
 
 # Contains the URLs where our datasets are stored, as well as a short description for each dataset
 DATASET_ZIP_URLS = {
