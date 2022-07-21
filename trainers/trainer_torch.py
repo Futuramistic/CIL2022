@@ -96,9 +96,11 @@ class TorchTrainer(Trainer, abc.ABC):
                                                          self.epoch_iteration_idx)
 
                 # Save checkpoints
-                if self.trainer.do_checkpoint and self.best_f1_score < self.f1_score:
-                    self.best_f1_score = self.f1_score
-                    self.trainer._save_checkpoint(self.trainer.model, None, None, None, best="f1")
+                    
+                if self.best_f1_score < self.f1_score:
+                    self.best_f1_score = self.f1_score    
+                    if self.trainer.do_checkpoint:
+                        self.trainer._save_checkpoint(self.trainer.model, None, None, None, best="f1")
 
                 if self.trainer.do_checkpoint \
                         and self.iteration_idx % self.trainer.checkpoint_interval == 0 \

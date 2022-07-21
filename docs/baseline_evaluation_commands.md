@@ -14,13 +14,12 @@ reduce or increase if seen fit (try not to reduce)
 VRAM usage ca. 7.5GB with BS 4
 One run takes ca. 3h with the specified number of epochs
 
-### Split 1 (`new_original` / `original_split_1`)
-```
-python3 main.py --model=deeplabv3 --dataset=original_split_1 --batch_size=4 --split=0.827 -E=DeepLabV3 --optimizer_or_lr=1e-4 --num_epochs=500 --checkpoint_interval=250 --hyper_seg_threshold=True '--run_name=Baseline evaluation; BS 4' --use_geometric_augmentation=True --use_color_augmentation=True
-```
+`python3 main_hyperopt.py -s deeplabv3_baseline_eval -n 100`
 
-### Split 2 (`original_split_2`)
-- same, but `--dataset=original_split_2` instead of `--dataset=original_split_1`
+## SegFormer
 
-### Split 3 (`original_split_3`)
-- same, but `--dataset=original_split_3` instead of `--dataset=original_split_1`
+VRAM usage ca. 21GB with BS 4, hence small batch sizes used in search space (currently only 2 and 4 can be sampled; add more if GPU has more VRAM)
+
+One run takes ca. 3h with the specified number of epochs
+
+`python3 main_hyperopt.py -s segformer_baseline_eval -n 100`
