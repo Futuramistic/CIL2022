@@ -208,6 +208,7 @@ class TorchTrainer(Trainer, abc.ABC):
         # checkpoints should be logged to MLflow right after their creation, so that if training is
         # stopped/crashes *without* reaching the final "mlflow_logger.log_checkpoints()" call in trainer.py,
         # prior checkpoints have already been persisted
+        mlflow_logger.snapshot_model()
         mlflow_logger.log_checkpoints()
 
     def _load_checkpoint(self, checkpoint_path):
