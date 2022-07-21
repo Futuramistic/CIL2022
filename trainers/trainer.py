@@ -286,6 +286,7 @@ class Trainer(abc.ABC):
                     mlflow_logger.log_command_line()  # log command line used to execute the script, if available
                     last_test_loss = self._fit_model(mlflow_run=run)
                     if self.do_checkpoint:
+                        mlflow_logger.snapshot_model()
                         mlflow_logger.log_checkpoints()
                     mlflow_logger.log_logfiles()
                 except Exception as e:

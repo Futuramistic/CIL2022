@@ -71,6 +71,12 @@ def snapshot_codebase():
                     file_path = os.path.join(folder_name, file_name)
                     zip_obj.write(file_path)
 
+def snapshot_model():
+    """
+    ZIP model
+    """
+    shutil.make_archive(CHECKPOINTS_ZIP_DIR, 'zip', CHECKPOINTS_DIR)
+
 
 def log_codebase():
     """
@@ -94,8 +100,9 @@ def log_checkpoints():
         # check if there are checkpoints to log
         if os.path.isdir(CHECKPOINTS_DIR) and len(os.listdir(CHECKPOINTS_DIR)) > 0:
             print('\nLogging checkpoints to MLFlow...')
-            mlflow.log_artifacts(CHECKPOINTS_DIR, 'checkpoints/')
+            mlflow.log_artifacts(CHECKPOINTS_ZIP_DIR, 'checkpoints/')
             print('Logging checkpoints successful')
+            os.remove(CHECKPOINTS_ZIP_DIR) # Remove ZIP of the folder
             shutil.rmtree(CHECKPOINTS_DIR)  # Remove the directory and its contents
             os.makedirs(CHECKPOINTS_DIR)  # Recreate an empty directory
     else:

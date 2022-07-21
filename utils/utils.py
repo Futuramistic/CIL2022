@@ -24,7 +24,6 @@ DEFAULT_SEGMENTATION_THRESHOLD = 0.5
 DEFAULT_TRAIN_FRACTION = 0.8
 DEFAULT_NUM_SAMPLES_TO_VISUALIZE = 36
 DEFAULT_BLOBS_REMOVAL_THRESHOLD = 100
-DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT = 0.85  # refers to weighted F1 score
 DEFAULT_TF_INPUT_SHAPE = (None, None, 3)
 
 # Contains the URLs where our datasets are stored, as well as a short description for each dataset
@@ -114,19 +113,7 @@ DATASET_ZIP_URLS = {
     # augmentation procedure, the second city class oversampled, and with 25 samples from original dataset excluded from
     # augmentation procedure to avoid data leakage; same 25 samples as in "new_original", "new_ext_original" and
     # "new_original_aug_6" datasets; use split of 0.9875 to use exactly these 25 samples as the validation set
-    "ext_original_aug_6_oversampled": "https://polybox.ethz.ch/index.php/s/9hDXLlX7mB5Xljq/download",
-
-    # validation split 1 of original dataset (samples "satimage_0.png" to "satimage_24.png" from "original" dataset
-    # used as validation set)
-    "original_split_1": "https://polybox.ethz.ch/index.php/s/EhNndrS2fIWfWZF/download",
-    
-    # validation split 2 of original dataset (samples "satimage_25.png" to "satimage_49.png" from "original" dataset
-    # used as validation set)
-    "original_split_2": "https://polybox.ethz.ch/index.php/s/TKzv8THbJPEdH9i/download",
-    
-    # validation split 3 of original dataset (samples "satimage_50.png" to "satimage_74.png" from "original" dataset
-    # used as validation set)
-    "original_split_3": "https://polybox.ethz.ch/index.php/s/eQdRlIKlIGJ7EWg/download",
+    "ext_original_aug_6_oversampled": "https://polybox.ethz.ch/index.php/s/9hDXLlX7mB5Xljq/download"
 }
 DATASET_STATS = {
     "original": {
@@ -161,11 +148,11 @@ DATASET_STATS = {
 # in case multiple jobs are running in the same directory, SESSION_ID will prevent name conflicts
 CODEBASE_SNAPSHOT_ZIP_NAME = f"codebase_{SESSION_ID}.zip"
 CHECKPOINTS_DIR = os.path.join("checkpoints", str(SESSION_ID))
+CHECKPOINTS_ZIP_DIR = f"checkpoints_{SESSION_ID}.zip"
 LOGGING_DIR = "logs/"
 COMMAND_LINE_FILE_NAME = "command_line.txt"
 OUTPUT_PRED_DIR = "output_preds"
 SALIENCY_MAP_DIR = "saliency_maps"
-OUTPUT_FLOAT_DIR = "float_maps"
 MLFLOW_FTP_USER = "mlflow_user"
 MLFLOW_HTTP_USER = "cil22"
 MLFLOW_HTTP_PASS = "equilibrium"
