@@ -23,7 +23,7 @@ cranet_baseline_eval = {
         'trainer_params': {
             'experiment_name': 'CRANet_Hyperopt',
             'split': 0.827,
-            'num_epochs': 300,
+            'num_epochs': 200,
             # scope.int: cast sampled value to integer
             'batch_size': scope.int(hp.qloguniform('batch_size', np.log(2), np.log(16), 2)),
             'checkpoint_interval': 250,
