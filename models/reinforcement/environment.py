@@ -3,6 +3,7 @@ import cv2
 import matplotlib.pyplot as plt
 import PIL.Image as Image
 import gym
+import pickle
 import torch
 import torch.nn.functional as F
 
@@ -328,9 +329,11 @@ class SegmentationEnvironment(Env):
 
 
 class SegmentationEnvironmentMinimal(Env):
-    def __init__(self, img, gt, patch_size, img_val_min, img_val_max, is_supervised=False, rewards=DEFAULT_REWARDS_MINIMAL,
-    supervision_optimal_brush_radius_map=None,
-    supervision_non_max_suppressed_map=None):
+    def __init__(self, img_paths, gt_paths, patch_size, img_val_min, img_val_max, is_supervised=False, rewards=DEFAULT_REWARDS_MINIMAL,
+                 supervision_optimal_brush_radius_map_paths=None,
+                 supervision_non_max_suppressed_map_paths=None,
+                 sample_preprocessing=None,
+                 dl_sample_idxs=None):
         """Environment for reinforcement learning
 
         Args:
@@ -341,17 +344,18 @@ class SegmentationEnvironmentMinimal(Env):
                            if True, the policy network is assumed to output "angle", "brush_radius" and ; otherwise, network is 
             patch_size (tuple of int): size of patch visible to agent at a given timestep
             rewards
-            supervision_optimal_brush_radius_map (torch.Tensor): map of optimal radii for each pixel
-            supervision_non_max_suppressed_map (torch.Tensor): map of values after performing non-maximum suppression on 
+            supervision_optimal_brush_radius_map_paths (list of str): paths to pickled files with map of optimal radii for each pixel, or None if is_supervised is False
+            supervision_non_max_suppressed_map (list of str): map of values after performing non-maximum suppression on optimal brush radius maps, or None if is_supervised is False
         """
         super(SegmentationEnvironmentMinimal, self).__init__()
         print('SegmentationEnvironmentMinimal __init__ entered')
+
+        self.sample_idx = -1
         self.patch_size = patch_size
-        self.img = img
-        self.gt = gt
-        self.img_size = img.shape[1:]
+        self.img_paths = img_paths
+        self.gt_paths = gt_paths
         self.rewards = rewards
-        self.device = self.img.device
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.img_val_min = img_val_min
         self.img_val_max = img_val_max
         self.padding_value = -1 if img_val_min == 0 else -2 * img_val_min
@@ -373,6 +377,8 @@ class SegmentationEnvironmentMinimal(Env):
         self.magnitude = 5.0 if is_supervised else 1.0  # 1.0 # 1/self.min_patch_size # magnitude is always one pixel per step (if in unsupervised setting)
         self.brush_width = 1 # paint one pixel per step (if in unsupervised setting)
         self.is_supervised = is_supervised
+        self.sample_preprocessing = sample_preprocessing
+        self.dl_sample_idxs = dl_sample_idxs
         
         if is_supervised:
             action_spaces = {
@@ -387,13 +393,8 @@ class SegmentationEnvironmentMinimal(Env):
             }
         self.action_space = gym.spaces.Dict(action_spaces)
                                                   
-        self.padded_img = F.pad(img, pad=flatten(self.paddings_per_dim),
-                                mode='constant', value=self.padding_value)
-        self.padded_gt = F.pad(gt, pad=flatten(self.paddings_per_dim),
-                                mode='constant', value=self.padding_value) 
-    
-        self.supervision_optimal_brush_radius_map = supervision_optimal_brush_radius_map
-        self.supervision_non_max_suppressed_map = supervision_non_max_suppressed_map
+        self.supervision_optimal_brush_radius_map_paths = supervision_optimal_brush_radius_map_paths
+        self.supervision_non_max_suppressed_map_paths = supervision_non_max_suppressed_map_paths
 
         print('SegmentationEnvironmentMinimal __init__: about to call reset()')
 
@@ -411,6 +412,54 @@ class SegmentationEnvironmentMinimal(Env):
                             device='cuda' if torch.cuda.is_available() else 'cpu')
 
     def reset(self):
+        # move to next sample
+        self.sample_idx = (self.sample_idx + 1) % len(self.img_paths)
+
+        img_path = self.img_paths[self.sample_idx]
+        gt_path = self.gt_paths[self.sample_idx]
+
+        # load the image from disk
+        img_np = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+        self.img = torch.from_numpy(img_np)
+        self.img = torch.permute(self.img, (2, 0, 1))  # channel dim first
+        # BGR to RGB6
+        self.img = self.img[[2, 1, 0, 3] if self.img.shape[0] == 4 else [2, 1, 0] if self.img.shape[0] == 3 else [0]]
+        self.img = self.img.to(self.device)
+
+        # there is groundtruth
+        gt_np = cv2.imread(gt_path, cv2.IMREAD_UNCHANGED)
+        self.gt = torch.from_numpy(gt_np)
+        if len(self.gt.shape) == 3:
+            self.gt = torch.permute(self.gt, (2, 0, 1))  # channel dim first
+            # BGR to RGB
+            self.gt = self.gt[[2, 1, 0, 3] if self.gt.shape[0] == 4 else [2, 1, 0] if self.gt.shape[0] == 3 else [0]]
+        else:
+            self.gt = self.gt.unsqueeze(0)
+        
+        if self.sample_preprocessing is not None:
+            self.img = self.sample_preprocessing(self.img, is_gt=False)
+            self.gt = self.sample_preprocessing(self.gt, is_gt=True)
+
+        while len(self.gt.shape) >= 3:
+            self.gt = self.gt[0]
+        
+        self.gt = self.gt.to(self.device)
+        
+        if self.supervision_optimal_brush_radius_map_paths is not None:
+            with open(self.supervision_optimal_brush_radius_map_paths[self.sample_idx], 'rb') as f:
+                self.supervision_optimal_brush_radius_map = torch.from_numpy(pickle.load(f))
+
+        if self.supervision_non_max_suppressed_map_paths is not None:
+            with open(self.supervision_non_max_suppressed_map_paths[self.sample_idx], 'rb') as f:
+                self.supervision_non_max_suppressed_map = torch.from_numpy(pickle.load(f))
+
+        self.img_size = self.img.shape[1:]
+
+        self.padded_img = F.pad(self.img, pad=flatten(self.paddings_per_dim),
+                                mode='constant', value=self.padding_value)
+        self.padded_gt = F.pad(self.gt, pad=flatten(self.paddings_per_dim),
+                                mode='constant', value=self.padding_value)
+
         self.agent_pos = [int(dim_size // 2) for dim_size in self.gt.shape]
         self.agent_angle = 0.0
         self.brush_width = 0.0 if self.is_supervised else 1.0
@@ -694,6 +743,9 @@ class SegmentationEnvironmentMinimal(Env):
         self.info_sum['reward_decomp_sums'] = {k: self.info_sum['reward_decomp_sums'].get(k, 0.0) + v for k, v in reward_decomp_sums.items()}
 
         new_info['info_sum'] = self.info_sum
+        if self.dl_sample_idxs is not None:
+            new_info['sample_idx'] = self.dl_sample_idxs[self.sample_idx]
+        new_info['sample_sequence_idx'] = self.sample_idx
         return new_observation, reward, torch.tensor(terminated, device=self.img.device), new_info
     
     def get_unpadded_segmentation(self): # for trainer to calculate loss during testing

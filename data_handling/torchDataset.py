@@ -94,7 +94,7 @@ class SegmentationDataset(Dataset):
 
         if not self.use_rl_supervision:
             # return a tuple of the image and its mask
-            return image, gt
+            return image, gt, idx
         else:
             # return a tuple of (the image, the optimal brush radius map, a non-maximum-suppressed version of the brush radius map) and its mask
             
@@ -115,4 +115,4 @@ class SegmentationDataset(Dataset):
             else:
                 non_max_suppressed = torch.zeros(image.shape[1:])
 
-            return torch.cat((image, opt_brush_radii.unsqueeze(0), non_max_suppressed.unsqueeze(0)), axis=0), gt
+            return torch.cat((image, opt_brush_radii.unsqueeze(0), non_max_suppressed.unsqueeze(0)), axis=0), gt, idx

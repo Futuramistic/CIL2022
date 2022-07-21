@@ -124,8 +124,73 @@ class TorchRLTrainerMinimal(TorchTrainer):
         self.rewards = DEFAULT_REWARDS_MINIMAL if rewards is None else rewards
         self.use_supervision = use_supervision
         self.gradient_clipping_norm = gradient_clipping_norm
-
         # self.scheduler set by TorchTrainer superclass
+
+        self.spawn_environments()
+
+    def spawn_environments(self):
+        global log_debug_indent
+        log_debug('entered spawn_environments')
+        log_debug_indent += 1
+
+        self.train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
+                                                                    preprocessing=self.preprocessing)
+        self.test_loader = self.dataloader.get_testing_dataloader(batch_size=self.batch_size,
+                                                                  preprocessing=self.preprocessing)
+
+        envs = []
+        for loader, offset, batch_size, num_envs in [(self.train_loader, 0, self.batch_size, self.batch_size),
+                                                     (self.test_loader, self.dataloader.get_dataset_sizes(self.split)[0],
+                                                      self.batch_size, self.batch_size)]:
+            all_env_img_paths = [[] for _ in range(num_envs)]
+            all_env_gt_paths = [[] for _ in range(num_envs)]
+            all_env_opt_brush_radius_paths = [[] for _ in range(num_envs)] if self.use_supervision else None
+            all_env_non_max_suppressed_paths = [[] for _ in range(num_envs)] if self.use_supervision else None
+            all_dl_sample_idxs = [[] for _ in range(num_envs)]
+
+            for (_, _, _idxs) in loader:
+                # needed for padding, to keep all environments synched
+                if len(_idxs) < batch_size:
+                    idxs = torch.cat((_idxs, torch.tensor([0 for _ in range(batch_size - len(_idxs))])), axis=0)
+                else:
+                    idxs = _idxs
+                
+                for env_idx, sample_idx in enumerate(idxs):
+                    img_path = self.dataloader.training_img_paths[sample_idx]  # no need to add offset
+                    gt_path = self.dataloader.training_gt_paths[sample_idx]  # no need to add offset
+                    all_env_img_paths[env_idx].append(img_path)
+                    all_env_gt_paths[env_idx].append(gt_path)
+                    all_dl_sample_idxs[env_idx].append(sample_idx)
+                    if self.use_supervision:
+                        opt_brush_radius_path =\
+                            os.path.join(os.path.dirname(os.path.dirname(img_path)), 'opt_brush_radius',
+                                                         os.path.basename(img_path).replace('.png', '.pkl'))
+                        non_max_supp_path =\
+                            os.path.join(os.path.dirname(os.path.dirname(img_path)), 'non_max_suppressed',
+                                                         os.path.basename(img_path).replace('.png', '.pkl'))
+                        all_env_opt_brush_radius_paths[env_idx].append(opt_brush_radius_path)
+                        all_env_non_max_suppressed_paths[env_idx].append(non_max_supp_path)
+        
+            env_list = [lambda img_paths=img_paths, gt_paths=gt_paths, opt_brush_radius_paths=opt_brush_radius_paths,
+                        non_max_suppressed_paths=non_max_suppressed_paths:\
+                        SegmentationEnvironmentMinimal(img_paths, gt_paths, self.model.patch_size,
+                                                    self.train_loader.img_val_min, self.train_loader.img_val_max,
+                                                    is_supervised=self.use_supervision, rewards=self.rewards,
+                                                    supervision_optimal_brush_radius_map_paths=opt_brush_radius_paths,
+                                                    supervision_non_max_suppressed_map_paths=non_max_suppressed_paths,
+                                                    sample_preprocessing=self.preprocessing,
+                                                    dl_sample_idxs=dl_sample_idxs)
+                        for img_paths, gt_paths, opt_brush_radius_paths, non_max_suppressed_paths, dl_sample_idxs
+                        in zip(all_env_img_paths, all_env_gt_paths, all_env_opt_brush_radius_paths,
+                               all_env_non_max_suppressed_paths, all_dl_sample_idxs)]
+            env = SubprocVecEnvTorch(env_list)
+            envs.append(env)
+
+        self.train_env = envs[0]
+        self.test_env = envs[1]
+
+        log_debug_indent -= 1
+        log_debug('left spawn_environments')
 
     # This class is a mimicry of TensorFlow's "Callback" class behavior, used not out of necessity (as we write the
     # training loop explicitly in Torch, instead of using the "all-inclusive" model.fit(...) in TF, and can thus just
@@ -164,7 +229,9 @@ class TorchRLTrainerMinimal(TorchTrainer):
                 #       'reward_stats_avg_quantities': reward_stats_avg_quantities,
                 #       'reward_stats_avg_sums': reward_stats_avg_sums}
 
-                reward_info_flattened = {'rl_' + reward_type + '_' + key: reward_info[reward_type][key] for key in reward_info[list(reward_info.keys())[0]].keys() for reward_type in reward_info.keys()}
+                reward_info_flattened = {'rl_' + reward_type + '_' + key: reward_info[reward_type][key]
+                                         for key in reward_info[list(reward_info.keys())[0]].keys()
+                                         for reward_type in reward_info.keys()}
 
                 metrics = {'precision': precision, 'recall': recall, 'f1_score': self.f1_score, **reward_info_flattened}
                 print('Metrics at aggregate iteration %i (ep. %i, ep.-it. %i): %s'
@@ -172,12 +239,14 @@ class TorchRLTrainerMinimal(TorchTrainer):
                 if mlflow_logger.logging_to_mlflow_enabled():
                     mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=self.iteration_idx)
                     if self.do_visualize:
-                        mlflow_logger.log_visualizations(self.trainer, self.iteration_idx, self.epoch_idx, self.epoch_iteration_idx)
+                        mlflow_logger.log_visualizations(self.trainer, self.iteration_idx,
+                                                         self.epoch_idx, self.epoch_iteration_idx)
                 
                 if self.trainer.do_checkpoint\
                    and self.iteration_idx % self.trainer.checkpoint_interval == 0\
                    and self.iteration_idx > 0:  # avoid creating checkpoints at iteration 0
-                    self.trainer._save_checkpoint(self.trainer.model, self.epoch_idx, self.epoch_iteration_idx, self.iteration_idx)
+                    self.trainer._save_checkpoint(self.trainer.model, self.epoch_idx,
+                                                  self.epoch_iteration_idx, self.iteration_idx)
 
                 log_debug_indent -= 1
                 log_debug(f'on_train_batch_end: evaluation complete')
@@ -246,26 +315,29 @@ class TorchRLTrainerMinimal(TorchTrainer):
         log_debug('entered create_visualizations')
         log_debug_indent += 1
 
+        # do not employ the random visualization scheme here, else the environments will get out of sync
+
         num_to_visualize = self.num_samples_to_visualize
-        num_fixed_samples = num_to_visualize // 2
-        num_random_samples = num_to_visualize - num_fixed_samples
-        # start sampling random indices from "num_fixed_samples + 1" to avoid duplicates
-        # convert to np.array to allow subsequent slicing
-        if num_to_visualize >= len(self.test_loader):
-            # just visualize the entire test set
-            indices = np.array(list(range(len(self.test_loader))))
-        else:
-            indices = np.array(list(range(num_fixed_samples)) +\
-                            random.sample(range(num_fixed_samples + 1, len(self.test_loader)), num_random_samples))
-        # never exceed the given training batch size, else we might face memory problems
-        vis_batch_size = min(num_to_visualize, self.batch_size)
-        subset_ds = Subset(self.test_loader.dataset, indices)
-        subset_dl = DataLoader(subset_ds, batch_size=vis_batch_size, shuffle=False)
         
         predictions_nstepwise_rgb_test_set = []
         positions_nstepwise_test_set = []
+        
+        longest_animation_length = 0
 
-        for (_batch_xs, batch_ys) in subset_dl:
+        larger_batch_size_test_loader = DataLoader(self.test_loader.dataset, batch_size=self.batch_size, shuffle=False)
+
+        for (_batch_xs, batch_ys, batch_idxs) in larger_batch_size_test_loader:
+            if num_to_visualize <= 0:
+                self.test_env.reset()  # step to next
+                continue
+            else:
+                if len(_batch_xs) > num_to_visualize:
+                    _batch_xs = _batch_xs[:num_to_visualize]
+                    batch_ys = batch_ys[:num_to_visualize]
+                    batch_idxs = batch_idxs[:num_to_visualize]
+                num_to_visualize -= len(_batch_xs)
+
+
             log_debug('create_visualizations: sampled new batch (batch_xs, batch_ys) from subset_dl')
             log_debug_indent += 1
         
@@ -276,7 +348,6 @@ class TorchRLTrainerMinimal(TorchTrainer):
             # preds = (output >= self.segmentation_threshold).float().cpu().detach().numpy()
 
             # preds_batch = []
-            longest_animation_length = 0
             
             if self.use_supervision:
                 batch_xs, opt_brush_radii, non_max_suppressed =\
@@ -293,32 +364,21 @@ class TorchRLTrainerMinimal(TorchTrainer):
             # batch_ys must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
             if len(batch_ys.shape) == 4:
                 batch_ys = torch.squeeze(batch_ys, axis=1)
-
-            
-            env_list = [lambda sample_x=sample_x, sample_y=sample_y, sample_opt_brush_radii=sample_opt_brush_radii,
-                        sample_non_max_suppressed=sample_non_max_suppressed:\
-                        SegmentationEnvironmentMinimal(sample_x, sample_y, self.model.patch_size,
-                                                       self.test_loader.img_val_min, self.test_loader.img_val_max,
-                                                       is_supervised=self.use_supervision, rewards=self.rewards,
-                                                       supervision_optimal_brush_radius_map=sample_opt_brush_radii,
-                                                       supervision_non_max_suppressed_map=sample_non_max_suppressed)
-                        for sample_x, sample_y, sample_opt_brush_radii, sample_non_max_suppressed
-                        in zip(batch_xs, batch_ys, opt_brush_radii, non_max_suppressed)]
-
-            envs = SubprocVecEnvTorch(env_list)
-            envs.reset()
             
             # no memory used here
             predictions_nstepwise, positions_nstepwise, reward, info =\
-                self.trajectory_step(envs, sample_from_action_distributions=self.sample_from_action_distributions,
+                self.trajectory_step(self.test_env, sample_from_action_distributions=self.sample_from_action_distributions,
                                      memory=None, visualization_interval=self.visualization_interval)
 
-            for sample_idx in range(batch_xs.shape[0]):
+            # environment reset in trajectory_step
+
+            for env_idx in filter(lambda i: i >= 0, [env_idx if sample_idx in batch_idxs else -1 for env_idx, sample_idx in enumerate(info['info_sample_idx'])]):
                 # stack all animation frames, dim(nsteps, height, width)
-                predictions_nstepwise_list = [predictions_nstepwise[timestep_idx][sample_idx].cpu().numpy().astype(int) for timestep_idx in range(len(predictions_nstepwise))]                
+                predictions_nstepwise_list = [predictions_nstepwise[timestep_idx][env_idx].cpu().numpy().astype(int)
+                                              for timestep_idx in range(len(predictions_nstepwise))]                
                 predictions_nstepwise_np = np.stack(predictions_nstepwise_list)
                 
-                sample_y = batch_ys[sample_idx]
+                sample_y = batch_ys[env_idx]
                 sample_y_np = sample_y.cpu().numpy()
                 
                 merged = np.expand_dims(2 * predictions_nstepwise_np + sample_y_np, axis=0)
@@ -329,11 +389,13 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
                 predictions_nstepwise_rgb_test_set.append(rgb)
 
-                positions_nstepwise_list = [positions_nstepwise[timestep_idx][sample_idx] for timestep_idx in range(len(positions_nstepwise))]
+                positions_nstepwise_list = [positions_nstepwise[timestep_idx][env_idx]
+                                            for timestep_idx in range(len(positions_nstepwise))]
                 positions_nstepwise_test_set.append(positions_nstepwise_list)
                 
                 if len(predictions_nstepwise_list) > longest_animation_length:
                     longest_animation_length = len(predictions_nstepwise)
+
 
                 # preds = envs.get_unpadded_segmentation().float().detach().cpu()
                 # preds_batch.append(preds)
@@ -503,7 +565,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
         opt = self.optimizer_or_lr
         train_loss = 0
 
-        for (_xs, ys) in train_loader:
+        for (_xs, ys, idxs) in train_loader:
             log_debug('_train_step: sampled new batch (xs, ys) from train_loader')
             log_debug_indent += 1
 
@@ -515,17 +577,8 @@ class TorchRLTrainerMinimal(TorchTrainer):
             if len(ys.shape) == 4:
                 ys = torch.squeeze(ys, axis=1)
             
-            env_list = [lambda sample_x=sample_x, sample_y=sample_y, sample_opt_brush_radii=sample_opt_brush_radii, sample_non_max_suppressed=sample_non_max_suppressed:\
-                        SegmentationEnvironmentMinimal(sample_x, sample_y, self.model.patch_size,
-                                                               train_loader.img_val_min, train_loader.img_val_max,
-                                                               is_supervised=self.use_supervision, rewards=self.rewards,
-                                                               supervision_optimal_brush_radius_map=sample_opt_brush_radii,
-                                                               supervision_non_max_suppressed_map=sample_non_max_suppressed)
-                        for sample_x, sample_y, sample_opt_brush_radii, sample_non_max_suppressed
-                        in zip(xs, ys, opt_brush_radii, non_max_suppressed)]
-
-            envs = SubprocVecEnvTorch(env_list)
-            envs.reset()
+            # already called in environments:
+            # envs.reset()
             
             if self.use_supervision:
                 memory = self.ReplayMemory(capacity=int(self.replay_memory_capacity) * xs.shape[0],
@@ -539,8 +592,9 @@ class TorchRLTrainerMinimal(TorchTrainer):
             # if we exit this function and "terminated" is false, we timed out
             # (more than self.max_rollout_len iterations)
             # loop until termination/timeout already inside this function
-            self.trajectory_step(envs, sample_from_action_distributions=self.sample_from_action_distributions,
+            self.trajectory_step(self.train_env, sample_from_action_distributions=self.sample_from_action_distributions,
                                  memory=memory)
+            # environment reset in trajectory_step
 
             if not self.use_supervision:
                 for _memory in memory:
@@ -615,7 +669,6 @@ class TorchRLTrainerMinimal(TorchTrainer):
                     train_loss += policy_loss.item()
 
                 log_debug_indent -= 1
-
 
             ##########
 
@@ -849,8 +902,6 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
         is_multi_env = isinstance(env, SubprocVecEnvTorch)
 
-        env.reset()
-
         # !!!!!!!!!!
         # WARNING: this was commented and changed
 
@@ -887,7 +938,9 @@ class TorchRLTrainerMinimal(TorchTrainer):
         # else:
         #     policy_state = None
 
-        observation, *_, info = env.step(SegmentationEnvironmentMinimal.get_neutral_action())
+        observation, *_, info = env.step(torch.stack([SegmentationEnvironmentMinimal.get_neutral_action()
+                                                      for _ in range(env.nenvs)])
+                                         if is_multi_env else SegmentationEnvironmentMinimal.get_neutral_action())
 
         unpadded_segmentation = [info[idx]['unpadded_segmentation'] for idx in range(env.nenvs)] if is_multi_env else info['unpadded_segmentation']
         rounded_agent_pos = [info[idx]['rounded_agent_pos'] for idx in range(env.nenvs)] if is_multi_env else info['rounded_agent_pos']
@@ -938,7 +991,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
                     action = action[0]
             else:
                 if len(observation.shape) == 3:
-                    action = model_output[0]  # remove batch dimension
+                    action = model_output.squeeze()  # remove batch dimension
 
             model_output_unnormalized = self.unnormalize_model_output(model_output, min(list(self.model.patch_size)))
 
@@ -1007,8 +1060,10 @@ class TorchRLTrainerMinimal(TorchTrainer):
             predictions_nsteps.append(pre_termination_unpadded_segmentation)
             positions_nsteps.append(pre_termination_rounded_agent_pos)
 
+
         if is_multi_env:
-            info_sum =  [info[idx]['info_sum'] for idx in range(env.nenvs)]
+            info_sample_idx = [info[idx]['sample_idx'] for idx in range(env.nenvs)]
+            info_sum = [info[idx]['info_sum'] for idx in range(env.nenvs)]
             info_avg = []
             for env_idx in range(env.nenvs):
                 new_info_avg = {'reward_decomp_quantities': {}, 'reward_decomp_sums': {}}
@@ -1018,6 +1073,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
                 info_avg.append(new_info_avg)
         else:
+            info_sample_idx = info['sample_idx']
             info_sum = info['info_sum']
             info_avg = {'reward_decomp_quantities': {}, 'reward_decomp_sums': {}}
             # timestep_idx + 1 due to zero-based indexing; add another 1 due to initial timestep 
@@ -1027,7 +1083,12 @@ class TorchRLTrainerMinimal(TorchTrainer):
         log_debug_indent -= 1
         log_debug('left trajectory_step')
 
-        return predictions_nsteps, positions_nsteps, reward, {'info_timestep_sum': info_sum, 'info_timestep_avg': info_avg}
+        # move to next sample
+        env.reset()
+
+        return predictions_nsteps, positions_nsteps, reward, {'info_timestep_sum': info_sum,
+                                                              'info_timestep_avg': info_avg,
+                                                              'info_sample_idx': info_sample_idx}
 
     def get_F1_score_validation(self):
         _, _, f1_score, _ = self.get_precision_recall_F1_score_validation()
@@ -1060,7 +1121,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
         larger_batch_size_test_loader = DataLoader(self.test_loader.dataset, batch_size=self.batch_size, shuffle=False)
 
-        for (_batch_xs, batch_ys) in larger_batch_size_test_loader:
+        for (_batch_xs, batch_ys, batch_idxs) in larger_batch_size_test_loader:
             log_debug(f'get_precision_recall_F1_score_validation: sampled new batch (xs, ys) from self.test_loader (size: {_batch_xs.shape[0]})')
             log_debug_indent += 1
 
@@ -1077,24 +1138,14 @@ class TorchRLTrainerMinimal(TorchTrainer):
             if len(batch_ys.shape) == 4:
                 batch_ys = torch.squeeze(batch_ys, axis=1)
 
-            env_list = [lambda sample_x=sample_x, sample_y=sample_y, sample_opt_brush_radii=sample_opt_brush_radii, sample_non_max_suppressed=sample_non_max_suppressed:\
-                        SegmentationEnvironmentMinimal(sample_x, sample_y, self.model.patch_size,
-                                                       self.test_loader.img_val_min, self.test_loader.img_val_max,
-                                                       is_supervised=self.use_supervision, rewards=self.rewards,
-                                                       supervision_optimal_brush_radius_map=sample_opt_brush_radii,
-                                                       supervision_non_max_suppressed_map=sample_non_max_suppressed)
-                        for sample_x, sample_y, sample_opt_brush_radii, sample_non_max_suppressed
-                        in zip(batch_xs, batch_ys, opt_brush_radii, non_max_suppressed)]
-
-            envs = SubprocVecEnvTorch(env_list)
-            envs.reset()
-
             # no memory used here
 
             predictions_nstepwise, positions_nstepwise, reward, info =\
-                self.trajectory_step(envs, sample_from_action_distributions=self.sample_from_action_distributions)
+                self.trajectory_step(self.test_env, sample_from_action_distributions=self.sample_from_action_distributions)
+            
+            # environment reset in trajectory_step
 
-            for idx in range(len(info['info_timestep_sum'])):
+            for idx in filter(lambda i: i >= 0, [env_idx if sample_idx in batch_idxs else -1 for env_idx, sample_idx in enumerate(info['info_sample_idx'])]):
                 info_timestep_sum = info['info_timestep_sum'][idx] if 'info_timestep_sum' in info else {}
                 info_timestep_avg = info['info_timestep_avg'][idx] if 'info_timestep_sum' in info else {}
 
