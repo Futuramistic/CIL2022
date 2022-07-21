@@ -129,7 +129,7 @@ class TFTrainer(Trainer, abc.ABC):
                 self.best_val_loss = logs['val_loss']
                 keras.models.save_model(model=self.model,
                                         filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"))
-            mlflow_logger.snapshot_model()
+
             mlflow_logger.log_checkpoints()
 
             self.epoch_idx += 1
