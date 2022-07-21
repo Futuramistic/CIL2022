@@ -4,6 +4,7 @@ import os
 import sys
 import pysftp
 import requests
+import pickle
 
 from requests.auth import HTTPBasicAuth
 from urllib.parse import urlparse
@@ -19,6 +20,7 @@ and let each model make a prediction, before ensembling all predictions into a s
 
 os.environ['MLFLOW_TRACKING_USERNAME'] = MLFLOW_HTTP_USER
 os.environ['MLFLOW_TRACKING_PASSWORD'] = MLFLOW_HTTP_PASS
+offset = 144  # TODO put this in utils since it's also used in torch_predictor and tf_predictor
 
 
 def sftp_url_to_command(url):
@@ -68,19 +70,73 @@ def load_checkpoint(checkpoint_path, checkpoints_output_dir):
         return final_checkpoint_path
 
 
-def main(model_name, sftp_paths_file, checkpoints_output_dir, output_predictions_dir):
+def compute_majority_vote_prediction(model_name, checkpoint_paths, sftp_path_model_names, checkpoints_output_dir,
+                                     output_predictions_dir):
+    # Make one prediction per checkpoint
+    for idx, checkpoint in enumerate(checkpoint_paths):
+        fact = Factory.get_factory(model_name=sftp_path_model_names[idx])
+        # also captures torch RL models with different trainer:
+        is_torch = issubclass(fact.get_dataloader_class(), TorchDataLoader)
+        predictor_script = 'torch_predictor' if is_torch else 'tf_predictor'
+        command = f"python {predictor_script}.py -m {model_name} -c {checkpoints_output_dir}/{checkpoint}"  # TODO should be sftp_path_model_names[idx] instead of model_name probably
+        if model_name in ['deeplabv3', 'cranet']:
+            command += ' --apply_sigmoid'
+        os.system(command)
+        os.system('python mask_to_submission.py')
+        move_command = 'move' if os.name == 'nt' else 'mv'
+        os.system(f'{move_command} dummy_submission.csv {output_predictions_dir}/{idx}.csv')
+
+    # Ensemble all predictions
+    os.system(f'python processing/ensembled_submission_creator.py')
+
+
+def averaged_outputs_prediction(checkpoint_paths, sftp_path_model_names, checkpoints_output_dir):
+    os.makedirs(OUTPUT_FLOAT_DIR, exist_ok=True)
+    summed_preds = [np.zeros((400, 400)) for _ in range(144)]
+    nb_networks = 0
+    for idx, checkpoint in enumerate(checkpoint_paths):
+        fact = Factory.get_factory(model_name=sftp_path_model_names[idx])
+        # also captures torch RL models with different trainer:
+        is_torch = issubclass(fact.get_dataloader_class(), TorchDataLoader)
+        predictor_script = 'torch_predictor' if is_torch else 'tf_predictor'
+        command = f"python {predictor_script}.py -m {sftp_path_model_names[idx]} -c {checkpoint} " \
+                  f"--floating_prediction"
+        if sftp_path_model_names[idx] in ['deeplabv3', 'cranet']:
+            command += ' --apply_sigmoid'
+        os.system(command)
+
+        for i, file_name in enumerate(sorted(os.listdir(OUTPUT_FLOAT_DIR))):
+            with (open(os.path.join(OUTPUT_FLOAT_DIR, file_name), "rb")) as file:
+                pred = pickle.load(file)
+                summed_preds[i] += pred
+        nb_networks += 1
+
+    segmentation_threshold = 0.5  # TODO should search for the best segmentation threshold again
+    for i, prediction in enumerate(summed_preds):
+        pred = ((prediction / nb_networks) >= segmentation_threshold).astype(int)
+        pred *= 255
+        pred = pred[None, :, :]
+        tf.keras.utils.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset + i}.png', pred,
+                                data_format="channels_first")
+
+    os.system('python mask_to_submission.py')
+    move_command = 'move' if os.name == 'nt' else 'mv'
+    os.system(f'{move_command} dummy_submission.csv floating_ensemble.csv')
+
+
+def main(model_name, sftp_paths_file, checkpoints_output_dir, output_predictions_dir, majority_vote=False):
     if model_name is not None:
         model_name = model_name.lower().replace('-', '').replace('_', '')
 
     # Make sure the user wants to overwrite the current checkpoints directory
-    if os.path.exists(checkpoints_output_dir):
-        answer = input(f'{checkpoints_output_dir} already exists. Do you want to overwrite it? [y/n]')
-        if answer.lower() == 'y':
-            shutil.rmtree(checkpoints_output_dir)
-        else:
-            print('Exiting...')
-            return
-    os.mkdir(checkpoints_output_dir)
+    # if os.path.exists(checkpoints_output_dir):
+    #     answer = input(f'{checkpoints_output_dir} already exists. Do you want to overwrite it? [y/n]')
+    #     if answer.lower() == 'y':
+    #         shutil.rmtree(checkpoints_output_dir)
+    #     else:
+    #         print('Exiting...')
+    #         return
+    # os.mkdir(checkpoints_output_dir)
 
     # Read the checkpoint paths
     current_model_name = options.model
@@ -88,7 +144,7 @@ def main(model_name, sftp_paths_file, checkpoints_output_dir, output_predictions
     sftp_path_model_names = []
     with open(sftp_paths_file) as file:
         for line in map(lambda l: l.strip(), file.readlines()):
-            if '#' in line: 
+            if '#' in line:
                 line = line[:line.index('#')].strip()
             if line == '':
                 continue
@@ -107,22 +163,11 @@ def main(model_name, sftp_paths_file, checkpoints_output_dir, output_predictions
         shutil.rmtree(output_predictions_dir)
     os.mkdir(output_predictions_dir)
 
-    # Make one prediction per checkpoint
-    for idx, checkpoint in enumerate(checkpoint_paths):
-        fact = Factory.get_factory(model_name=sftp_path_model_names[idx])
-        # also captures torch RL models with different trainer:
-        is_torch = issubclass(fact.get_dataloader_class(), TorchDataLoader)
-        predictor_script = 'torch_predictor' if is_torch else 'tf_predictor'
-        command = f"python {predictor_script}.py -m {model_name} -c {checkpoints_output_dir}/{checkpoint}"
-        if model_name in ['deeplabv3', 'cranet']:
-            command += ' --apply_sigmoid'
-        os.system(command)
-        os.system('python mask_to_submission.py')
-        move_command = 'move' if os.name == 'nt' else 'mv'
-        os.system(f'{move_command} dummy_submission.csv {output_predictions_dir}/{idx}.csv')
-
-    # Ensemble all predictions
-    os.system(f'python processing/ensembled_submission_creator.py')
+    if majority_vote:
+        compute_majority_vote_prediction(model_name, checkpoint_paths, sftp_path_model_names, checkpoints_output_dir,
+                                         output_predictions_dir)
+    else:
+        averaged_outputs_prediction(checkpoint_paths, sftp_path_model_names, checkpoints_output_dir)
 
 
 if __name__ == '__main__':
@@ -138,6 +183,12 @@ if __name__ == '__main__':
                         help='Path to directory in which to store downloaded model checkpoints')
     parser.add_argument('-o', '--output_predictions_dir', required=False, default='submissions_to_ensemble', type=str,
                         help='Path to directory in which to store submissions to ensemble')
+    parser.set_defaults(majority_vote=False)
+    parser.add_argument('--majority_vote', dest='majority_vote', action='store_true',
+                        help='If specified, perform the prediction using a majority vote, otherwise the default '
+                             'ensembling is done by averaging the floating point network outputs (which is '
+                             'theoretically more accurate')
 
     options = parser.parse_args()
-    main(options.model, options.sftp_paths_file, options.checkpoints_output_dir, options.output_predictions_dir)
+    main(options.model, options.sftp_paths_file, options.checkpoints_output_dir, options.output_predictions_dir,
+         options.majority_vote)

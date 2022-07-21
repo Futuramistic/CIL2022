@@ -5,6 +5,7 @@ import tensorflow.keras as K
 import numpy as np
 import argparse
 import torchvision.transforms.functional as TF
+import pickle
 
 from factory import Factory
 from losses.precision_recall_f1 import patchified_f1_scores_torch
@@ -43,7 +44,7 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True):
     best_patch_thresh = 0
     best_f1_score = 0
     best_blob_thresh = 0
-    for blob_thresh in [0]: # np.linspace(0, 400, 8):
+    for blob_thresh in [0]:  # np.linspace(0, 400, 8):
         for patch_thresh in [0.25]:  # np.linspace(0, 1, 21)
             for seg_thresh in np.linspace(0, 1, 41):
                 f1_scores = []
@@ -67,11 +68,11 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True):
                             output_ = sigmoid(output_)
 
                         if with_augmentation:
-                            output_ = _unify(output_.squeeze()) # torch.stack([_unify(output_[idx]) for idx in range(output_.shape[0])])
+                            output_ = _unify(output_.squeeze())  # torch.stack([_unify(output_[idx]) for idx in range(output_.shape[0])])
 
                         preds = (output_ >= seg_thresh).float()
-                        #_, _, _, _, _, _, _, f1_weighted, *_ = precision_recall_f1_score_torch(preds, y)
-                        #f1_scores.append(f1_weighted.cpu().numpy())
+                        # _, _, _, _, _, _, _, f1_weighted, *_ = precision_recall_f1_score_torch(preds, y)
+                        # f1_scores.append(f1_weighted.cpu().numpy())
                         
                         preds = remove_blobs(preds, threshold=blob_thresh)
 
@@ -81,7 +82,8 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True):
                         del x_
                         del y
                 f1_score = np.mean(f1_scores)
-                print('Segmentation threshold', seg_thresh, '/ patch threshold', patch_thresh, '/ blob threshold', blob_thresh, '- F1 score:', f1_score)
+                print('Segmentation threshold', seg_thresh, '/ patch threshold', patch_thresh, '/ blob threshold',
+                      blob_thresh, '- F1 score:', f1_score)
                 if f1_score > best_f1_score:
                     best_seg_thresh = seg_thresh
                     best_patch_thresh = patch_thresh
@@ -92,7 +94,7 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True):
     return best_seg_thresh, best_patch_thresh
 
 
-def predict(segmentation_threshold, apply_sigmoid, with_augmentation=True):
+def predict(segmentation_threshold, apply_sigmoid, with_augmentation=True, floating_prediction=False):
     """
     Make predictions using a trained model
     Args:
@@ -100,6 +102,8 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=True):
         apply_sigmoid (bool): whether to apply the sigmoid on the output of the model
         with_augmentation (bool): If true, augment the images, predict on each augmented version,
         then ensemble the predictions
+        floating_prediction (bool): If true, output floating point per-pixel probabilities, else use the segmentation
+        threshold to output a binary prediction.
     """
     with torch.no_grad():
         i = 0
@@ -116,17 +120,20 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=True):
                 output = _unify(output.squeeze())
             if apply_sigmoid:
                 output = sigmoid(output)
-            pred = (output >= segmentation_threshold).cpu().detach().numpy().astype(int)
-            while len(pred.shape) > 3:
-                pred = pred[0]
-            pred = remove_blobs(pred, threshold=blob_threshold)
-            pred *= 255
-            while len(pred.shape) == 2:
-                pred = pred[None, :, :]
-            #K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred,
-            #                               data_format="channels_first")
-            tf.keras.utils.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred,
-                                    data_format="channels_first")
+            if floating_prediction:
+                with open(f'{OUTPUT_FLOAT_DIR}/satimage_{offset+i}.pkl', 'wb') as handle:
+                    array = np.squeeze(output.cpu().detach().numpy())
+                    pickle.dump(array, handle)
+            else:
+                pred = (output >= segmentation_threshold).cpu().detach().numpy().astype(int)
+                while len(pred.shape) > 3:
+                    pred = pred[0]
+                pred = remove_blobs(pred, threshold=blob_threshold)
+                pred *= 255
+                while len(pred.shape) == 2:
+                    pred = pred[None, :, :]
+                tf.keras.utils.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred,
+                                        data_format="channels_first")
             i += 1
             del x
 
@@ -226,6 +233,10 @@ def main():
     parser.add_argument('-c', '--checkpoint', type=str, required=True)
     parser.add_argument('--apply_sigmoid', dest='apply_sigmoid', action='store_true', required=False)
     parser.add_argument('--blob_threshold', type=int, default=250, help='The threshold for the blob processing')
+    parser.set_defaults(floating_prediction=False)
+    parser.add_argument('--floating_prediction', dest='floating_prediction', action='store_true',
+                        help='If specified, dump the output of the network to a pickle file, else the default '
+                             'behavior is to threshold the output to get a binary prediction.')
     parser.set_defaults(apply_sigmoid=False)
     options = parser.parse_args()
 
@@ -235,6 +246,7 @@ def main():
     trained_model_path = options.checkpoint
     apply_sigmoid = options.apply_sigmoid
     blob_threshold = options.blob_threshold
+    floating_prediction = options.floating_prediction
 
     # Create loader, trainer etc. from factory
     factory = Factory.get_factory(model_name)
@@ -262,10 +274,12 @@ def main():
     create_or_clean_directory(OUTPUT_PRED_DIR)
 
     # Compute the best threshold
-    segmentation_threshold, *_ = compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
+    # segmentation_threshold, *_ = compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
+    segmentation_threshold = 0.5  # TODO put back the original version
 
     # Make the final predictions
-    predict(segmentation_threshold, apply_sigmoid=apply_sigmoid, with_augmentation=True)
+    predict(segmentation_threshold, apply_sigmoid=apply_sigmoid, with_augmentation=True,
+            floating_prediction=options.floating_prediction)
 
 
 if __name__ == '__main__':
