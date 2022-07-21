@@ -27,8 +27,8 @@ cranet_baseline_eval = {
             # scope.int: cast sampled value to integer
             'batch_size': scope.int(hp.qloguniform('batch_size', np.log(2), np.log(16), 2)),
             'checkpoint_interval': 1000,
-            'hyper_seg_threshold': True
-
+            'hyper_seg_threshold': True,
+            'blobs_removal_threshold': 0
         },
         'optimizer_params': {
             'optimizer_lr': hp.loguniform('learning_rate', np.log(5e-5), np.log(1e-2))
