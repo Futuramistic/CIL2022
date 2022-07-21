@@ -29,7 +29,6 @@ cranet_baseline_eval = {
             'checkpoint_interval': 1000,
             'hyper_seg_threshold': True,
             'blobs_removal_threshold': 0
-
         },
         'optimizer_params': {
             'optimizer_lr': hp.loguniform('learning_rate', np.log(5e-5), np.log(1e-2))
