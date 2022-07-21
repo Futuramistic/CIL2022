@@ -146,7 +146,7 @@ class HyperParamOptimizer:
         with open(self.trials_path, 'wb') as handle:
             cloudpickle.dump(self.trials, handle)
         return {
-            'loss': 1-trainer.callback_handler.best_f1_score, 
+            'loss': 1-abs(trainer.callback_handler.best_f1_score), 
             'status': STATUS_OK,
             'trained_model': model,
             'params': hyperparams
