@@ -26,7 +26,7 @@ class Trainer(abc.ABC):
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
                  blobs_removal_threshold=0, hyper_seg_threshold=False,use_sample_weighting=False, 
-                 adaboost=False):
+                 adaboost_run_name=None):
         """
         Args:
             dataloader: the DataLoader to use when training the model
@@ -58,8 +58,7 @@ class Trainer(abc.ABC):
                                  (measured by F1 score)
             use_sample_weighting: whether to use sample weighting to train more on samples with worse losses; weights 
                                  are recalculated after each epoch
-            adaboost: whether the trainer is part of the adaboost algorithm and has to call specific functions of the 
-                                 dataloader in order to get weighted data
+            adaboost_run_name: if not None, the trainer is part of the adaboost algorithm
         """
         self.dataloader = dataloader
         self.model = model
@@ -108,7 +107,9 @@ class Trainer(abc.ABC):
             print('\n*** WARNING: no checkpoints of this model will be created! Specify valid checkpoint_interval '
                   '(in iterations) to Trainer in order to create checkpoints. ***\n')
         
-        self.adaboost = adaboost
+        self.adaboost = adaboost_run_name is not None
+        if self.adaboost:
+            self.curr_best_checkpoint_path = None
 
     def _init_mlflow(self):
         """
@@ -233,6 +234,7 @@ class Trainer(abc.ABC):
             'session_id': SESSION_ID,
             'use_hyperopt_for_optimal_threshold': self.hyper_seg_threshold,
             'use_sample_weighting': self.use_sample_weighting,
+            'use_adaboost': self.adaboost,
             **(optim_hyparam_serializer.serialize_optimizer_hyperparams(self.optimizer_or_lr)),
             **({f'loss_{k}': v for k, v in self.loss_function_hyperparams.items()})
         }

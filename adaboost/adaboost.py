@@ -74,6 +74,10 @@ class AdaBooster:
             trainer.mlflow_experiment_name = new_run_name
             self.experiment_names.append(new_run_name)
             
+            test_loss = trainer.train()
+            best_model_checkpoint = trainer.curr_best_checkpoint_path
+            if best_model_checkpoint is not None:
+                self.checkpoint_paths.append(best_model_checkpoint)
             # TODO: trainer and dataloader both get adaboost info --> dataloader has to save the data weights whereas trainer has
             # to call specific functions from the dataloader, depending on torch or tensorflow
             # TODO: add argument to all trainers and dataloaders

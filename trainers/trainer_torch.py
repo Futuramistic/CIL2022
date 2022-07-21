@@ -26,7 +26,7 @@ class TorchTrainer(Trainer, abc.ABC):
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
                  blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False, 
-                 adaboost=False):
+                 adaboost_run_name=None):
         """
         Initializes a Torch Trainer
         Args:
@@ -40,7 +40,7 @@ class TorchTrainer(Trainer, abc.ABC):
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
-                         blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting, adaboost)
+                         blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting, adaboost_run_name)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.scheduler = scheduler
@@ -192,13 +192,18 @@ class TorchTrainer(Trainer, abc.ABC):
                               f'_step-{total_iteration}.pt'
         elif best is not None:
             checkpoint_path = f'{CHECKPOINTS_DIR}/cp_best_{best}.pt'
+            if self.adaboost and best == "test_loss":
+                self.curr_best_checkpoint_path = checkpoint_path # save best model for adaboost
         else:
             checkpoint_path = f'{CHECKPOINTS_DIR}/cp_final.pt'
+            if self.adaboost and self.curr_best_checkpoint_path is None:
+                self.curr_best_checkpoint_path = checkpoint_path
         torch.save({
             'epoch': epoch,
             'model': model.state_dict(),
             'optimizer': self.optimizer_or_lr.state_dict()
         }, checkpoint_path)
+        
 
         # checkpoints should be logged to MLflow right after their creation, so that if training is
         # stopped/crashes *without* reaching the final "mlflow_logger.log_checkpoints()" call in trainer.py,
