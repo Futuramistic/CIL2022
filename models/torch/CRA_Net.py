@@ -237,7 +237,7 @@ class OurDinkNet50(nn.Module):
         self.finalrelu2 = nonlinearity
         self.finalconv3 = nn.Conv2d(32, num_classes, 1)
 
-        self.softmax = nn.Softmax()
+        self.activation = nn.Sigmoid() if num_classes == 1 else nn.Softmax()
 
         self.lam1 = Variable(torch.rand([]), requires_grad=True)
         self.lam2 = Variable(torch.rand([]), requires_grad=True)
@@ -270,5 +270,5 @@ class OurDinkNet50(nn.Module):
         res = self.finalconv3(out)
         refine = self.sample_conv(out)
         if apply_activation:
-            res = self.softmax(res)
+            res = self.activation(res)
         return res, refine
