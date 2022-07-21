@@ -1,5 +1,6 @@
 # Imports
 import torch
+import pickle
 from tqdm import tqdm
 
 from factory import Factory
@@ -167,7 +168,6 @@ def _unify(images):
 def main():
     with_augmentation = True  # TODO: turn into command line arg
 
-
     parser = argparse.ArgumentParser(description='Predictions maker for tensorflow models')
     parser.add_argument('-m', '--model', type=str, required=True)
     parser.add_argument('-c', '--checkpoint', type=str, required=True)
@@ -175,12 +175,19 @@ def main():
     parser.add_argument('--saliency', dest='compute_saliency', action='store_true', required=False)
     parser.set_defaults(apply_sigmoid=False)
     parser.set_defaults(compute_saliency=False)
+    parser.set_defaults(floating_prediction=False)
+    parser.add_argument('--floating_prediction', dest='floating_prediction', action='store_true',
+                        help='If specified, dump the output of the network to a pickle file, else the default '
+                             'behavior is to threshold the output to get a binary prediction.')
     options = parser.parse_args()
+
+    os.makedirs(OUTPUT_FLOAT_DIR, exist_ok=True)
 
     model_name = options.model
     trained_model_path = options.checkpoint
     apply_sigmoid = options.apply_sigmoid
     compute_saliency = options.compute_saliency
+    floating_prediction = options.floating_prediction
 
     global model
     # Create loader, trainer etc. from factory
@@ -201,8 +208,9 @@ def main():
 
     train_bs = 16
     train_dataset_size, _, _ = dataloader.get_dataset_sizes(split=0.2)
-    segmentation_threshold = compute_best_threshold(train_loader.take((train_dataset_size // train_bs) * train_bs),
-                                                    apply_sigmoid=apply_sigmoid)
+    # segmentation_threshold = compute_best_threshold(train_loader.take((train_dataset_size // train_bs) * train_bs),
+    #                                                 apply_sigmoid=apply_sigmoid)
+    segmentation_threshold = 0.5  # TODO remove this
 
     # Prediction
     i = 0
@@ -230,8 +238,14 @@ def main():
         
         while len(output.shape) > 3:
             output = output[0]
-        pred = tf.cast(output >= segmentation_threshold, tf.int32) * 255
-        K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred, data_format=data_format)
+
+        if floating_prediction:
+            with open(f'{OUTPUT_FLOAT_DIR}/satimage_{offset + i}.pkl', 'wb') as handle:
+                array = np.squeeze(output.numpy())
+                pickle.dump(array, handle)
+        else:
+            pred = tf.cast(output >= segmentation_threshold, tf.int32) * 255
+            K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred, data_format=data_format)
         del x
         if i >= test_set_size - 1:
             break

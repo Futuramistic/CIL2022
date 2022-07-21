@@ -105,6 +105,7 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=True, float
         floating_prediction (bool): If true, output floating point per-pixel probabilities, else use the segmentation
         threshold to output a binary prediction.
     """
+    os.makedirs(OUTPUT_FLOAT_DIR, exist_ok=True)
     with torch.no_grad():
         i = 0
         for x in tqdm(test_loader):

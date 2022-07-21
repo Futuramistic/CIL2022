@@ -91,7 +91,7 @@ def compute_majority_vote_prediction(checkpoint_paths, sftp_path_model_names, ch
 
 
 def averaged_outputs_prediction(checkpoint_paths, sftp_path_model_names, checkpoints_output_dir):
-    os.makedirs(OUTPUT_FLOAT_DIR, exist_ok=True)
+    os.makedirs(OUTPUT_PRED_DIR, exist_ok=True)
     summed_preds = [np.zeros((400, 400)) for _ in range(144)]
     nb_networks = 0
     for idx, checkpoint in enumerate(checkpoint_paths):
