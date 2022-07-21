@@ -113,7 +113,7 @@ class CRANetTrainer(TorchTrainer):
                 labels = Variable(labels)
                 labels = labels.float()
             opt.zero_grad()
-            outputs, refined = model.forward(inputs)
+            refined, outputs = model.forward(inputs)
 
             if self.use_sample_weighting:
                 threshold = getattr(self, 'last_hyper_threshold', self.segmentation_threshold)
@@ -164,7 +164,7 @@ class CRANetTrainer(TorchTrainer):
                     labels = Variable(labels)
                     labels = labels.float()
 
-                outputs, lower = model.forward(inputs)
+                lower, outputs = model.forward(inputs)
                 outputs = torch.squeeze(outputs, dim=1)
                 lower = torch.squeeze(lower, dim=1)
                 loss = self.loss_function(labels, lower, outputs)

@@ -271,4 +271,4 @@ class OurDinkNet50(nn.Module):
         refine = self.sample_conv(out)
         if apply_activation:
             res = self.activation(res)
-        return res, refine
+        return refine, res
