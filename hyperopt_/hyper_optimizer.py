@@ -116,8 +116,9 @@ class HyperParamOptimizer:
             
             # get scheduler from string
             if 'optimizer_params' in hyperparams['training']:
-                optimizer = self.trainer_class.get_default_optimizer_with_lr(
-                    hyperparams['training']['optimizer_params']['optimizer_lr'], model)
+                lr = hyperparams['training']['optimizer_params']['optimizer_lr']
+                optimizer = self.trainer_class.get_default_optimizer_with_lr(lr, model)
+                optimizer.lr = lr
 
                 if 'scheduler_args' in hyperparams['training']['optimizer_params']:
                     scheduler_args = hyperparams['training']['optimizer_params']['scheduler_args']
