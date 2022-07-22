@@ -36,7 +36,7 @@ GLDenseUNet_1 = {
             
             'evaluation_interval': 150,
             'num_samples_to_visualize': 4, 
-            'checkpoint_interval': 1e15,  # only create a checkpoint after training
+            'checkpoint_interval': 1, # 1e15,  # only create a checkpoint after training
             'segmentation_threshold': 0.5
         }
     }
