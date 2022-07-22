@@ -128,9 +128,15 @@ DATASET_ZIP_URLS = {
     # validation split 3 of original dataset (samples "satimage_50.png" to "satimage_74.png" from "original" dataset
     # used as validation set)
     "original_split_3": "https://polybox.ethz.ch/index.php/s/eQdRlIKlIGJ7EWg/download",
+    
+    # validation split 2 of original dataset (samples "satimage_25.png" to "satimage_49.png" from "original" dataset used as validation set), with augmented training set using Preprocessor (x6)
+    "original_split_2_aug_6": "https://polybox.ethz.ch/index.php/s/aMHd9GlkUcxOpjS/download",
+    
+    # validation split 3 of original dataset (samples "satimage_50.png" to "satimage_74.png" from "original" dataset used as validation set), with augmented training set using Preprocessor (x6)
+    "original_split_3_aug_6": "https://polybox.ethz.ch/index.php/s/B4kB2bNmkkp4Fl2/download"
 }
 DATASET_STATS = {
-    'original': {
+'original': {
     'pixel_mean_0': 161.983, 'pixel_mean_1': 162.134, 'pixel_mean_2': 162.231,
     'pixel_std_0': 72.398, 'pixel_std_1': 72.468, 'pixel_std_2': 72.195},
 'new_original': {
@@ -158,11 +164,20 @@ DATASET_STATS = {
     'pixel_mean_0': 0.120, 'pixel_mean_1': 0.120, 'pixel_mean_2': 0.120,
     'pixel_std_0': 5.551, 'pixel_std_1': 5.545, 'pixel_std_2': 5.536},
 'original_split_1': {
-    'pixel_mean_0': 161.983, 'pixel_mean_1': 162.134, 'pixel_mean_2': 162.231, 'pixel_std_0': 72.398, 'pixel_std_1': 72.468, 'pixel_std_2': 72.195},
+    'pixel_mean_0': 161.983, 'pixel_mean_1': 162.134, 'pixel_mean_2': 162.231,
+    'pixel_std_0': 72.398, 'pixel_std_1': 72.468, 'pixel_std_2': 72.195},
 'original_split_2': {
-    'pixel_mean_0': 161.983, 'pixel_mean_1': 162.134, 'pixel_mean_2': 162.231, 'pixel_std_0': 72.398, 'pixel_std_1': 72.468, 'pixel_std_2': 72.195},
+    'pixel_mean_0': 161.983, 'pixel_mean_1': 162.134, 'pixel_mean_2': 162.231,
+    'pixel_std_0': 72.398, 'pixel_std_1': 72.468, 'pixel_std_2': 72.195},
 'original_split_3': {
-    'pixel_mean_0': 161.983, 'pixel_mean_1': 162.134, 'pixel_mean_2': 162.231, 'pixel_std_0': 72.398, 'pixel_std_1': 72.468, 'pixel_std_2': 72.195}
+    'pixel_mean_0': 161.983, 'pixel_mean_1': 162.134, 'pixel_mean_2': 162.231,
+    'pixel_std_0': 72.398, 'pixel_std_1': 72.468, 'pixel_std_2': 72.195},
+'original_split_2_aug_6': {
+    'pixel_mean_0': 97.594, 'pixel_mean_1': 103.687, 'pixel_mean_2': 109.030,
+    'pixel_std_0': 95.714, 'pixel_std_1': 95.744, 'pixel_std_2': 95.355},
+'original_split_3_aug_6': {
+    'pixel_mean_0': 97.711, 'pixel_mean_1': 103.910, 'pixel_mean_2': 109.287,
+    'pixel_std_0': 95.788, 'pixel_std_1': 95.909, 'pixel_std_2': 95.496}
 }
 
 # in case multiple jobs are running in the same directory, SESSION_ID will prevent name conflicts

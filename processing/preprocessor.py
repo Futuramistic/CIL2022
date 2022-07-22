@@ -42,10 +42,10 @@ def main():
     parser.add_argument('-o', '--output_dir', type=str)
 
     # Augmentation parameters
-    parser.add_argument('-a', '--augmentation_factor', type=int, default=3)
-    parser.add_argument('--rotation', type=int, default=10)
-    parser.add_argument('--translation', type=float, nargs='+', action=required_length(2, 2), default=[0.1, 0.1])
-    parser.add_argument('--scale', type=float, nargs=2, action=required_length(2, 2), default=[0.8, 1.2])
+    parser.add_argument('-a', '--augmentation_factor', type=int, default=6)
+    parser.add_argument('--rotation', type=int, default=0)
+    parser.add_argument('--translation', type=float, nargs='+', action=required_length(2, 2), default=[0.02, 0.02])
+    parser.add_argument('--scale', type=float, nargs=2, action=required_length(2, 2), default=[0.95, 1.05])
 
     parser.add_argument('--vertical_flip', dest='vertical_flip', action='store_true')
     parser.add_argument('--no-vertical_flip', dest='vertical_flip', action='store_false')
@@ -281,7 +281,7 @@ def __process_dataset(dataset, output_img_path, output_gt_path, augmentation_par
     print('Transforming images...')
     output_size = 0
     for i in tqdm(range(nb_images)):
-        image, gt = dataset.__getitem__(i)
+        image, gt, _ = dataset.__getitem__(i)
         if gt.shape[0] != 1:
             gt = gt[0].unsqueeze(0)
         image = image / 255.  # transform from ByteTensor to FloatTensor
