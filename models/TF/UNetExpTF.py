@@ -44,7 +44,6 @@ def UNetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'padding': 'same',
             'kernel_initializer': kernel_init,
             'kernel_regularizer': kernel_regularizer,
-            'dtype': tf.float32
         }
 
         convo1, pool1 = Down_Block(name=name + "-down-block-1", filters=nb_filters[0], kernel_size=5, **down_args)(inputs)
@@ -101,8 +100,7 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_size': (3, 3),
             'padding': 'same',
             'kernel_initializer': kernel_init,
-            'kernel_regularizer': kernel_regularizer,
-            'dtype': tf.float32
+            'kernel_regularizer': kernel_regularizer
         }
 
         convo_trans_args = {
@@ -276,8 +274,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_size': (3, 3),
             'padding': 'same',
             'kernel_initializer': kernel_init,
-            'kernel_regularizer': kernel_regularizer,
-            'dtype': tf.float32
+            'kernel_regularizer': kernel_regularizer
         }
 
         convo_trans_args = {
