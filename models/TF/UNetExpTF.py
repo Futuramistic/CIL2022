@@ -39,11 +39,11 @@ def UNetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
 
         out_args = {
             'filters': 1,
-            'kernel_size': (1, 1),
+            'kernel_size': (3, 3),
             'padding': 'same',
-            'activation': 'sigmoid',
             'kernel_initializer': kernel_init,
-            'kernel_regularizer': kernel_regularizer
+            'kernel_regularizer': kernel_regularizer,
+            'dtype': tf.float32
         }
 
         convo1, pool1 = Down_Block(name=name + "-down-block-1", filters=nb_filters[0], kernel_size=5, **down_args)(inputs)
@@ -57,8 +57,9 @@ def UNetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         up2 = Up_Block(name=name + "-up-block-2", filters=nb_filters[2], **up_args)(x=up1, merger=[convo3])
         up3 = Up_Block(name=name + "-up-block-3", filters=nb_filters[1], **up_args)(x=up2, merger=[convo2])
         up4 = Up_Block(name=name + "-up-block-4", filters=nb_filters[0], **up_args)(x=up3, merger=[convo1])
-
-        return Conv2D(name=name + "-final-convo", **out_args)(up4)
+        out = Conv2D(name=name + "-final-convo", **out_args)(up4)
+        sigmoid = K.activations.sigmoid
+        return sigmoid(out)
 
     inputs = K.Input(input_shape)
     outputs = __build_model(inputs)
@@ -98,7 +99,8 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_size': (3, 3),
             'padding': 'same',
             'kernel_initializer': kernel_init,
-            'kernel_regularizer': kernel_regularizer
+            'kernel_regularizer': kernel_regularizer,
+            'dtype': tf.float32
         }
 
         convo_trans_args = {
@@ -272,7 +274,8 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_size': (3, 3),
             'padding': 'same',
             'kernel_initializer': kernel_init,
-            'kernel_regularizer': kernel_regularizer
+            'kernel_regularizer': kernel_regularizer,
+            'dtype': tf.float32
         }
 
         convo_trans_args = {
