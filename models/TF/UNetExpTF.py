@@ -15,7 +15,7 @@ def UNetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
            kernel_regularizer=K.regularizers.l2(),
            use_learnable_pool=False,
            **kwargs):
-    K.mixed_precision.set_global_policy('mixed_float16')
+    #K.mixed_precision.set_global_policy('mixed_float16')
     def __build_model(inputs):
         nb_filters = [32, 64, 128, 256, 512]
         if up_transpose:
@@ -84,7 +84,7 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
                 cgm=False,
                 cgm_dropout=0.1,
                 **kwargs):
-    K.mixed_precision.set_global_policy('mixed_float16')
+    #K.mixed_precision.set_global_policy('mixed_float16')
     def __build_model(inputs):
         nb_filters = [32, 64, 128, 256, 512, 64, 320]
 
@@ -257,7 +257,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         cgm_dropout (bool): Amount of dropout if using the "classification_guided_module"
         architecture (str): Allows to specify backbone such as vgg architecture
     """
-    K.mixed_precision.set_global_policy('mixed_float16')
+    #K.mixed_precision.set_global_policy('mixed_float16')
     def __build_model(inputs):
         nb_filters = [32, 64, 128, 256, 512, 64, 320]
 
