@@ -1060,7 +1060,6 @@ class TorchRLTrainerMinimal(TorchTrainer):
             predictions_nsteps.append(pre_termination_unpadded_segmentation)
             positions_nsteps.append(pre_termination_rounded_agent_pos)
 
-
         if is_multi_env:
             info_sample_idx = [info[idx]['sample_idx'] for idx in range(env.nenvs)]
             info_sum = [info[idx]['info_sum'] for idx in range(env.nenvs)]
@@ -1122,7 +1121,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
         larger_batch_size_test_loader = DataLoader(self.test_loader.dataset, batch_size=self.batch_size, shuffle=False)
 
         for (_batch_xs, batch_ys, batch_idxs) in larger_batch_size_test_loader:
-            log_debug(f'get_precision_recall_F1_score_validation: sampled new batch (xs, ys) from self.test_loader (size: {_batch_xs.shape[0]})')
+            log_debug(f'get_precision_recall_F1_score_validation: sampled new batch (xs, ys) from self.test_loader (size: {_batch_xs.shape[0]}; idxs: {batch_idxs})')
             log_debug_indent += 1
 
             if self.use_supervision:

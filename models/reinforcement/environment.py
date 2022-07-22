@@ -752,7 +752,7 @@ class SegmentationEnvironmentMinimal(Env):
         paddings_dim_0, paddings_dim_1 = self.paddings_per_dim
         i, j = paddings_dim_0
         k, l = paddings_dim_1
-        return self.seg_map_padded[i:-j, k:-l]
+        return torch.clone(self.seg_map_padded[i:-j, k:-l])
 
     def get_rounded_agent_pos(self):
         return [int(self.agent_pos[0]), int(self.agent_pos[1])]

@@ -1,5 +1,6 @@
 # code partly from https://github.com/hill-a/stable-baselines/blob/master/stable_baselines/common/vec_env/subproc_vec_env.py
 
+from datetime import datetime
 import numpy as np
 import multiprocessing
 from multiprocessing import Process, Pipe
@@ -14,8 +15,10 @@ def worker(remote, parent_remote, env_fn_wrapper):
         cmd, data = remote.recv()
         if cmd == 'step':
             ob, reward, done, info = env.step(data)
-            if done:
-                ob = env.reset()
+            
+            # if done:
+            #     ob = env.reset()
+
             remote.send((ob, reward, done, info))
         elif cmd == 'reset':
             ob = env.reset()
@@ -59,7 +62,13 @@ class SubprocVecEnvTorch(VecEnv):
         self.waiting = True
 
     def step_wait(self):
+        # using batch size larger than 1 (more than 1 environment) seems to slow things down
+        # but can still use high policy batch size
+
+        time_start = datetime.now()
         results = [remote.recv() for remote in self.remotes]
+        time_end = datetime.now()
+        # print(f'step_wait: waited {"%.2f" % (time_end - time_start).total_seconds()}s for results')
         self.waiting = False
         obs, rews, dones, infos = map(list, zip(*results))
         # eliminate all "zero" observations (returned if an environment has terminated)
