@@ -26,7 +26,7 @@ deeplabv3_baseline_eval = {
             'num_epochs': 200,
             # scope.int: cast sampled value to integer
             'batch_size': scope.int(hp.qloguniform('batch_size', np.log(2), np.log(16), 2)),
-            'checkpoint_interval': 2 # 100000,
+            'checkpoint_interval': 2, # 100000,
             'hyper_seg_threshold': True,
             'blobs_removal_threshold': 0
         },
