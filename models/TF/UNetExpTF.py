@@ -59,7 +59,7 @@ def UNetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         up3 = Up_Block(name=name + "-up-block-3", filters=nb_filters[1], **up_args)(x=up2, merger=[convo2])
         up4 = Up_Block(name=name + "-up-block-4", filters=nb_filters[0], **up_args)(x=up3, merger=[convo1])
         out = Conv2D(name=name + "-final-convo", **out_args)(up4)
-        sigmoid = K.activations.sigmoid
+        sigmoid = Activation(tf.nn.sigmoid, dtype=tf.float32)
         return sigmoid(out)
 
     inputs = K.Input(input_shape)
@@ -181,7 +181,7 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         up4 = Convo_Block(name=name + "-up-4", filters=nb_filters[6], **down_args)(up4)
 
         outconvo = Conv2D(name=name + "-final-convo", **out_args)(up4)
-        sigmoid = K.activations.sigmoid
+        sigmoid = Activation(tf.nn.sigmoid, dtype=tf.float32)
         if deep_supervision:
             side1 = UpSampling2D(name=name + "up-side1", size=(16, 16), interpolation='bilinear')(convo5)
             side1 = Conv2D(name=name + '-side1', **out_args)(side1)
@@ -423,7 +423,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         up4 = Convo_Block(name=name + "-up-4", filters=nb_filters[6], **down_args)(up4)
 
         outconvo = Conv2D(name=name + "-final-convo", **out_args)(up4)
-        sigmoid = K.activations.sigmoid
+        sigmoid = Activation(tf.nn.sigmoid, dtype=tf.float32)
         if deep_supervision:
             side1 = UpSampling2D(name=name + "up-side1", size=(16, 16), interpolation='bilinear')(convo5)
             side1 = Conv2D(name=name + '-side1', **out_args)(side1)
