@@ -83,7 +83,7 @@ class UNetTFTrainer(TFTrainer):
                 preprocessing =\
                     lambda x, is_gt: (tf.cast(x[:, :, :3], dtype=tf.float32) / 255.0) if not is_gt \
                     else (x[:, :, :1] // 255)
-        K.mixed_precision.set_global_policy('mixed_float16')
+                    
         super().__init__(dataloader, model, preprocessing, steps_per_training_epoch, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
