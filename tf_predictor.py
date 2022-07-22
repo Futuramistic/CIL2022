@@ -208,9 +208,8 @@ def main():
 
     train_bs = 16
     train_dataset_size, _, _ = dataloader.get_dataset_sizes(split=0.2)
-    # segmentation_threshold = compute_best_threshold(train_loader.take((train_dataset_size // train_bs) * train_bs),
-    #                                                 apply_sigmoid=apply_sigmoid)
-    segmentation_threshold = 0.5  # TODO remove this
+    segmentation_threshold = compute_best_threshold(train_loader.take(train_dataset_size),
+                                                    apply_sigmoid=apply_sigmoid)
 
     # Prediction
     i = 0
@@ -242,6 +241,10 @@ def main():
         if floating_prediction:
             with open(f'{OUTPUT_FLOAT_DIR}/satimage_{offset + i}.pkl', 'wb') as handle:
                 array = np.squeeze(output.numpy())
+                # rescale so that old optimal threshold is at 0.5
+                array = (array < segmentation_threshold) * array / segmentation_threshold * 0.5 + \
+                        (array >= segmentation_threshold) * \
+                        ((array - segmentation_threshold) / (1 - segmentation_threshold) + 0.5)
                 pickle.dump(array, handle)
         else:
             pred = tf.cast(output >= segmentation_threshold, tf.int32) * 255
@@ -253,4 +256,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    with tf.device('/cpu:0'):
+        main()

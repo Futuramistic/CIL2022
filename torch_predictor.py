@@ -124,6 +124,10 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=True, float
             if floating_prediction:
                 with open(f'{OUTPUT_FLOAT_DIR}/satimage_{offset+i}.pkl', 'wb') as handle:
                     array = np.squeeze(output.cpu().detach().numpy())
+                    # rescale so that old optimal threshold is at 0.5
+                    array = (array < segmentation_threshold) * array / segmentation_threshold * 0.5 + \
+                            (array >= segmentation_threshold) * \
+                            ((array - segmentation_threshold) / (1 - segmentation_threshold) + 0.5)
                     pickle.dump(array, handle)
             else:
                 pred = (output >= segmentation_threshold).cpu().detach().numpy().astype(int)
@@ -275,8 +279,7 @@ def main():
     create_or_clean_directory(OUTPUT_PRED_DIR)
 
     # Compute the best threshold
-    # segmentation_threshold, *_ = compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
-    segmentation_threshold = 0.5  # TODO put back the original version
+    segmentation_threshold, *_ = compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
 
     # Make the final predictions
     predict(segmentation_threshold, apply_sigmoid=apply_sigmoid, with_augmentation=True,
