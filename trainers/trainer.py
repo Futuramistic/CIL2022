@@ -117,6 +117,7 @@ class Trainer(abc.ABC):
         Returns:
             True if successfully established a connection
         """
+        return False
         if self.mlflow_initialized:
             return True
         
@@ -340,7 +341,7 @@ class Trainer(abc.ABC):
                     if mlflow_logger.logging_to_mlflow_enabled():
                         mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=0)
                         if self.num_samples_to_visualize is not None and self.num_samples_to_visualize > 0:
-                            mlflow_logger.log_visualizations(self, 0, self.epoch_idx, self.epoch_iteration_idx)
+                            mlflow_logger.log_visualizations(self, 0, 0, 0)
 
                     mlflow_logger.log_logfiles()
                 except Exception as e:

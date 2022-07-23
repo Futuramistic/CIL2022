@@ -9,6 +9,7 @@ import pickle
 import numpy as np
 from tqdm import tqdm
 from datetime import datetime
+import subprocess
 
 class AdaBooster:
     def __init__(self, factory, known_args_dict, unknown_args_dict,  model_spec_args, trainer_spec_args, dataloader_spec_args, is_debug):
@@ -68,7 +69,6 @@ class AdaBooster:
     
     def evaluate(self):
         # creates single submission and calls ensembled submission
-        os.makedirs(self.submission_folder)
         for idx, checkpoint in enumerate(self.checkpoint_paths):
             exp_name = self.experiment_names[idx]
             trainer_class = self.factory.get_trainer_class()
@@ -76,23 +76,25 @@ class AdaBooster:
             # create predictions on test data set
             if issubclass(trainer_class, TorchTrainer):
                 # Torch
-                os.system('python', 'torch_predictor.py', f"--model={self.known_args_dict['model']}", f"--checkpoint={checkpoint}",
-                          f"--apply_sigmoid={self.unknown_args_dict['apply_sigmoid']}", f"--blob_threshold={self.unknown_args_dict['blob_threshold']}")
+                os.system(f"python torch_predictor.py --model={self.known_args_dict['model']} --checkpoint={checkpoint} \
+                    --apply_sigmoid={self.unknown_args_dict['apply_sigmoid']} --blob_threshold={self.unknown_args_dict['blob_threshold']}")
             else:
                 # TF
-                os.system('python', 'tf_predictor.py', f"--model={self.known_args_dict['model']}", f"--checkpoint={checkpoint}",
-                          f"--apply_sigmoid={self.unknown_args_dict['apply_sigmoid']}")
+                os.system(f"python tf_predictor.py", "--model={self.known_args_dict['model']} --checkpoint={checkpoint} \
+                          --apply_sigmoid={self.unknown_args_dict['apply_sigmoid']}")
             
             # create submission file
+            os.makedirs(self.submission_folder, exist_ok=True)
             experiment_submission = os.path.join(self.submission_folder, f"{exp_name}.csv")
-            mask_to_submission.flags.DEFINE_string("submission_filename", experiment_submission, "The output csv for the submission.")
-            os.system('python', 'mask_to_submission.py')    
+            print(os.system(f"python mask_to_submission.py --submission_filename={experiment_submission}"))
         
         self.submission()
     
     def train(self):
         # training loop
         curr_run_idx = len(self.experiment_names)
+        if curr_run_idx > 0:
+            self.dataloader.weights_set = True
         while curr_run_idx < self.known_args_dict["adaboost_runs"]:
             
             # Create the model using the commandline arguments
@@ -120,7 +122,7 @@ class AdaBooster:
             self.model_weights.append(f1_eval)
             
             # calculate daat errors
-            data_inverse_f1_scores = self.trainer.weights
+            data_inverse_f1_scores = trainer.weights
             # normalize between 0 and 1
             set_during_training = data_inverse_f1_scores[data_inverse_f1_scores != 2]
             normalized = set_during_training / (
@@ -137,7 +139,7 @@ class AdaBooster:
             self.model_weights.append(total_model_performance)
             
             # calculate new data weights
-            self.dataloader.weights = self.dataloader.weight*np.exp(total_model_performance*weights_groundtruth_term)
+            self.dataloader.weights = self.dataloader.weights*np.exp(total_model_performance*weights_groundtruth_term)
             
             self.update_files() # save only if training went through
             

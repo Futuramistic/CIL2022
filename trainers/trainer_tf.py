@@ -52,6 +52,7 @@ class TFTrainer(Trainer, abc.ABC):
             # initialize again, else we will not use entire training dataset but only a split of 0.2 !
             self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                     preprocessing=self.preprocessing)
+        
 
     class Callback(KC.Callback):
         """
@@ -137,13 +138,13 @@ class TFTrainer(Trainer, abc.ABC):
             # if self.original_checkpoint_hash is not None and os.path.isdir(f'original_checkpoint_{self.original_checkpoint_hash}.ckpt'):
             #     shutil.rmtree(f'original_checkpoint_{self.original_checkpoint_hash}.ckpt')
             
-            if self.trainer.use_sample_weighting:
+            if self.trainer.use_sample_weighting or self.trainer.adaboost:
                 # normalize and update weights
                 self.weights_temp = np.asarray(self.weights_temp)[len(self.trainer.train_dataset_size)] # cut off if too many were saved due to the last batch
                 normalized = self.weights_temp / (2*np.max(np.absolute(self.weights_temp))) # between -0.5 and +0.5
                 self.trainer.weights = normalized + 0.5 # between 0 and 1
                 # probability of zero is not wished for
-                self.trainer.weights[self.trainer.weights == 0] = np.min(self.trainer.weights[self.trainer.weights != 0])
+                self.trainer.weights[self.trainer.weights == 2] = np.min(self.trainer.weights[self.trainer.weights != 2])
                 # tf.keras.backend.set_value(self.model.weighted_metrics, self.trainer.weights)
                 # weights don't have to add up to 1 --> Done
 
@@ -336,13 +337,15 @@ class TFTrainer(Trainer, abc.ABC):
         callbacks = [TFTrainer.Callback(self, mlflow_run)]
         # model checkpointing functionality moved into TFTrainer.Callback to allow for custom checkpoint names
         
-        if self.use_sample_weighting:
-            self.weights = [np.ones(shape=self.train_dataset_size)]
+        if self.use_sample_weighting and not self.adaboost:
+            self.weights = [np.ones(shape=self.train_dataset_size)*2]
             x, y = self.dataloader.get_training_data_for_one_epoch(split=self.split, batch_size=self.batch_size, preprocessing=self.preprocessing)
             self.model.fit(x, y, validation_data=self.test_loader.take(test_dataset_size), batch_size=self.batch_size, epochs=self.num_epochs,
                         sample_weight = self.weights, # weights are manipulated during callback after each epoch
                         steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks, verbose=1 if IS_DEBUG else 2)
         else:
+            if self.adaboost:
+                self.weights = [np.ones(shape=self.train_dataset_size)*2]
             self.model.fit(self.train_loader, validation_data=self.test_loader.take(test_dataset_size),
                         epochs=self.num_epochs,
                         steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks, verbose=1 if IS_DEBUG else 2)

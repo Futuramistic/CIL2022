@@ -3,6 +3,7 @@ import tensorflow as tf
 import warnings
 import math
 import utils
+import numpy as np
 
 from .dataloader import DataLoader
 
@@ -39,6 +40,7 @@ class TFDataLoader(DataLoader):
         # trainers and models
         self.use_adaboost = use_adaboost
         if self.use_adaboost:
+            self.weights_set = False
             self.weights = None # create sample weights
 
     def get_dataset_sizes(self, split):
@@ -160,6 +162,47 @@ class TFDataLoader(DataLoader):
                 return tf.data.Dataset.from_generator(
                     lambda: (parse_img(img_path) for _ in itertools.count() for img_path in img_paths_tf),
                     output_types=output_types)
+    
+    def __get_image_data_with_weighting(self, img_paths, gt_paths=None, shuffle=True, preprocessing=None, offset=0, length=int(1e12), return_dataloader=True):
+        """
+        Get images and masks
+        Args:
+           img_paths (list): list of image paths
+           gt_paths (list): list of groundtruth paths
+           shuffle (bool): whether to shuffle the images
+           preprocessing: function to apply to the images
+           offset (int): Offset from which we read the paths
+           length (int): maximum length of the desired dataset
+           return_dataloader (bool): Whether to return a dataloader or just the data
+        Returns:
+            Dataset or Data depending on return_dataloader
+        """
+        # WARNING: must use lambda captures (see https://stackoverflow.com/q/10452770)
+        # WARNING: scientific notation is not recognized as an integer
+        img_paths_tf = tf.convert_to_tensor(img_paths[offset:int(offset + length)])
+        parse_img = (lambda x, preprocessing=preprocessing: self.__parse_data(x)) if preprocessing is None else \
+            (lambda x, preprocessing=preprocessing: preprocessing(x=self.__parse_data(x), is_gt=False))
+        parse_gt = (lambda x, preprocessing=preprocessing: self.__parse_data(x)) if preprocessing is None else \
+            (lambda x, preprocessing=preprocessing: preprocessing(x=self.__parse_data(x), is_gt=True))
+
+        # itertools.count() gives infinite generators
+        
+        if not self.weights_set:
+            self.weights = np.ones((len(img_paths_tf)))*(1/len(img_paths_tf))
+
+        if gt_paths is not None:
+            gt_paths_tf = tf.convert_to_tensor(gt_paths[offset:offset + length])
+            output_types = (parse_img(img_paths_tf[0]).dtype, parse_gt(gt_paths_tf[0]).dtype)
+            # no shuffling supported with weighted sampling
+            return tf.data.Dataset.from_tensor_slices(
+                (tf.constant(img_paths_tf), tf.constant(gt_paths_tf), self.weights)).\
+                    map(lambda x,y, _: (parse_img(x), parse_gt(y)))
+        else:
+            output_types = parse_img(img_paths_tf[0]).dtype
+            # no shuffling supported with weighted sampling
+            return tf.data.Dataset.from_tensor_slices(
+                (tf.constant(img_paths_tf), None, self.weights)).\
+                    map(lambda x,_:parse_img(x))
                 
     def get_training_data_for_one_epoch(self, split, preprocessing=None, **args):
         """
@@ -202,10 +245,15 @@ class TFDataLoader(DataLoader):
         dataset_size = len(self.training_img_paths)
         train_size = int(dataset_size * split)
         test_size = dataset_size - train_size
-        
-        self.training_data = self.__get_image_data(self.training_img_paths, self.training_gt_paths, shuffle=True,
+        if self.use_adaboost:
+            self.training_data = self.__get_image_data_with_weighting(self.training_img_paths, self.training_gt_paths, shuffle=True,
                                                     preprocessing=preprocessing, offset=0, length=train_size)
-        self.testing_data = self.__get_image_data(self.training_img_paths, self.training_gt_paths, shuffle=False,
+            self.testing_data = self.__get_image_data_with_weighting(self.training_img_paths, self.training_gt_paths, shuffle=False,
+                                                  preprocessing=preprocessing, offset=train_size, length=test_size)
+        else:
+            self.training_data = self.__get_image_data(self.training_img_paths, self.training_gt_paths, shuffle=True,
+                                                    preprocessing=preprocessing, offset=0, length=train_size)
+            self.testing_data = self.__get_image_data(self.training_img_paths, self.training_gt_paths, shuffle=False,
                                                   preprocessing=preprocessing, offset=train_size, length=test_size)
         print(f'Train data consists of ({train_size}) samples')
         print(f'Test data consists of ({test_size}) samples')
