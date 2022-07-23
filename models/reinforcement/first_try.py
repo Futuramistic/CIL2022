@@ -495,7 +495,7 @@ class ResNetRegressor(nn.Module):
         x = torch.flatten(x, 1)
         x = self.fc(x)
 
-        return x
+        return F.sigmoid(x)
 
     def forward(self, x: Tensor) -> Tensor:
         return self._forward_impl(x)
