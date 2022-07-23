@@ -333,7 +333,8 @@ class SegmentationEnvironmentMinimal(Env):
                  supervision_optimal_brush_radius_map_paths=None,
                  supervision_non_max_suppressed_map_paths=None,
                  sample_preprocessing=None,
-                 dl_sample_idxs=None):
+                 dl_sample_idxs=None,
+                 exploration_model_action_ratio=1.0):
         """Environment for reinforcement learning
 
         Args:
@@ -346,6 +347,7 @@ class SegmentationEnvironmentMinimal(Env):
             rewards
             supervision_optimal_brush_radius_map_paths (list of str): paths to pickled files with map of optimal radii for each pixel, or None if is_supervised is False
             supervision_non_max_suppressed_map (list of str): map of values after performing non-maximum suppression on optimal brush radius maps, or None if is_supervised is False
+            exploration_model_action_ratio (float): the ratio of actions to sample from the model for the exploration policy
         """
         super(SegmentationEnvironmentMinimal, self).__init__()
         print('SegmentationEnvironmentMinimal __init__ entered')
@@ -396,9 +398,11 @@ class SegmentationEnvironmentMinimal(Env):
         self.supervision_optimal_brush_radius_map_paths = supervision_optimal_brush_radius_map_paths
         self.supervision_non_max_suppressed_map_paths = supervision_non_max_suppressed_map_paths
 
+        self.exploration_model_action_ratio = exploration_model_action_ratio
+
         print('SegmentationEnvironmentMinimal __init__: about to call reset()')
 
-        self.reset()     
+        self.reset()
         
         print('SegmentationEnvironmentMinimal __init__ left')
 
@@ -634,6 +638,11 @@ class SegmentationEnvironmentMinimal(Env):
                     # calculated
                     supervision_desired_outputs = torch.tensor([lowest_delta_angle, new_brush_radius, magnitude],
                                                                 device=self.img.device, dtype=self.img.dtype)
+
+                    if np.random.uniform() <= self.exploration_model_action_ratio:
+                        # still use model's output
+                        angle, new_brush_radius, magnitude = [action[idx] for idx in range(3)]
+                    
                 new_brush_state = BRUSH_STATE_PAINT
             else:
                 angle, new_brush_radius, magnitude = [action[idx] for idx in range(3)]

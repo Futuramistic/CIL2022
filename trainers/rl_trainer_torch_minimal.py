@@ -49,7 +49,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
                  rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), std=[1e-3, 1e-3], reward_discount_factor=0.99,
                  num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20,
                  rewards = None, blobs_removal_threshold=0, hyper_seg_threshold=False, use_supervision=False,
-                 gradient_clipping_norm=1.0):
+                 gradient_clipping_norm=1.0, exploration_model_action_ratio=1.0):
         """
         Trainer for RL-based models.
         Args:
@@ -72,6 +72,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
             use_supervision (bool): set to True to train the policy network using supervision by an automatically generated example trajectory for each sample, rather than
                                     training with rewards as in classical reinforcement learning
             gradient_clipping_norm (float): norm to clip the gradients of the loss function to; set to 0 or None to avoid gradient clipping
+            exploration_model_action_ratio (float): the ratio of actions to sample from the model for the exploration policy
         """
         if loss_function is not None and not use_supervision:
             raise RuntimeError('Custom losses not supported by TorchRLTrainer in non-supervised mode')
@@ -124,6 +125,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
         self.rewards = DEFAULT_REWARDS_MINIMAL if rewards is None else rewards
         self.use_supervision = use_supervision
         self.gradient_clipping_norm = gradient_clipping_norm
+        self.exploration_model_action_ratio = exploration_model_action_ratio
         # self.scheduler set by TorchTrainer superclass
 
         self.spawn_environments()
@@ -142,7 +144,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
         for loader, offset, batch_size, num_envs, pass_gt in [(self.train_loader, 0, self.batch_size,
                                                                self.batch_size, True),
                                                               (self.test_loader, self.dataloader.get_dataset_sizes(self.split)[0],
-                                                               self.batch_size, self.batch_size, False)]:
+                                                               self.batch_size, self.batch_size, False)]: ## <<<<<<<<<<<<< change back to "False"!
             all_env_img_paths = [[] for _ in range(num_envs)]
             all_env_gt_paths = [[] for _ in range(num_envs)] if pass_gt else [None for _ in range(num_envs)]
             all_env_opt_brush_radius_paths = [[] for _ in range(num_envs)] if self.use_supervision and pass_gt else [None for _ in range(num_envs)]
@@ -181,11 +183,15 @@ class TorchRLTrainerMinimal(TorchTrainer):
                                                     supervision_optimal_brush_radius_map_paths=opt_brush_radius_paths,
                                                     supervision_non_max_suppressed_map_paths=non_max_suppressed_paths,
                                                     sample_preprocessing=self.preprocessing,
-                                                    dl_sample_idxs=dl_sample_idxs)
+                                                    dl_sample_idxs=dl_sample_idxs,
+                                                    exploration_model_action_ratio=self.exploration_model_action_ratio)
                         for img_paths, gt_paths, opt_brush_radius_paths, non_max_suppressed_paths, dl_sample_idxs
                         in zip(all_env_img_paths, all_env_gt_paths, all_env_opt_brush_radius_paths,
                                all_env_non_max_suppressed_paths, all_dl_sample_idxs)]
-            env = SubprocVecEnvTorch(env_list)
+            if len(env_list) == 1:
+                env = env_list[0]()
+            else:
+                env = SubprocVecEnvTorch(env_list)
             envs.append(env)
 
         self.train_env = envs[0]
@@ -374,9 +380,13 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
             # environment reset in trajectory_step
 
-            for env_idx in filter(lambda i: i >= 0, [env_idx if sample_idx in batch_idxs else -1 for env_idx, sample_idx in enumerate(info['info_sample_idx'])]):
+            for env_idx in filter(lambda i: i >= 0, [env_idx if sample_idx in batch_idxs else -1
+                                                 for env_idx, sample_idx
+                                                 in enumerate(info['info_sample_idx']
+                                                 if isinstance(info['info_sample_idx'], list)
+                                                 else [info['info_sample_idx']])]):
                 # stack all animation frames, dim(nsteps, height, width)
-                predictions_nstepwise_list = [predictions_nstepwise[timestep_idx][env_idx].cpu().numpy().astype(int)
+                predictions_nstepwise_list = [self.make_list(predictions_nstepwise[timestep_idx], enforce=not isinstance(self.test_env, SubprocVecEnvTorch))[env_idx].cpu().numpy().astype(int)
                                               for timestep_idx in range(len(predictions_nstepwise))]                
                 predictions_nstepwise_np = np.stack(predictions_nstepwise_list)
                 
@@ -391,7 +401,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
                 predictions_nstepwise_rgb_test_set.append(rgb)
 
-                positions_nstepwise_list = [positions_nstepwise[timestep_idx][env_idx]
+                positions_nstepwise_list = [self.make_list(positions_nstepwise[timestep_idx], enforce=not isinstance(self.test_env, SubprocVecEnvTorch))[env_idx]
                                             for timestep_idx in range(len(positions_nstepwise))]
                 positions_nstepwise_test_set.append(positions_nstepwise_list)
                 
@@ -1000,7 +1010,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
             model_output_unnormalized = self.unnormalize_model_output(model_output, min(list(self.model.patch_size)))
 
-            new_observation, reward, terminated, info = env.step(model_output_unnormalized)
+            new_observation, reward, terminated, info = env.step(model_output_unnormalized.squeeze())
             if not self.use_supervision:
                 terminated = torch.Tensor([timestep_idx == self.rollout_len-1] * env.nenvs
                                            if is_multi_env else [timestep_idx == self.rollout_len-1]).to(self.device)
@@ -1149,9 +1159,11 @@ class TorchRLTrainerMinimal(TorchTrainer):
             
             # environment reset in trajectory_step
 
-            for idx in filter(lambda i: i >= 0, [env_idx if sample_idx in batch_idxs else -1 for env_idx, sample_idx in enumerate(info['info_sample_idx'])]):
-                info_timestep_sum = info['info_timestep_sum'][idx] if 'info_timestep_sum' in info else {}
-                info_timestep_avg = info['info_timestep_avg'][idx] if 'info_timestep_sum' in info else {}
+            for idx in filter(lambda i: i >= 0, [env_idx if sample_idx in batch_idxs else -1
+                                                 for env_idx, sample_idx
+                                                 in enumerate(self.make_list(info['info_sample_idx']))]):
+                info_timestep_sum = self.make_list(info['info_timestep_sum'])[idx] if 'info_timestep_sum' in info else {}
+                info_timestep_avg = self.make_list(info['info_timestep_avg'])[idx] if 'info_timestep_sum' in info else {}
 
                 if 'reward_decomp_quantities' in info_timestep_sum:
                     for key in info_timestep_sum['reward_decomp_quantities'].keys():
@@ -1177,7 +1189,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
                         if idx == 0:
                             reward_stats__first_sample__timestep_avg__reward_sums[key] = reward_stats__first_sample__timestep_avg__reward_sums.get(key, 0.0) + info_timestep_avg['reward_decomp_sums'][key]
 
-                preds = predictions_nstepwise[-1][idx] # info[idx].get('unpadded_segmentation', {})
+                preds = self.make_list(predictions_nstepwise[-1])[idx] # info[idx].get('unpadded_segmentation', {})
                 precision, recall, f1_score = precision_recall_f1_score_torch(preds, batch_ys[idx])
                 precisions.append(precision.cpu().numpy())
                 recalls.append(recall.cpu().numpy())
@@ -1217,6 +1229,9 @@ class TorchRLTrainerMinimal(TorchTrainer):
         log_debug('left get_precision_recall_F1_score_validation')
         return np.mean(precisions), np.mean(recalls), np.mean(f1_scores), reward_info
 
+    def make_list(self, l, enforce=False):
+        return [l] if not isinstance(l, list) or enforce else l  # do not use Iterable!
+
     def _get_hyperparams(self):
         return {**(super()._get_hyperparams()),
                 **({param: getattr(self, param)
@@ -1229,7 +1244,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
                 **({param: getattr(self.model, param)
                    for param in ['patch_size']
                    if hasattr(self.model, param)})}
-    
+
     @staticmethod
     def get_default_optimizer_with_lr(lr, model):
         return optim.Adam(model.parameters(), lr=lr)
