@@ -96,7 +96,7 @@ def main(dataset_1, dataset_2):
             for filename_2 in os.listdir(ds_2_images_dir):
                 if filename_2.lower().endswith('.png'):
                     # load the image from disk
-                    img_path_2 = os.path.join(ds_2_images_dir, filename_1)
+                    img_path_2 = os.path.join(ds_2_images_dir, filename_2)
                     image_2_np = cv2.imread(img_path_2, cv2.IMREAD_UNCHANGED)
                     image_2 = torch.from_numpy(image_2_np)
                     if len(image_2.shape) == 2:
