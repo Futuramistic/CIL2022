@@ -278,13 +278,12 @@ class TorchTrainer(Trainer, abc.ABC):
         callback_handler = self.Callback(self, mlflow_run, self.model)
         best_val_loss = 1e12
         
-        if self.use_sample_weighting:
+        if self.use_sample_weighting or self.adaboost:
             # init all samples with the same weight, is overwritten in _train_step()
-            self.weights = np.zeros((len(self.train_loader.dataset)), dtype=np.float16)
+            self.weights = np.ones((len(self.train_loader.dataset)), dtype=np.float16)*2 # start with 2 as 1 - f1 score cannot reach this value
         
         for epoch in range(self.num_epochs):
             if self.use_sample_weighting and epoch != 0:
-                # TODO: incoorperate adaboost
                 self.train_loader = self.dataloader.get_training_dataloader(split=self.split,
                                                                             batch_size=self.batch_size,
                                                                             weights=self.weights,
@@ -293,12 +292,12 @@ class TorchTrainer(Trainer, abc.ABC):
                                                callback_handler=callback_handler)
             if self.use_sample_weighting:  # update sample weight
                 # normalize
-                weights_set_during_training = self.weights[self.weights != 0]
+                weights_set_during_training = self.weights[self.weights != 2]
                 normalized = weights_set_during_training / (
                         2 * np.max(np.absolute(weights_set_during_training)))  # between -0.5 and +0.5
-                self.weights[self.weights != 0] = normalized + 0.5  # between 0 and 1
+                self.weights[self.weights != 2] = normalized + 0.5  # between 0 and 1
                 # probability of zero is not wished for
-                self.weights[self.weights == 0] = np.min(self.weights[self.weights != 0])
+                self.weights[self.weights == 2] = np.min(self.weights[self.weights != 2])
                 # weights don't have to add up to 1 --> Done
             last_test_loss = self._eval_step(self.model, self.device, self.test_loader)
             metrics = {'train_loss': last_train_loss, 'test_loss': last_test_loss}
@@ -348,7 +347,7 @@ class TorchTrainer(Trainer, abc.ABC):
             loss.backward()
             opt.step()
             callback_handler.on_train_batch_end()
-            if self.use_sample_weighting:
+            if self.use_sample_weighting or self.adaboost:
                 threshold = getattr(self, 'last_hyper_threshold', self.segmentation_threshold)
                 # weight based on F1 score of batch
                 self.weights[sample_idx] = \
