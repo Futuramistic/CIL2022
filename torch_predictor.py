@@ -32,14 +32,20 @@ Given a trained model, make predictions on the test set
 """
 
 
-def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True):
+def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True, checkpoint=None):
     """
     Line search segmentation thresholds and select the one that works
     the best on the training set.
     Args:
         loader: the dataset loader
         apply_sigmoid (bool): whether to apply the sigmoid on the output of the model
+        checkpoint (str): path to checkpoint of model (used for caching the best threshold)
     """
+    cache_path = '.'.join(checkpoint.split('.')[:-1]) + '_best_threshold_cache.txt' if checkpoint is not None else None
+    if cache_path is not None and os.path.isfile(cache_path):
+        with open(cache_path, 'r') as f:
+            return float(f.read())
+    
     best_seg_thresh = 0
     best_patch_thresh = 0
     best_f1_score = 0
@@ -91,6 +97,11 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True):
                     best_blob_thresh = blob_thresh
     print('Best F1-score on train set:', best_f1_score, 'achieved with a segmentation threshold of', best_seg_thresh,
           ', a patch threshold of', best_patch_thresh, ', a blob threshold of', best_blob_thresh)
+    
+    if cache_path is not None:
+        with open(cache_path, 'w') as f:
+            f.write(str(best_thresh))
+    
     return best_seg_thresh, best_patch_thresh
 
 
@@ -279,7 +290,8 @@ def main():
     create_or_clean_directory(OUTPUT_PRED_DIR)
 
     # Compute the best threshold
-    segmentation_threshold, *_ = compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid)
+    segmentation_threshold, *_ = compute_best_threshold(train_loader, apply_sigmoid=apply_sigmoid,
+                                                        checkpoint=trained_model_path)
 
     # Make the final predictions
     predict(segmentation_threshold, apply_sigmoid=apply_sigmoid, with_augmentation=True,

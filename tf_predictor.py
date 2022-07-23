@@ -60,7 +60,7 @@ def get_saliency_map(model, image):
     return tf.image.grayscale_to_rgb(saliency_image_gray)
 
 
-def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True):
+def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True, checkpoint=None):
     """
     Line search segmentation thresholds and select the one that works
     the best on the training set.
@@ -69,7 +69,13 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True):
         apply_sigmoid (bool): whether to apply the sigmoid on the output of the model
         with_augmentation (bool): If true, augment the images, predict on each augmented version,
         then ensemble the predictions
+        checkpoint (str): path to checkpoint of model (used for caching the best threshold)
     """
+    cache_path = '.'.join(checkpoint.split('.')[:-1]) + '_best_threshold_cache.txt' if checkpoint is not None else None
+    if cache_path is not None and os.path.isfile(cache_path):
+        with open(cache_path, 'r') as f:
+            return float(f.read())
+    
     best_thresh = 0
     best_f1_score = 0
     for thresh in np.linspace(0, 1, 41):
@@ -104,6 +110,11 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True):
             best_thresh = thresh
             best_f1_score = f1_score
     print('Best F1-score on train set:', best_f1_score, 'achieved with a threshold of:', best_thresh)
+
+    if cache_path is not None:
+        with open(cache_path, 'w') as f:
+            f.write(str(best_thresh))
+
     return best_thresh
 
 
@@ -209,7 +220,8 @@ def main():
     train_bs = 16
     train_dataset_size, _, _ = dataloader.get_dataset_sizes(split=0.2)
     segmentation_threshold = compute_best_threshold(train_loader.take(train_dataset_size),
-                                                    apply_sigmoid=apply_sigmoid)
+                                                    apply_sigmoid=apply_sigmoid,
+                                                    checkpoint=trained_model_path)
 
     # Prediction
     i = 0
