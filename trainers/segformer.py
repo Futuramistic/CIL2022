@@ -17,7 +17,7 @@ class SegFormerTrainer(TorchTrainer):
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
                  use_channelwise_norm=True, blobs_removal_threshold=0, hyper_seg_threshold=False,
-                 use_sample_weighting=False):
+                 use_sample_weighting=False, use_adaboost=False):
         """
         Set omitted parameters to model-specific defaults, then call superclass __init__ function
         @Warning: some arguments depend on others not being None, so respect this order!

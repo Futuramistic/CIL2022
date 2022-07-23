@@ -18,7 +18,7 @@ class CRANetTrainer(TorchTrainer):
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
                  use_channelwise_norm=False, loss_function_name=None, blobs_removal_threshold=None,
-                 hyper_seg_threshold=False, use_sample_weighting=False):
+                 hyper_seg_threshold=False, use_sample_weighting=False, use_adaboost=False):
         """
         Set omitted parameters to model-specific defaults, then call superclass __init__ function
         @Warning: some arguments depend on others not being None, so respect this order!
@@ -78,7 +78,7 @@ class CRANetTrainer(TorchTrainer):
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
                          segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold,
-                         use_sample_weighting)
+                         use_sample_weighting, use_adaboost=False)
 
         if loss_function_name is not None:
             self.loss_function_name = loss_function_name

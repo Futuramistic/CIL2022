@@ -18,7 +18,7 @@ class DeepLabV3Trainer(TorchTrainer):
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
                  use_channelwise_norm=False, blobs_removal_threshold=0, hyper_seg_threshold=False,
-                 use_sample_weighting=False):
+                 use_sample_weighting=False, use_adaboost=False):
         """
         Set omitted parameters to model-specific defaults, then call superclass __init__ function
         @Warning: some arguments depend on others not being None, so respect this order!
@@ -72,7 +72,7 @@ class DeepLabV3Trainer(TorchTrainer):
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
                          segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold,
-                         use_sample_weighting)
+                         use_sample_weighting, use_adaboost)
 
     def _train_step(self, model, device, train_loader, callback_handler):
         """
@@ -105,7 +105,7 @@ class DeepLabV3Trainer(TorchTrainer):
             loss.backward()
             opt.step()
             callback_handler.on_train_batch_end()
-            if self.use_sample_weighting:
+            if self.use_sample_weighting or self.adaboost:
                 threshold = getattr(self, 'last_hyper_threshold', self.segmentation_threshold)
                 # weight based on F1 score of batch
                 self.weights[sample_idx] =\

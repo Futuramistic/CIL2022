@@ -106,7 +106,7 @@ def main():
     factory = Factory.get_factory(known_args.model)
     
     # specify the arguments for the dataloader, trainer and model class
-    model_spec_args = {k: v for k, v in arg_dict.items() if k.lower() not in [trainer_args, dataloader_args, *filter_args]}
+    model_spec_args = {k: v for k, v in arg_dict.items() if k.lower() not in [*trainer_args, *dataloader_args, *filter_args]}
     trainer_spec_args = {k: v for k, v in arg_dict.items() if k.lower() in trainer_args}
     dataloader_spec_args = {k: v for k, v in arg_dict.items() if k.lower() in dataloader_args}
     

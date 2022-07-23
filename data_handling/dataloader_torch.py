@@ -104,8 +104,8 @@ class TorchDataLoader(DataLoader):
             
             if self.use_adaboost:
                 if self.weights is None:
-                    # init with equal weights, the weights do not have to add up to one
-                    self.weights = np.ones(training_data_len)
+                    # init with equal weights
+                    self.weights = np.ones(training_data_len, dtype=np.float16)*(1/training_data_len)
                 sampler = WeightedRandomSampler(self.weights, training_data_len, replacement=True)
                 ret = torchDL(self.training_data, batch_size, sampler = sampler, **args) # shuffling is mutually exclusive with sampler
             

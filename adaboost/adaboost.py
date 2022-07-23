@@ -46,7 +46,7 @@ class AdaBooster:
             self.model_weights = pickle.load(open(os.path.join(self.adaboost_run_path, 'model_weights.pkl'), 'rb'))
             with open(os.path.join(self.adaboost_run_path, "data_weights.ply"), 'rb') as file:
                 # data weights don't vary in size and are easier to work with as np arrays 
-                self.dataloader.weights = np.load(file).astype(float)
+                self.dataloader.weights = np.load(file, allow_pickle=True).astype(float)
         else:
             os.makedirs(self.adaboost_run_path)
             self.update_files()
@@ -128,7 +128,7 @@ class AdaBooster:
             data_inverse_f1_scores[data_inverse_f1_scores != 2] = normalized + 0.5  # between 0 and 1
             # probability of zero is not wished for
             # values that have not been set in the training process just receive the old sampling probability
-            data_inverse_f1_scores[data_inverse_f1_scores == 2] = self.dataloader.weights[self.weights == 2]
+            data_inverse_f1_scores[data_inverse_f1_scores == 2] = self.dataloader.weights[data_inverse_f1_scores == 2]
             weights_groundtruth_term = (1-data_inverse_f1_scores)*(-1) + data_inverse_f1_scores
             
             # calculate model error 
