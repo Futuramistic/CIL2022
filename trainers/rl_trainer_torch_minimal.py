@@ -854,11 +854,11 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
     def unnormalize_model_output(self, model_output, min_patch_size):
         if self.use_supervision:
-            pre = torch.stack([-1 + 2 * torch.pi * model_output[..., 0],  # angle in [-pi, pi]
+            pre = torch.stack([(-1 + 2 * model_output[..., 0]) * torch.pi,  # angle in [-pi, pi]
                                 model_output[..., 1] * (min_patch_size / 2),  # brush_radius in [0, min_patch_size / 2]
                                 model_output[..., 2] * (min_patch_size / 2)])  # magnitude in [0, min_patch_size / 2]
         else:
-            pre = torch.stack([-1 + 2 * torch.pi * model_output[..., 0],  # delta_angle in [-pi, pi]
+            pre = torch.stack([(-1 + 2 * model_output[..., 0]) * torch.pi,  # delta_angle in [-pi, pi]
                                 torch.round(-1 + 2 * model_output[..., 1])])  # new_brush_state
         if len(model_output.shape) == 1:
             return pre
