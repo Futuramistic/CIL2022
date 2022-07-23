@@ -100,7 +100,7 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True, checkp
     
     if cache_path is not None:
         with open(cache_path, 'w') as f:
-            f.write(str(best_thresh))
+            f.write(str(best_seg_thresh))
     
     return best_seg_thresh, best_patch_thresh
 
