@@ -567,9 +567,21 @@ class TorchRLTrainerMinimal(TorchTrainer):
         opt = self.optimizer_or_lr
         train_loss = 0
 
+        # modification: use single memory to avoid overfitting to a single sample during each policy epoch
+        
+        if self.use_supervision:
+            memory = self.ReplayMemory(capacity=int(self.replay_memory_capacity) * self.batch_size,
+                                        balancing_trajectory_length=int(self.replay_memory_capacity) * self.batch_size)
+
         for (_xs, ys, idxs) in train_loader:
             log_debug('_train_step: sampled new batch (xs, ys) from train_loader')
             log_debug_indent += 1
+
+            if not self.use_supervision:
+                # need to be able to compute returns individually
+                memory = [self.ReplayMemory(capacity=int(self.replay_memory_capacity),
+                                            balancing_trajectory_length=int(self.replay_memory_capacity))
+                            for _ in range(self.batch_size)]
 
             _xs, ys = _xs.to(device, dtype=torch.float32), ys.to(device, dtype=torch.long)
 
@@ -581,15 +593,6 @@ class TorchRLTrainerMinimal(TorchTrainer):
             
             # already called in environments:
             # envs.reset()
-            
-            if self.use_supervision:
-                memory = self.ReplayMemory(capacity=int(self.replay_memory_capacity) * xs.shape[0],
-                                           balancing_trajectory_length=int(self.replay_memory_capacity) * xs.shape[0])
-            else:
-                # need to be able to compute returns individually
-                memory = [self.ReplayMemory(capacity=int(self.replay_memory_capacity),
-                                            balancing_trajectory_length=int(self.replay_memory_capacity))
-                          for _ in xs.shape[0]]
 
             # if we exit this function and "terminated" is false, we timed out
             # (more than self.max_rollout_len iterations)
