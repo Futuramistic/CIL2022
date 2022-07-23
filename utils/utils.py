@@ -137,7 +137,7 @@ DATASET_ZIP_URLS = {
 
     # hand-filtered dataset of 1597 satellite images screenshotted from Google Maps
     # same 25 validation samples as in "new_original", "new_ext_original" and
-    # "new_original_aug_6" datasets; use split of 0.9875 to use exactly these 25 samples as the validation set
+    # "new_original_aug_6" datasets; use split of 0.9846 to use exactly these 25 samples as the validation set
     "maps_filtered": "https://polybox.ethz.ch/index.php/s/MfCcVyZRJ6TRDWb/download"
 }
 DATASET_STATS = {
