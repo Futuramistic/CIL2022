@@ -139,13 +139,14 @@ class TorchRLTrainerMinimal(TorchTrainer):
                                                                   preprocessing=self.preprocessing)
 
         envs = []
-        for loader, offset, batch_size, num_envs in [(self.train_loader, 0, self.batch_size, self.batch_size),
-                                                     (self.test_loader, self.dataloader.get_dataset_sizes(self.split)[0],
-                                                      self.batch_size, self.batch_size)]:
+        for loader, offset, batch_size, num_envs, pass_gt in [(self.train_loader, 0, self.batch_size,
+                                                               self.batch_size, True),
+                                                              (self.test_loader, self.dataloader.get_dataset_sizes(self.split)[0],
+                                                               self.batch_size, self.batch_size, False)]:
             all_env_img_paths = [[] for _ in range(num_envs)]
-            all_env_gt_paths = [[] for _ in range(num_envs)]
-            all_env_opt_brush_radius_paths = [[] for _ in range(num_envs)] if self.use_supervision else None
-            all_env_non_max_suppressed_paths = [[] for _ in range(num_envs)] if self.use_supervision else None
+            all_env_gt_paths = [[] for _ in range(num_envs)] if pass_gt else [None for _ in range(num_envs)]
+            all_env_opt_brush_radius_paths = [[] for _ in range(num_envs)] if self.use_supervision and pass_gt else [None for _ in range(num_envs)]
+            all_env_non_max_suppressed_paths = [[] for _ in range(num_envs)] if self.use_supervision and pass_gt else [None for _ in range(num_envs)]
             all_dl_sample_idxs = [[] for _ in range(num_envs)]
 
             for (_, _, _idxs) in loader:
@@ -159,9 +160,10 @@ class TorchRLTrainerMinimal(TorchTrainer):
                     img_path = self.dataloader.training_img_paths[sample_idx]  # no need to add offset
                     gt_path = self.dataloader.training_gt_paths[sample_idx]  # no need to add offset
                     all_env_img_paths[env_idx].append(img_path)
-                    all_env_gt_paths[env_idx].append(gt_path)
+                    if pass_gt:
+                        all_env_gt_paths[env_idx].append(gt_path)
                     all_dl_sample_idxs[env_idx].append(sample_idx)
-                    if self.use_supervision:
+                    if self.use_supervision and pass_gt:
                         opt_brush_radius_path =\
                             os.path.join(os.path.dirname(os.path.dirname(img_path)), 'opt_brush_radius',
                                                          os.path.basename(img_path).replace('.png', '.pkl'))

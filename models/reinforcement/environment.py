@@ -416,55 +416,66 @@ class SegmentationEnvironmentMinimal(Env):
         self.sample_idx = (self.sample_idx + 1) % len(self.img_paths)
 
         img_path = self.img_paths[self.sample_idx]
-        gt_path = self.gt_paths[self.sample_idx]
 
         # load the image from disk
         img_np = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
         self.img = torch.from_numpy(img_np)
         self.img = torch.permute(self.img, (2, 0, 1))  # channel dim first
-        # BGR to RGB6
+        # BGR to RGB
         self.img = self.img[[2, 1, 0, 3] if self.img.shape[0] == 4 else [2, 1, 0] if self.img.shape[0] == 3 else [0]]
         self.img = self.img.to(self.device)
-
-        # there is groundtruth
-        gt_np = cv2.imread(gt_path, cv2.IMREAD_UNCHANGED)
-        self.gt = torch.from_numpy(gt_np)
-        if len(self.gt.shape) == 3:
-            self.gt = torch.permute(self.gt, (2, 0, 1))  # channel dim first
-            # BGR to RGB
-            self.gt = self.gt[[2, 1, 0, 3] if self.gt.shape[0] == 4 else [2, 1, 0] if self.gt.shape[0] == 3 else [0]]
-        else:
-            self.gt = self.gt.unsqueeze(0)
         
         if self.sample_preprocessing is not None:
             self.img = self.sample_preprocessing(self.img, is_gt=False)
-            self.gt = self.sample_preprocessing(self.gt, is_gt=True)
 
-        while len(self.gt.shape) >= 3:
-            self.gt = self.gt[0]
-        
-        self.gt = self.gt.to(self.device)
+        if self.gt_paths is not None:
+            gt_path = self.gt_paths[self.sample_idx]
+            # there is groundtruth
+            gt_np = cv2.imread(gt_path, cv2.IMREAD_UNCHANGED)
+            self.gt = torch.from_numpy(gt_np)
+            if len(self.gt.shape) == 3:
+                self.gt = torch.permute(self.gt, (2, 0, 1))  # channel dim first
+                # BGR to RGB
+                self.gt = self.gt[[2, 1, 0, 3] if self.gt.shape[0] == 4 else [2, 1, 0] if self.gt.shape[0] == 3 else [0]]
+            else:
+                self.gt = self.gt.unsqueeze(0)
+            
+            if self.sample_preprocessing is not None:
+                self.gt = self.sample_preprocessing(self.gt, is_gt=True)
+
+
+            while len(self.gt.shape) >= 3:
+                self.gt = self.gt[0]
+            
+            self.gt = self.gt.to(self.device)
+            self.padded_gt = F.pad(self.gt, pad=flatten(self.paddings_per_dim),
+                                    mode='constant', value=self.padding_value)
+        else:
+            self.gt = None
+            self.padded_gt = None
         
         if self.supervision_optimal_brush_radius_map_paths is not None:
             with open(self.supervision_optimal_brush_radius_map_paths[self.sample_idx], 'rb') as f:
                 self.supervision_optimal_brush_radius_map = torch.from_numpy(pickle.load(f))
+        else:
+            self.supervision_optimal_brush_radius_map = None
 
         if self.supervision_non_max_suppressed_map_paths is not None:
             with open(self.supervision_non_max_suppressed_map_paths[self.sample_idx], 'rb') as f:
                 self.supervision_non_max_suppressed_map = torch.from_numpy(pickle.load(f))
+        else:
+            self.supervision_non_max_suppressed_map = None
 
         self.img_size = self.img.shape[1:]
 
         self.padded_img = F.pad(self.img, pad=flatten(self.paddings_per_dim),
                                 mode='constant', value=self.padding_value)
-        self.padded_gt = F.pad(self.gt, pad=flatten(self.paddings_per_dim),
-                                mode='constant', value=self.padding_value)
 
-        self.agent_pos = [int(dim_size // 2) for dim_size in self.gt.shape]
+        self.agent_pos = [int(dim_size // 2) for dim_size in self.img_size]
         self.agent_angle = 0.0
         self.brush_width = 0.0 if self.is_supervised else 1.0
         self.brush_state = BRUSH_STATE_NOTHING
-        self.seg_map_padded = F.pad(torch.zeros(self.gt.shape, device=self.device),
+        self.seg_map_padded = F.pad(torch.zeros(self.img_size, device=self.device),
                                     pad=flatten(self.paddings_per_dim),
                                     mode='constant', value=self.padding_value)  
 
@@ -472,12 +483,13 @@ class SegmentationEnvironmentMinimal(Env):
             torch.meshgrid(torch.arange(self.seg_map_padded.shape[0], device=self.device),
                            torch.arange(self.seg_map_padded.shape[1], device=self.device),
                            indexing='xy')
+
         self.grid_x, self.grid_y =\
-            torch.meshgrid(torch.arange(self.gt.shape[0], device=self.device),
-                           torch.arange(self.gt.shape[1], device=self.device),
+            torch.meshgrid(torch.arange(self.img_size[0], device=self.device),
+                           torch.arange(self.img_size[1], device=self.device),
                            indexing='xy')
         
-        self.seen_pixels = torch.zeros_like(self.gt, dtype=torch.int8)
+        self.seen_pixels = torch.zeros(self.img_size, dtype=torch.int8, device=self.img.device)
         
         # [0]
         # patch_size=5: [-1, -1, 0, -1, -1, -1]
@@ -696,8 +708,8 @@ class SegmentationEnvironmentMinimal(Env):
             delta_y = math.sin(self.agent_angle) * magnitude
             # project to bounding box
             # do not round here, since if the changes are too small, the position may never get updated
-            self.agent_pos = [max(0, min(self.agent_pos[0] + delta_y, self.gt.shape[0] - 1)),
-                              max(0, min(self.agent_pos[1] + delta_x, self.gt.shape[1] - 1))]
+            self.agent_pos = [max(0, min(self.agent_pos[0] + delta_y, self.img_size[0] - 1)),
+                              max(0, min(self.agent_pos[1] + delta_x, self.img_size[1] - 1))]
             self.brush_state = new_brush_state
             
             self.seen_pixels[new_seen_pixels] = 1
@@ -728,7 +740,15 @@ class SegmentationEnvironmentMinimal(Env):
         global_information = self.minimap.clone()
 
         global_information[get_minimap_pixel_coords(self.agent_pos)] = 0.5
-        new_observation = torch.cat([new_rgb_patch, self.minimap.unsqueeze(0)], dim=0)
+
+        # also append a map of the currently segmented areas
+
+        # F.interpolate expects B, C, H, W --> unsqueeze self.get_unpadded_segmentation() twice: B=1, C=1
+        # then remove batch dim from result
+        red_seg =\
+            F.interpolate(self.get_unpadded_segmentation().unsqueeze(0).unsqueeze(0), self.minimap.shape).squeeze(0)
+
+        new_observation = torch.cat([new_rgb_patch, self.minimap.unsqueeze(0), red_seg], dim=0)
         new_info = {'reward_decomp_quantities': reward_decomp_quantities,
                     'reward_decomp_sums': reward_decomp_sums}
         

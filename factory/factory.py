@@ -2,7 +2,7 @@ import abc
 
 from data_handling import *
 from models import *
-from models.reinforcement.first_try import SimpleRLCNNMinimal
+from models.reinforcement.first_try import ResNetBasedRegressor, SimpleRLCNNMinimal
 from trainers import *
 from trainers.rl_trainer_torch_minimal import TorchRLTrainerMinimal
 from utils import *
@@ -59,6 +59,8 @@ class Factory(abc.ABC):
             return SimpleRLCNNMinimalFactory()
         elif model_name_lower_no_sep == "simplerlcnnminimalsupervised":
             return SimpleRLCNNMinimalSupervisedFactory()
+        elif model_name_lower_no_sep == "rlregressor":
+            return RLRegressorFactory()
         elif model_name_lower_no_sep == "fftunet":
             return FFT_UNetFactory()
         else:
@@ -204,6 +206,17 @@ class SimpleRLCNNMinimalSupervisedFactory(Factory):
 
     def get_model_class(self):
         return SimpleRLCNNMinimalSupervised
+
+    def get_dataloader_class(self):
+        return TorchDataLoaderRL
+
+
+class RLRegressorFactory(Factory):
+    def get_trainer_class(self):
+        return TorchRLTrainerMinimal
+
+    def get_model_class(self):
+        return ResNetBasedRegressor
 
     def get_dataloader_class(self):
         return TorchDataLoaderRL
