@@ -67,29 +67,6 @@ class AdaBooster:
             pushbullet_logger.send_pushbullet_message(('Training finished. Last test loss: %.4f\n' % last_test_loss) + \
                                                         f'Hyperparameters:\n{self.get_hyperparams()}')
     
-    def evaluate(self):
-        # creates single submission and calls ensembled submission
-        for idx, checkpoint in enumerate(self.checkpoint_paths):
-            exp_name = self.experiment_names[idx]
-            trainer_class = self.factory.get_trainer_class()
-            
-            # create predictions on test data set
-            if issubclass(trainer_class, TorchTrainer):
-                # Torch
-                os.system(f"python torch_predictor.py --model={self.known_args_dict['model']} --checkpoint={checkpoint} \
-                    --apply_sigmoid={self.unknown_args_dict['apply_sigmoid']} --blob_threshold={self.unknown_args_dict['blob_threshold']}")
-            else:
-                # TF
-                os.system(f"python tf_predictor.py", "--model={self.known_args_dict['model']} --checkpoint={checkpoint} \
-                          --apply_sigmoid={self.unknown_args_dict['apply_sigmoid']}")
-            
-            # create submission file
-            os.makedirs(self.submission_folder, exist_ok=True)
-            experiment_submission = os.path.join(self.submission_folder, f"{exp_name}.csv")
-            print(os.system(f"python mask_to_submission.py --submission_filename={experiment_submission}"))
-        
-        self.submission()
-    
     def train(self):
         # training loop
         curr_run_idx = len(self.experiment_names)
@@ -146,6 +123,28 @@ class AdaBooster:
             if curr_run_idx == 0:
                 self.dataloader.weights_set = True
             curr_run_idx += 1
+    
+    def evaluate(self):
+        # creates single submission and calls ensembled submission
+        for idx, checkpoint in enumerate(self.checkpoint_paths):
+            exp_name = self.experiment_names[idx]
+            trainer_class = self.factory.get_trainer_class()
+            
+            # create predictions on test data set
+            if issubclass(trainer_class, TorchTrainer):
+                # Torch
+                os.system(f"python torch_predictor.py --model={self.known_args_dict['model']} --checkpoint={checkpoint}")
+            else:
+                # TF
+                os.system(f"python tf_predictor.py", "--model={self.known_args_dict['model']} --checkpoint={checkpoint} \
+                          --apply_sigmoid={self.unknown_args_dict['apply_sigmoid']}")
+            
+            # create submission file
+            os.makedirs(self.submission_folder, exist_ok=True)
+            experiment_submission = os.path.join(self.submission_folder, f"{exp_name}.csv")
+            print(os.system(f"python mask_to_submission.py --submission_filename={experiment_submission}"))
+        
+        self.submission()
     
     
     def get_hyperparams(self):
