@@ -332,13 +332,15 @@ class Trainer(abc.ABC):
                             f1_road_patchified_scores, f1_bkgd_patchified_scores, f1_patchified_weighted_scores,\
                                 threshold = self.get_precision_recall_F1_score_validation()
                     metrics = {'precisions_road': precisions_road, 'recalls_road': recalls_road, 'f1_road_scores': f1_road_scores,
-                               'precisions_bkgd': precisions_bkgd
-                               'seg_threshold': threshold}
+                               'precisions_bkgd': precisions_bkgd, 'recalls_bkgd': recalls_bkgd, 'f1_bkgd_scores': f1_bkgd_scores,
+                               'f1_macro_scores': f1_macro_scores, 'f1_weighted_scores': f1_weighted_scores, 
+                               'f1_road_patchified_scores': f1_road_patchified_scores, 'f1_bkgd_patchified_scores':f1_bkgd_patchified_scores,
+                               'f1_patchified_weighted_scores':f1_patchified_weighted_scores, 'seg_threshold': threshold}
                     print(f'Evaluation metrics: {metrics}')
                     if mlflow_logger.logging_to_mlflow_enabled():
                         mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=0)
                         if self.num_samples_to_visualize is not None and self.num_samples_to_visualize > 0:
-                            mlflow_logger.log_visualizations(self, 0)
+                            mlflow_logger.log_visualizations(self, 0, self.epoch_idx, self.epoch_iteration_idx)
 
                     mlflow_logger.log_logfiles()
                 except Exception as e:
@@ -349,8 +351,15 @@ class Trainer(abc.ABC):
                         pushbullet_logger.send_pushbullet_message(err_msg)
                     raise e
         else:
-            precision, recall, f1_score, threshold = self.get_precision_recall_F1_score_validation()
-            metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score, 'seg_threshold': threshold}
+            precisions_road, recalls_road, f1_road_scores, precisions_bkgd, \
+                        recalls_bkgd, f1_bkgd_scores, f1_macro_scores, f1_weighted_scores,\
+                            f1_road_patchified_scores, f1_bkgd_patchified_scores, f1_patchified_weighted_scores,\
+                                threshold = self.get_precision_recall_F1_score_validation()
+            metrics = {'precisions_road': precisions_road, 'recalls_road': recalls_road, 'f1_road_scores': f1_road_scores,
+                               'precisions_bkgd': precisions_bkgd, 'recalls_bkgd': recalls_bkgd, 'f1_bkgd_scores': f1_bkgd_scores,
+                               'f1_macro_scores': f1_macro_scores, 'f1_weighted_scores': f1_weighted_scores, 
+                               'f1_road_patchified_scores': f1_road_patchified_scores, 'f1_bkgd_patchified_scores':f1_bkgd_patchified_scores,
+                               'f1_patchified_weighted_scores':f1_patchified_weighted_scores, 'seg_threshold': threshold}
             print(f'Evaluation metrics: {metrics}')
 
         return metrics

@@ -108,7 +108,7 @@ class AdaBooster:
             trainer.mlflow_experiment_name = new_run_name
             
             trainer.train()
-            f1_eval = trainer.eval()['f1_score']
+            f1_eval = trainer.eval()['f1_road_scores']
             best_model_checkpoint = trainer.curr_best_checkpoint_path
             if best_model_checkpoint is None:
                 self.experiment_name
