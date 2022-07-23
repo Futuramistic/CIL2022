@@ -117,7 +117,6 @@ class Trainer(abc.ABC):
         Returns:
             True if successfully established a connection
         """
-        return False
         if self.mlflow_initialized:
             return True
         
@@ -328,8 +327,12 @@ class Trainer(abc.ABC):
                     mlflow_logger.log_codebase()  # log codebase before training, to be invariant to train crashes/stops
                     mlflow_logger.log_command_line()  # log command line used to execute the script, if available
                     
-                    precision, recall, f1_score, threshold = self.get_precision_recall_F1_score_validation()
-                    metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score,
+                    precisions_road, recalls_road, f1_road_scores, precisions_bkgd, \
+                        recalls_bkgd, f1_bkgd_scores, f1_macro_scores, f1_weighted_scores,\
+                            f1_road_patchified_scores, f1_bkgd_patchified_scores, f1_patchified_weighted_scores,\
+                                threshold = self.get_precision_recall_F1_score_validation()
+                    metrics = {'precisions_road': precisions_road, 'recalls_road': recalls_road, 'f1_road_scores': f1_road_scores,
+                               'precisions_bkgd': precisions_bkgd
                                'seg_threshold': threshold}
                     print(f'Evaluation metrics: {metrics}')
                     if mlflow_logger.logging_to_mlflow_enabled():

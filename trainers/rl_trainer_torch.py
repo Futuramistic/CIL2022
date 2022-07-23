@@ -95,7 +95,7 @@ class TorchRLTrainer(TorchTrainer):
                  optimizer_or_lr=optimizer_or_lr, scheduler=scheduler, loss_function=loss_function, loss_function_hyperparams=loss_function_hyperparams,
                  evaluation_interval=evaluation_interval, num_samples_to_visualize=num_samples_to_visualize, checkpoint_interval=checkpoint_interval,
                  load_checkpoint_path=load_checkpoint_path, segmentation_threshold=segmentation_threshold, blobs_removal_threshold=blobs_removal_threshold, 
-                 hyper_seg_threshold=hyper_seg_threshold, use_sample_weighting=False) # use_sampling_weighting not needed in RL
+                 hyper_seg_threshold=hyper_seg_threshold, use_sample_weighting=False) # use_sampling_weighting and adaboost not needed in RL
         self.history_size = int(history_size)
         self.max_rollout_len = int(max_rollout_len)
         self.replay_memory_capacity = int(replay_memory_capacity)

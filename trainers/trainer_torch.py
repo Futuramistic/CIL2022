@@ -278,7 +278,7 @@ class TorchTrainer(Trainer, abc.ABC):
         callback_handler = self.Callback(self, mlflow_run, self.model)
         best_val_loss = 1e12
         
-        if self.use_sample_weighting:
+        if self.use_sample_weighting or self.adaboost:
             # init all samples with the same weight, is overwritten in _train_step()
             self.weights = np.ones((len(self.train_loader.dataset)), dtype=np.float16)*2 # start with 2 as 1 - f1 score cannot reach this value
                 

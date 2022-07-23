@@ -116,6 +116,8 @@ class SegFormerTrainer(TorchTrainer):
             loss.backward()
             opt_backbone.step()
             opt_head.step()
+            if self.use_sample_weighting or self.adaboost:
+                self.weights[sample_idx] = loss.item()
             callback_handler.on_train_batch_end()
             del x
             del y

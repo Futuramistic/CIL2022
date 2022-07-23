@@ -97,7 +97,7 @@ class UNetTrainer(TorchTrainer):
             loss.backward()
             opt.step()
             callback_handler.on_train_batch_end()
-            if self.use_sample_weighting:
+            if self.use_sample_weighting or self.adaboost:
                 threshold = getattr(self, 'last_hyper_threshold', self.segmentation_threshold)
                 # weight based on F1 score of batch
                 self.weights[sample_idx] =\

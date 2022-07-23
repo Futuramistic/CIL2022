@@ -112,7 +112,7 @@ class CRANetTrainer(TorchTrainer):
             opt.zero_grad()
             outputs, refined = model.forward(inputs)
 
-            if self.use_sample_weighting:
+            if self.use_sample_weighting or self.adaboost:
                 threshold = getattr(self, 'last_hyper_threshold', self.segmentation_threshold)
                 # weight based on F1 score of batch
                 self.weights[sample_idx] =\

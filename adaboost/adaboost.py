@@ -140,6 +140,9 @@ class AdaBooster:
             self.dataloader.weights = self.dataloader.weight*np.exp(total_model_performance*weights_groundtruth_term)
             
             self.update_files() # save only if training went through
+            
+            if curr_run_idx == 0:
+                self.dataloader.weights_set = True
             curr_run_idx += 1
     
     
