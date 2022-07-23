@@ -182,7 +182,10 @@ DATASET_STATS = {
     'pixel_std_0': 95.714, 'pixel_std_1': 95.744, 'pixel_std_2': 95.355},
 'original_split_3_aug_6': {
     'pixel_mean_0': 97.711, 'pixel_mean_1': 103.910, 'pixel_mean_2': 109.287,
-    'pixel_std_0': 95.788, 'pixel_std_1': 95.909, 'pixel_std_2': 95.496}
+    'pixel_std_0': 95.788, 'pixel_std_1': 95.909, 'pixel_std_2': 95.496},
+'maps_filtered': {
+    'pixel_mean_0': 128.833, 'pixel_mean_1': 128.790, 'pixel_mean_2': 128.829, 'pixel_std_0': 54.380,
+    'pixel_std_1': 54.207, 'pixel_std_2': 54.045}
 }
 
 # in case multiple jobs are running in the same directory, SESSION_ID will prevent name conflicts
