@@ -31,19 +31,19 @@ class AdaBooster:
         
         # Create the dataloader using the commandline arguments
         self.dataloader = factory.get_dataloader_class()(**dataloader_spec_args)
-        self.test_dataloader = factory.get_dataloader_class()(dataset="test")
+        self.test_dataloader = factory.get_dataloader_class()(dataset="original")
         
         # load last adaboost setting if adaboost name already exists, otherwise create new file structure for current experiment
         self.checkpoint_paths = [] # checkpoint paths for best epoch of trained models
         self.experiment_names = [] # experiment names for trained models
         self.model_weights = [] # model weight (unnormalized) depending on the models overall performance
         # sample weights are managed by the dataloader in order to be able to return the trainer the needed data structures
-        self.adaboost_run_path = os.path.join(ROOT_DIR, "/adaboost/adaboost_runs", self.known_args_dict['experiment_name'])
+        self.adaboost_run_path = os.path.join(ROOT_DIR, "adaboost/adaboost_runs", self.known_args_dict['experiment_name'])
         self.submission_folder = os.path.join(self.adaboost_run_path, "submission")
-        if os.path.exists(self.adaboost_run_path):
-            self.checkpoint_paths = pickle.load(open(os.path.join(self.adaboost_run_path, 'checkpoints.pkl', 'rb')))
-            self.experiment_names = pickle.load(open(os.path.join(self.adaboost_run_path, 'experiments.pkl', 'rb')))
-            self.model_weights = pickle.load(open(os.path.join(self.adaboost_run_path, 'model_weights.pkl', 'rb')))
+        if os.path.isdir(self.adaboost_run_path):
+            self.checkpoint_paths = pickle.load(open(os.path.join(self.adaboost_run_path, 'checkpoints.pkl'), 'rb'))
+            self.experiment_names = pickle.load(open(os.path.join(self.adaboost_run_path, 'experiments.pkl'), 'rb'))
+            self.model_weights = pickle.load(open(os.path.join(self.adaboost_run_path, 'model_weights.pkl'), 'rb'))
             with open(os.path.join(self.adaboost_run_path, "data_weights.ply"), 'rb') as file:
                 # data weights don't vary in size and are easier to work with as np arrays 
                 self.dataloader.weights = np.load(file).astype(float)
@@ -147,11 +147,11 @@ class AdaBooster:
         ...
     
     def update_files(self):
-        pickle.dump(self.checkpoint_paths, open(os.path.join(self.adaboost_run_path, "checkpoints.pkl", 'wb')))
-        pickle.dump(self.experiment_names, open(os.path.join(self.adaboost_run_path, "experiments.pkl", 'wb')))
-        pickle.dump(self.model_weights, open(os.path.join(self.adaboost_run_path, "model_weights.pkl", 'wb')))
-        with open(os.path.join(self.adaboost_run_path, "data_weights.ply"), 'rb') as file:
-            np.save(os.path.join(self.adaboost_run_path, "data_weights.ply"), self.dataloader.weights)
+        pickle.dump(self.checkpoint_paths, open(os.path.join(self.adaboost_run_path, "checkpoints.pkl"), 'wb'))
+        pickle.dump(self.experiment_names, open(os.path.join(self.adaboost_run_path, "experiments.pkl"), 'wb'))
+        pickle.dump(self.model_weights, open(os.path.join(self.adaboost_run_path, "model_weights.pkl"), 'wb'))
+        with open(os.path.join(self.adaboost_run_path, "data_weights.ply"), 'wb') as file:
+            np.save(file, self.dataloader.weights)
     
     def submission(self):
         # weighted majority voting

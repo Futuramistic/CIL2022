@@ -12,7 +12,7 @@ class TorchDataLoader(DataLoader):
     """
 
     def __init__(self, dataset="original", use_geometric_augmentation=False, use_color_augmentation=False,
-                 aug_contrast=[0.8, 1.2], aug_brightness=[0.8, 1.2], aug_saturation=[0.8, 1.2], adaboost_run_name=None):
+                 aug_contrast=[0.8, 1.2], aug_brightness=[0.8, 1.2], aug_saturation=[0.8, 1.2], use_adaboost=False):
         """
         Args:
             dataset (string): type of Dataset ("original" [from CIL2022 Competition], "Massachusets", ...)
@@ -22,7 +22,7 @@ class TorchDataLoader(DataLoader):
             aug_contrast (list): range of values for the contrast augmentation
             aug_brightness (list): range of values for the brightness augmentation
             aug_saturation (list): range of values for the saturation augmentation
-            adaboost_run_name (str): adaboost run name if adaboost is used
+            use_adaboost (bool): whether adaboost is used
         """
         super().__init__(dataset)
         self.use_geometric_augmentation = use_geometric_augmentation
@@ -33,7 +33,7 @@ class TorchDataLoader(DataLoader):
         
         # if adaboost is used, the dataloader is used to store the current sample weights as the same dataloader is used for all
         # trainers and models
-        self.use_adaboost = adaboost_run_name is not None
+        self.use_adaboost = use_adaboost
         if self.use_adaboost:
             self.weights = None # create sample weights
 

@@ -50,3 +50,5 @@ Debugging:
         }
     ]
 }
+# Deeplabv3 adaboost
+`python main.py --model=deeplabv3 --dataset=original_split_1 --batch_size=2 --split=0.01 --evaluation_interval=1 -E=DeepLabV3Adaboost --optimizer_or_lr=1e-4 --num_epochs=2 --checkpoint_interval=1 --hyper_seg_threshold=True '--run_name=adaboost_debug --use_adaboost=True --adaboost_runs=2`
