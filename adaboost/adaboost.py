@@ -64,7 +64,7 @@ class AdaBooster:
                                                         f'Hyperparameters:\n{self.get_hyperparams()}')
             last_test_loss = self.train()
             
-            pushbullet_logger.send_pushbullet_message(('Training finished. Last test loss: %.4f\n' % last_test_loss) + \
+            pushbullet_logger.send_pushbullet_message('Training finished.' + \
                                                         f'Hyperparameters:\n{self.get_hyperparams()}')
     
     def train(self):

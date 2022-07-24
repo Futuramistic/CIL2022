@@ -51,7 +51,7 @@ Debugging:
     ]
 }
 # Deeplabv3 adaboost
-`python main.py --model=deeplabv3 --dataset=original --batch_size=2 --split=0.03 --evaluation_interval=1 -E=DeepLabV3Adaboost --optimizer_or_lr=1e-4 --num_epochs=2 --checkpoint_interval=1 --hyper_seg_threshold=True --use_adaboost=True --adaboost_runs=2`
+`python main.py --model=deeplabv3 --dataset=original --batch_size=2 --split=0.03 --evaluation_interval=1 -E=DeepLabV3Adaboost --optimizer_or_lr=1e-4 --num_epochs=2 --checkpoint_interval=1 --hyper_seg_threshold=True --use_adaboost=True --adaboost_runs=2 --evaluate --apply_sigmoid=False --blob_threshold=0.0`
 
 # Debugging adaboost with launch.json
 {
