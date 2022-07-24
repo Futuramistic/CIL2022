@@ -278,5 +278,10 @@ def main():
 
 
 if __name__ == '__main__':
-    with tf.device('/cpu:0'):
-        main()
+    # # use CPU for prediction even though GPU is available (e.g. for memory reasons):
+    # with tf.device('/cpu:0'):
+    #    main()
+
+    # # use GPU if available, else use CPU:
+    main()
+
