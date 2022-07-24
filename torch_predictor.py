@@ -68,9 +68,9 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True, checkp
     best_patch_thresh = 0
     best_f1_score = 0
     best_blob_thresh = 0
-    for blob_thresh in np.linspace(0, 400, 9):
+    for blob_thresh in np.linspace(400, 2400, 21):
         for patch_thresh in [0.25]:  # np.linspace(0, 1, 21)
-            for seg_thresh in np.linspace(0, 1, 21):
+            for seg_thresh in np.linspace(0, 1, 1):  # 21
                 f1_scores = []
                 with torch.no_grad():
                     for (x_, y, _) in tqdm(loader):
