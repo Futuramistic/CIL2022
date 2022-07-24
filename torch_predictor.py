@@ -1,4 +1,8 @@
 # Imports
+import hashlib
+
+import os
+import requests
 import torch
 import tensorflow as tf
 import tensorflow.keras as K
@@ -15,6 +19,22 @@ from tqdm import tqdm
 from losses import *
 from utils import *
 
+import argparse
+import hashlib
+import os
+import sys
+import pysftp
+import requests
+import pickle
+
+from requests.auth import HTTPBasicAuth
+from urllib.parse import urlparse
+
+
+"""
+Given a trained model, make predictions on the test set
+"""
+
 
 # Fixed constants
 offset = 144  # Numbering of first test image
@@ -26,10 +46,8 @@ model = None
 test_loader = None
 blob_threshold = None
 
-
-"""
-Given a trained model, make predictions on the test set
-"""
+os.environ['MLFLOW_TRACKING_USERNAME'] = MLFLOW_HTTP_USER
+os.environ['MLFLOW_TRACKING_PASSWORD'] = MLFLOW_HTTP_PASS
 
 
 def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True, checkpoint=None):
@@ -236,6 +254,43 @@ def _unify(images):
     return _ensemble(images)
 
 
+def load_checkpoint(checkpoint_path, checkpoints_output_dir):
+    """
+    Download a model checkpoint either locally or from the network
+    Args:
+        checkpoint_path (str): The checkpoint url
+    """
+    os.makedirs(checkpoints_output_dir, exist_ok=True)
+    load_from_sftp = checkpoint_path.lower().startswith('sftp://')
+    if load_from_sftp:
+        original_checkpoint_hash = hashlib.md5(str.encode(checkpoint_path)).hexdigest()
+        extension = 'pt' if checkpoint_path.lower().endswith('.pt') else 'ckpt'
+        final_checkpoint_path = f'{checkpoints_output_dir}/checkpoint_{original_checkpoint_hash}.{extension}'
+        condition = os.path.isfile(final_checkpoint_path) if extension == 'pt' else os.path.isdir(final_checkpoint_path)
+        if not condition:
+            if extension != 'pt':
+                os.makedirs(final_checkpoint_path, exist_ok=True)
+            cnopts = pysftp.CnOpts()
+            cnopts.hostkeys = None
+            mlflow_ftp_pass = requests.get(MLFLOW_FTP_PASS_URL,
+                                           auth=HTTPBasicAuth(os.environ['MLFLOW_TRACKING_USERNAME'],
+                                                              os.environ['MLFLOW_TRACKING_PASSWORD'])).text
+            url_components = urlparse(checkpoint_path)
+            with pysftp.Connection(host=MLFLOW_HOST, username=MLFLOW_FTP_USER, password=mlflow_ftp_pass,
+                                   cnopts=cnopts) as sftp:
+                callback = lambda x, y: print('Downloading checkpoint %s [%d%%]\r' %
+                                              (original_checkpoint_hash, int(100 * float(x) / float(y))), end="")
+                if extension == 'pt':
+                    sftp.get(url_components.path, final_checkpoint_path, callback=callback)
+                else:
+                    sftp_download_dir_portable(sftp, remote_dir=url_components.path, local_dir=final_checkpoint_path,
+                                               callback=callback)
+            print(f'\nDownload successful')
+        else:
+            print(f'Checkpoint "{checkpoint_path}", to be downloaded to "{final_checkpoint_path}", found on disk\n')
+        return final_checkpoint_path
+
+
 def main():
     # seed everything
 
@@ -264,6 +319,7 @@ def main():
     blob_threshold = options.blob_threshold
     floating_prediction = options.floating_prediction
 
+
     # Create loader, trainer etc. from factory
     factory = Factory.get_factory(model_name)
     dataloader = factory.get_dataloader_class()(dataset=dataset)
@@ -272,6 +328,9 @@ def main():
     model = model.to(device)
     trainer_class = factory.get_trainer_class()
     trainer = trainer_class(dataloader=dataloader, model=model)  # , load_checkpoint_path=trained_model_path)
+
+    if trained_model_path.startswith('sftp://'):
+        trained_model_path = load_checkpoint(trained_model_path, 'model_checkpoints')
 
     # Load the trained model weights
     if torch.cuda.is_available():
