@@ -86,7 +86,7 @@ def log_codebase():
     os.remove(CODEBASE_SNAPSHOT_ZIP_NAME)
 
 
-def log_checkpoints():
+def log_checkpoints(remove_local=True):
     """
     Log a checkpoint to MLFlow
     """
@@ -96,8 +96,9 @@ def log_checkpoints():
             print('\nLogging checkpoints to MLFlow...')
             mlflow.log_artifacts(CHECKPOINTS_DIR, 'checkpoints/')
             print('Logging checkpoints successful')
-            shutil.rmtree(CHECKPOINTS_DIR)  # Remove the directory and its contents
-            os.makedirs(CHECKPOINTS_DIR)  # Recreate an empty directory
+            if remove_local:
+                shutil.rmtree(CHECKPOINTS_DIR)  # Remove the directory and its contents
+                os.makedirs(CHECKPOINTS_DIR)  # Recreate an empty directory
     else:
         print('Cannot log checkpoint to MLFlow, as logging is disabled')
 

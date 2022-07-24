@@ -41,6 +41,7 @@ class AdaBooster:
         # sample weights are managed by the dataloader in order to be able to return the trainer the needed data structures
         self.adaboost_run_path = os.path.join(ROOT_DIR, "adaboost/adaboost_runs", self.known_args_dict['experiment_name'])
         self.submission_folder = os.path.join(self.adaboost_run_path, "submission")
+        self.submission_folder_from_root = os.path.join("adaboost/adaboost_runs", self.known_args_dict['experiment_name'], "submission")
         if os.path.isdir(self.adaboost_run_path):
             self.checkpoint_paths = pickle.load(open(os.path.join(self.adaboost_run_path, 'checkpoints.pkl'), 'rb'))
             self.experiment_names = pickle.load(open(os.path.join(self.adaboost_run_path, 'experiments.pkl'), 'rb'))
@@ -126,6 +127,7 @@ class AdaBooster:
     
     def evaluate(self):
         # creates single submission and calls ensembled submission
+        self.return_codes = []
         for idx, checkpoint in enumerate(self.checkpoint_paths):
             exp_name = self.experiment_names[idx]
             trainer_class = self.factory.get_trainer_class()
@@ -133,16 +135,30 @@ class AdaBooster:
             # create predictions on test data set
             if issubclass(trainer_class, TorchTrainer):
                 # Torch
-                os.system(f"python torch_predictor.py --model={self.known_args_dict['model']} --checkpoint={checkpoint}")
+                command = f"python torch_predictor.py --model={self.known_args_dict['model']} --checkpoint={checkpoint}"
+                if 'apply_sigmoid' in self.known_args_dict.keys():
+                    command += " --apply_sigmoid"
+                if 'blob_threshold' in self.known_args_dict.keys():
+                    command += f" --blob_threshold={self.unknown_args_dict['blob_threshold']}"
+                return_code = os.system(command)
             else:
                 # TF
-                os.system(f"python tf_predictor.py", "--model={self.known_args_dict['model']} --checkpoint={checkpoint} \
-                          --apply_sigmoid={self.unknown_args_dict['apply_sigmoid']}")
-            
-            # create submission file
+                command = f"python tf_predictor.py", "--model={self.known_args_dict['model']} --checkpoint={checkpoint}"
+                if 'apply_sigmoid' in self.known_args_dict.keys():
+                    command += " --apply_sigmoid"
+                return_code = os.system(command)
+            self.return_codes.append(return_code)
+            if return_code != 0:
+                print("There has been an error in the tf/torch_predictor. This model will not be used for the ensembling")
+                # create submission file
+                continue
             os.makedirs(self.submission_folder, exist_ok=True)
-            experiment_submission = os.path.join(self.submission_folder, f"{exp_name}.csv")
-            print(os.system(f"python mask_to_submission.py --submission_filename={experiment_submission}"))
+            experiment_submission = os.path.join(self.submission_folder_from_root, f"{exp_name}.csv")
+            print(experiment_submission)
+            return_code = os.system(f"python mask_to_submission.py --submission_filename={experiment_submission}")
+            if return_code != 0:
+                print("There has been an error in the mask_to_submission.py. This model will not be used for the ensembling")
+                self.return_codes[-1] = return_code
         
         self.submission()
     
@@ -173,6 +189,8 @@ class AdaBooster:
         patch_order_list = []
         patches = {}
         for file_idx, filename in tqdm(enumerate(csv_filenames)):
+            if self.return_codes[file_idx] != 0:
+                continue
             model_weight = self.model_weights[file_idx]
             with open(os.path.join(self.submission_folder, filename), 'r') as file:
                 file_str = file.read()

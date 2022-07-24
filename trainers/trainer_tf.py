@@ -127,8 +127,8 @@ class TFTrainer(Trainer, abc.ABC):
                 self.best_val_loss = logs['val_loss']
                 keras.models.save_model(model=self.model,
                                         filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"))
-
-            mlflow_logger.log_checkpoints()
+            remove_local_checkpoint = not self.adaboost
+            mlflow_logger.log_checkpoints(remove_local_checkpoint)
 
             self.epoch_idx += 1
             self.epoch_iteration_idx = 0

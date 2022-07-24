@@ -187,6 +187,7 @@ class TorchTrainer(Trainer, abc.ABC):
             total_iteration (int): total number of iterations
             best (str): Name to give to the checkpoint if it achieves the best f1 score so far
         """
+        
         if None not in [epoch, epoch_iteration, total_iteration]:
             checkpoint_path = f'{CHECKPOINTS_DIR}/cp_ep-{"%05i" % epoch}_epit-{"%05i" % epoch_iteration}' + \
                               f'_step-{total_iteration}.pt'
@@ -208,7 +209,8 @@ class TorchTrainer(Trainer, abc.ABC):
         # checkpoints should be logged to MLflow right after their creation, so that if training is
         # stopped/crashes *without* reaching the final "mlflow_logger.log_checkpoints()" call in trainer.py,
         # prior checkpoints have already been persisted
-        mlflow_logger.log_checkpoints()
+        remove_local_checkpoint = not self.adaboost
+        mlflow_logger.log_checkpoints(remove_local_checkpoint)
 
     def _load_checkpoint(self, checkpoint_path):
         """

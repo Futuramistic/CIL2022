@@ -292,7 +292,8 @@ class Trainer(abc.ABC):
                     mlflow_logger.log_command_line()  # log command line used to execute the script, if available
                     last_test_loss = self._fit_model(mlflow_run=run)
                     if self.do_checkpoint:
-                        mlflow_logger.log_checkpoints()
+                        remove_local_checkpoint = not self.adaboost
+                        mlflow_logger.log_checkpoints(remove_local_checkpoint)
                     mlflow_logger.log_logfiles()
                 except Exception as e:
                     err_msg = f'*** Exception encountered: ***\n{e}'
@@ -304,7 +305,7 @@ class Trainer(abc.ABC):
         else:
             last_test_loss = self._fit_model(mlflow_run=None)
 
-        if os.path.exists(CHECKPOINTS_DIR):
+        if os.path.exists(CHECKPOINTS_DIR) and not self.adaboost:
             shutil.rmtree(CHECKPOINTS_DIR)
 
         return last_test_loss
