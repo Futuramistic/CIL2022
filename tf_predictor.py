@@ -232,6 +232,9 @@ def main():
     # Prediction
     i = 0
     for x in tqdm(test_loader):
+        if i > test_set_size - 1:
+            break
+        
         if floating_prediction and use_floating_output_cache and os.path.isfile(f'{floating_output_dir}/satimage_{offset+i}.pkl'):
             i += 1
             continue
