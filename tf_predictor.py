@@ -184,21 +184,27 @@ def main():
     parser.add_argument('-c', '--checkpoint', type=str, required=True)
     parser.add_argument('--apply_sigmoid', dest='apply_sigmoid', action='store_true', required=False)
     parser.add_argument('--saliency', dest='compute_saliency', action='store_true', required=False)
+    parser.add_argument('-o', '--floating_output_dir', type=str,
+                        help='The directory to store the output of the network to, if --floating_prediction is passed',
+                        required=False, default=OUTPUT_FLOAT_DIR)
+    parser.add_argument('--use_floating_output_cache', action='store_true', help='If specified, do not recompute floating predictions if they are found in floating_output_dir', required=False)
     parser.set_defaults(apply_sigmoid=False)
     parser.set_defaults(compute_saliency=False)
     parser.set_defaults(floating_prediction=False)
     parser.add_argument('--floating_prediction', dest='floating_prediction', action='store_true',
                         help='If specified, dump the output of the network to a pickle file, else the default '
-                             'behavior is to threshold the output to get a binary prediction.')
+                             'behavior is to threshold the output to get a binary prediction')
     options = parser.parse_args()
-
-    os.makedirs(OUTPUT_FLOAT_DIR, exist_ok=True)
 
     model_name = options.model
     trained_model_path = options.checkpoint
     apply_sigmoid = options.apply_sigmoid
     compute_saliency = options.compute_saliency
+    floating_output_dir = options.floating_output_dir
     floating_prediction = options.floating_prediction
+    use_floating_output_cache = options.use_floating_output_cache
+
+    os.makedirs(floating_output_dir, exist_ok=True)
 
     global model
     # Create loader, trainer etc. from factory
@@ -226,6 +232,10 @@ def main():
     # Prediction
     i = 0
     for x in tqdm(test_loader):
+        if floating_prediction and use_floating_output_cache and os.path.isfile(f'{floating_output_dir}/satimage_{offset+i}.pkl'):
+            i += 1
+            continue
+        
         if compute_saliency:
             K.preprocessing.image.save_img(f'{SALIENCY_MAP_DIR}/saliency_map_{offset+i}.png', get_saliency_map(model,x))
 
@@ -251,7 +261,7 @@ def main():
             output = output[0]
 
         if floating_prediction:
-            with open(f'{OUTPUT_FLOAT_DIR}/satimage_{offset + i}.pkl', 'wb') as handle:
+            with open(f'{floating_output_dir}/satimage_{offset + i}.pkl', 'wb') as handle:
                 array = np.squeeze(output.numpy())
                 # rescale so that old optimal threshold is at 0.5
                 array = (array < segmentation_threshold) * array / segmentation_threshold * 0.5 + \

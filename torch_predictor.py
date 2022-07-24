@@ -44,7 +44,7 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True, checkp
     cache_path = '.'.join(checkpoint.split('.')[:-1]) + '_best_threshold_cache.txt' if checkpoint is not None else None
     if cache_path is not None and os.path.isfile(cache_path):
         with open(cache_path, 'r') as f:
-            return float(f.read())
+            return float(f.read()), None
     
     best_seg_thresh = 0
     best_patch_thresh = 0
@@ -105,7 +105,8 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True, checkp
     return best_seg_thresh, best_patch_thresh
 
 
-def predict(segmentation_threshold, apply_sigmoid, with_augmentation=True, floating_prediction=False):
+def predict(segmentation_threshold, apply_sigmoid, with_augmentation=True, floating_prediction=False,
+            floating_output_dir=OUTPUT_FLOAT_DIR, use_floating_output_cache=False):
     """
     Make predictions using a trained model
     Args:
@@ -115,11 +116,17 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=True, float
         then ensemble the predictions
         floating_prediction (bool): If true, output floating point per-pixel probabilities, else use the segmentation
         threshold to output a binary prediction.
+        floating_output_dir (str): The directory to store the output of the network to, if --floating_prediction is passed
+        use_floating_output_cache (bool): If True, do not recompute floating predictions if they are found in floating_output_dir
     """
-    os.makedirs(OUTPUT_FLOAT_DIR, exist_ok=True)
+    os.makedirs(floating_output_dir, exist_ok=True)
     with torch.no_grad():
         i = 0
         for x in tqdm(test_loader):
+            if floating_prediction and use_floating_output_cache and os.path.isfile(f'{floating_output_dir}/satimage_{offset+i}.pkl'):
+                i += 1
+                continue
+
             x = x.to(device, dtype=torch.float32)
         
             if with_augmentation:
@@ -133,7 +140,7 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=True, float
             if apply_sigmoid:
                 output = sigmoid(output)
             if floating_prediction:
-                with open(f'{OUTPUT_FLOAT_DIR}/satimage_{offset+i}.pkl', 'wb') as handle:
+                with open(f'{floating_output_dir}/satimage_{offset+i}.pkl', 'wb') as handle:
                     array = np.squeeze(output.cpu().detach().numpy())
                     # rescale so that old optimal threshold is at 0.5
                     array = (array < segmentation_threshold) * array / segmentation_threshold * 0.5 + \
@@ -247,12 +254,17 @@ def main():
     parser = argparse.ArgumentParser(description='Predictions maker for torch models')
     parser.add_argument('-m', '--model', type=str, required=True)
     parser.add_argument('-c', '--checkpoint', type=str, required=True)
+    parser.add_argument('-o', '--floating_output_dir', type=str, help='The directory to store the output of the network to, if --floating_prediction is passed',
+                        required=False, default=OUTPUT_FLOAT_DIR)
     parser.add_argument('--apply_sigmoid', dest='apply_sigmoid', action='store_true', required=False)
     parser.add_argument('--blob_threshold', type=int, default=250, help='The threshold for the blob processing')
     parser.set_defaults(floating_prediction=False)
     parser.add_argument('--floating_prediction', dest='floating_prediction', action='store_true',
                         help='If specified, dump the output of the network to a pickle file, else the default '
                              'behavior is to threshold the output to get a binary prediction.')
+    parser.add_argument('--use_floating_output_cache', action='store_true',
+                        help='If specified, do not recompute floating predictions if they are found in floating_output_dir',
+                        required=False)
     parser.set_defaults(apply_sigmoid=False)
     options = parser.parse_args()
 
@@ -260,9 +272,11 @@ def main():
 
     model_name = options.model
     trained_model_path = options.checkpoint
+    floating_output_dir = options.floating_output_dir
     apply_sigmoid = options.apply_sigmoid
     blob_threshold = options.blob_threshold
     floating_prediction = options.floating_prediction
+    use_floating_output_cache = options.use_floating_output_cache
 
     # Create loader, trainer etc. from factory
     factory = Factory.get_factory(model_name)
@@ -295,7 +309,8 @@ def main():
 
     # Make the final predictions
     predict(segmentation_threshold, apply_sigmoid=apply_sigmoid, with_augmentation=True,
-            floating_prediction=options.floating_prediction)
+            floating_prediction=options.floating_prediction, floating_output_dir=floating_output_dir,
+            use_floating_output_cache=use_floating_output_cache)
 
 
 if __name__ == '__main__':

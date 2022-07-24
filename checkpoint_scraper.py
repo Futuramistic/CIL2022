@@ -99,14 +99,15 @@ def averaged_outputs_prediction(checkpoint_paths, sftp_path_model_names, checkpo
         # also captures torch RL models with different trainer:
         is_torch = issubclass(fact.get_dataloader_class(), TorchDataLoader)
         predictor_script = 'torch_predictor' if is_torch else 'tf_predictor'
+        floating_output_dir = os.path.join(OUTPUT_FLOAT_DIR, os.path.basename(checkpoint))
         command = f"python {predictor_script}.py -m {sftp_path_model_names[idx]} -c {checkpoint} " \
-                  f"--floating_prediction"
+                  f"--floating_prediction --use_floating_output_cache --floating_output_dir=\"{floating_output_dir}\""
         if sftp_path_model_names[idx] in ['deeplabv3', 'cranet']:
             command += ' --apply_sigmoid'
         os.system(command)
 
-        for i, file_name in enumerate(sorted(os.listdir(OUTPUT_FLOAT_DIR))):
-            with (open(os.path.join(OUTPUT_FLOAT_DIR, file_name), "rb")) as file:
+        for i, file_name in enumerate(sorted(os.listdir(floating_output_dir))):
+            with (open(os.path.join(floating_output_dir, file_name), "rb")) as file:
                 pred = pickle.load(file)
                 summed_preds[i] += pred
         nb_networks += 1
