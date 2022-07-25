@@ -132,7 +132,7 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
 
             d_loss = -torch.mean(self.D(real_imgs)) + torch.mean(self.D(gen_imgs))
 
-            d_loss.backward()
+            d_loss.backward(retain_graph=True)
             self.optimizer_D.step()
 
             # Clip weights of discriminator
@@ -142,16 +142,16 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
 
             # ================
             # Train generator
-
+            opt.zero_grad()
             if i % self.train_gen_every == 0:
-                if x.shape[0] == 1:
-                    continue  # drop if the last batch has size of 1 (otherwise the deeplabv3 model crashes)
+                # if x.shape[0] == 1:
+                #     continue  # drop if the last batch has size of 1 (otherwise the deeplabv3 model crashes)
                 loss = self.loss_function(gen_imgs, y)
-                # loss += self.adv_lambda * self.adversarial_loss(self.D(gen_imgs), valid)
+                loss += self.adv_lambda * self.adversarial_loss(self.D(gen_imgs), valid)
                 loss += - self.adv_lambda * torch.mean(self.D(gen_imgs))
                 with torch.no_grad():
                     train_loss += loss.item()
-                opt.zero_grad()
+
                 loss.backward()
                 opt.step()
 
