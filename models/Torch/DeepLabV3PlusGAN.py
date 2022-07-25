@@ -20,6 +20,7 @@ class DeepLabV3PlusGAN(nn.Module):
         self.model = deeplabv3(pretrained=True, progress=True)
         self.model.classifier = DeepLabHead(2048, 1)
         self.discriminator = CNN_Discriminator() if cnn_discriminator else FC_Discriminator()
+        self.sigmoid = nn.Sigmoid()
         nb_model_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         nb_model_classifier_params = sum(p.numel() for p in self.model.classifier.parameters() if p.requires_grad)
         nb_discriminator_params = sum(p.numel() for p in self.discriminator.parameters() if p.requires_grad)

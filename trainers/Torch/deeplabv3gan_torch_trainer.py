@@ -19,7 +19,8 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
                  use_channelwise_norm=False, adv_lambda=0.1, adv_lr=1e-4, blobs_removal_threshold=0,
                  hyper_seg_threshold=False, use_sample_weighting=False,
-                 f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
+                 f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT,
+                 train_gen_every=3):
         """
         Set omitted parameters to model-specific defaults, then call superclass __init__ function
         @Warning: some arguments depend on others not being None, so respect this order!
@@ -30,6 +31,7 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
 
         self.adv_lambda = adv_lambda
         self.adv_lr = adv_lr
+        self.train_gen_every = train_gen_every
 
         if split is None:
             split = DEFAULT_TRAIN_FRACTION
@@ -107,7 +109,7 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
         Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
         opt = self.optimizer_or_lr
         train_loss = 0
-        for (x, y, sample_idx) in train_loader:
+        for i, (x, y, sample_idx) in enumerate(train_loader):
             x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
 
             # Adversarial ground truths
@@ -115,20 +117,6 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
             fake = Variable(Tensor(x.size(0), 1).fill_(0.0), requires_grad=False)
             # Configure input
             real_imgs = Variable(y.type(Tensor))  # original uses x, but we probably need y for our purposes
-
-            # ================
-            # Train generator
-
-            if x.shape[0] == 1:
-                continue  # drop if the last batch has size of 1 (otherwise the deeplabv3 model crashes)
-            gen_imgs = model(x, apply_activation=False)
-            loss = self.loss_function(gen_imgs, y)
-            loss += self.adv_lambda * self.adversarial_loss(self.D(gen_imgs), valid)
-            with torch.no_grad():
-                train_loss += loss.item()
-            opt.zero_grad()
-            loss.backward()
-            opt.step()
 
             # ====================
             # Train Discriminator
@@ -143,12 +131,32 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
             d_loss.backward()
             self.optimizer_D.step()
 
+            # Clip weights of discriminator
+            clip_val = 0.01
+            for p in self.D.parameters():
+                p.data.clamp_(-clip_val, clip_val)
+
+            # ================
+            # Train generator
+
+            if i % self.train_gen_every == 0:
+                if x.shape[0] == 1:
+                    continue  # drop if the last batch has size of 1 (otherwise the deeplabv3 model crashes)
+                gen_imgs = model(x, apply_activation=False)
+                loss = self.loss_function(gen_imgs, y)
+                loss += self.adv_lambda * self.adversarial_loss(self.D(gen_imgs), valid)
+                with torch.no_grad():
+                    train_loss += loss.item()
+                opt.zero_grad()
+                loss.backward()
+                opt.step()
+
+            if self.use_sample_weighting:
+                self.weights[sample_idx] = loss.item()
+
             callback_handler.on_train_batch_end()
             del x
             del y
-            
-            if self.use_sample_weighting:
-                self.weights[sample_idx] = loss.item()
 
         train_loss /= len(train_loader.dataset)
         f1_score = callback_handler.on_epoch_end()
