@@ -41,60 +41,95 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True, checkp
         apply_sigmoid (bool): whether to apply the sigmoid on the output of the model
         checkpoint (str): path to checkpoint of model (used for caching the best threshold)
     """
-    cache_path = '.'.join(checkpoint.split('.')[:-1]) + '_best_threshold_cache.txt' if checkpoint is not None else None
+    def eval_thresh(seg_thresh, blob_thresh, patch_thresh):
+        f1_scores = []
+        with torch.no_grad():
+            for (x_, y, _) in tqdm(loader):
+                x_ = x_.to(device, dtype=torch.float32)
+                
+                if with_augmentation:
+                    x_ = _augment(x_.squeeze())
+
+                y = y.to(device, dtype=torch.float32)
+                output_ = model(x_)
+                if type(output_) is tuple:
+                    output_ = output_[0]
+
+                output_ = collapse_channel_dim_torch(output_, take_argmax=False)
+                
+                # models not requiring "apply_sigmoid" will have applied it here already, so this should be
+                # before the unification to ensure consistency
+                if apply_sigmoid: 
+                    output_ = sigmoid(output_)
+
+                if with_augmentation:
+                    output_ = _unify(output_.squeeze())  # torch.stack([_unify(output_[idx]) for idx in range(output_.shape[0])])
+
+                preds = (output_ >= seg_thresh).float()
+                # _, _, _, _, _, _, _, f1_weighted, *_ = precision_recall_f1_score_torch(preds, y)
+                # f1_scores.append(f1_weighted.cpu().numpy())
+                
+                preds = remove_blobs(preds, threshold=blob_thresh)
+
+                _, _, f1_patchified_weighted = patchified_f1_scores_torch(preds, y, patch_thresh=patch_thresh)
+                f1_scores.append(f1_patchified_weighted.cpu().numpy())
+                
+                del x_
+                del y
+        f1_score = np.mean(f1_scores)
+        return f1_score
+
+    NUM_LINSPACES = 40
+
+    cache_path = '.'.join(checkpoint.split('.')[:-1]) + '_best_threshold_cache_plbs.txt' if checkpoint is not None else None
     if cache_path is not None and os.path.isfile(cache_path):
         with open(cache_path, 'r') as f:
-            return float(f.read()), None
+            seg_thresh = float(f.read())
+            print(f'Reusing cached threshold of {"%.4f" % seg_thresh}')
+            return seg_thresh, None
+    else:
+        best_seg_thresh = 0
+        best_patch_thresh = 0
+        best_f1_score = 0
+        best_blob_thresh = 0
+
+        for blob_thresh in [0]:  # np.linspace(0, 400, 8):
+            for patch_thresh in [0.25]:  # np.linspace(0, 1, 21)
+                for seg_thresh in np.linspace(0, 1, NUM_LINSPACES + 1):
+                    f1_score = eval_thresh(seg_thresh, blob_thresh, patch_thresh)
+
+                    print('Segmentation threshold', seg_thresh, '/ patch threshold', patch_thresh, '/ blob threshold',
+                        blob_thresh, '- F1 score:', f1_score)
+                    if f1_score > best_f1_score:
+                        best_seg_thresh = seg_thresh
+                        best_patch_thresh = patch_thresh
+                        best_f1_score = f1_score
+                        best_blob_thresh = blob_thresh
+
+    # now, perform binary search to refine further
     
-    best_seg_thresh = 0
-    best_patch_thresh = 0
-    best_f1_score = 0
-    best_blob_thresh = 0
-    for blob_thresh in [0]:  # np.linspace(0, 400, 8):
-        for patch_thresh in [0.25]:  # np.linspace(0, 1, 21)
-            for seg_thresh in np.linspace(0, 1, 41):
-                f1_scores = []
-                with torch.no_grad():
-                    for (x_, y, _) in tqdm(loader):
-                        x_ = x_.to(device, dtype=torch.float32)
-                        
-                        if with_augmentation:
-                            x_ = _augment(x_.squeeze())
+    binary_search_depth = 5
+    low_thresh = max(0.0, best_seg_thresh - 1/NUM_LINSPACES)
+    high_thresh = min(1.0, best_seg_thresh + 1/NUM_LINSPACES)
+    
+    low_thresh_f1_score = eval_thresh(low_thresh, best_blob_thresh, best_patch_thresh)
+    high_thresh_f1_score = eval_thresh(high_thresh, best_blob_thresh, best_patch_thresh)
 
-                        y = y.to(device, dtype=torch.float32)
-                        output_ = model(x_)
-                        if type(output_) is tuple:
-                            output_ = output_[0]
+    print(f'Best threshold after linear search: {"%.4f" % best_seg_thresh} (score {"%.4f" % best_f1_score})')
 
-                        output_ = collapse_channel_dim_torch(output_, take_argmax=False)
-                        
-                        # models not requiring "apply_sigmoid" will have applied it here already, so this should be
-                        # before the unification to ensure consistency
-                        if apply_sigmoid: 
-                            output_ = sigmoid(output_)
+    for _ in range(binary_search_depth):
+        print(f'Post-linear binary search: lower {"%.4f" % low_thresh}, upper {"%.4f" % high_thresh} (scores {"%.4f" % low_thresh_f1_score} / {"%.4f" % high_thresh_f1_score})')
+        mid_thresh = (low_thresh + high_thresh) / 2
+        if low_thresh_f1_score < high_thresh_f1_score:
+            low_thresh = mid_thresh
+            low_thresh_f1_score = eval_thresh(low_thresh, best_blob_thresh, best_patch_thresh)
+        else:
+            high_thresh = mid_thresh
+            high_thresh_f1_score = eval_thresh(high_thresh, best_blob_thresh, best_patch_thresh)
 
-                        if with_augmentation:
-                            output_ = _unify(output_.squeeze())  # torch.stack([_unify(output_[idx]) for idx in range(output_.shape[0])])
+    best_seg_thresh = (low_thresh + high_thresh) / 2
+    best_f1_score = eval_thresh(best_seg_thresh, best_blob_thresh, best_patch_thresh)
 
-                        preds = (output_ >= seg_thresh).float()
-                        # _, _, _, _, _, _, _, f1_weighted, *_ = precision_recall_f1_score_torch(preds, y)
-                        # f1_scores.append(f1_weighted.cpu().numpy())
-                        
-                        preds = remove_blobs(preds, threshold=blob_thresh)
-
-                        _, _, f1_patchified_weighted = patchified_f1_scores_torch(preds, y, patch_thresh=patch_thresh)
-                        f1_scores.append(f1_patchified_weighted.cpu().numpy())
-                        
-                        del x_
-                        del y
-                f1_score = np.mean(f1_scores)
-                print('Segmentation threshold', seg_thresh, '/ patch threshold', patch_thresh, '/ blob threshold',
-                      blob_thresh, '- F1 score:', f1_score)
-                if f1_score > best_f1_score:
-                    best_seg_thresh = seg_thresh
-                    best_patch_thresh = patch_thresh
-                    best_f1_score = f1_score
-                    best_blob_thresh = blob_thresh
     print('Best F1-score on train set:', best_f1_score, 'achieved with a segmentation threshold of', best_seg_thresh,
           ', a patch threshold of', best_patch_thresh, ', a blob threshold of', best_blob_thresh)
     
@@ -298,7 +333,7 @@ def main():
     preprocessing = trainer.preprocessing
 
     original_dataloader = factory.get_dataloader_class()(dataset='original')
-    train_loader = original_dataloader.get_training_dataloader(split=0.174, batch_size=1, preprocessing=preprocessing)
+    train_loader = original_dataloader.get_training_dataloader(split=0.5, batch_size=1, preprocessing=preprocessing)
     test_loader = dataloader.get_unlabeled_testing_dataloader(batch_size=1, preprocessing=preprocessing)
 
     create_or_clean_directory(OUTPUT_PRED_DIR)
