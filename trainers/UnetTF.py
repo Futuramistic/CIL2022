@@ -117,7 +117,7 @@ class UNetTFTrainer(TFTrainer):
         #                                                      decay_steps=30000, staircase=True)
         return K.optimizers.Adam(learning_rate=lr)
 
-    def _compile_model(self):
+    def compile_model(self):
         """
         Compile the model with the object's loss function and optimizer
         """

@@ -269,7 +269,7 @@ class TFTrainer(Trainer, abc.ABC):
 
         self._save_image_array(images, file_path)
 
-    def _compile_model(self):
+    def compile_model(self):
         """
         Compile the model with the object's loss function and optimizer
         """
@@ -323,7 +323,7 @@ class TFTrainer(Trainer, abc.ABC):
         Returns:
             last test loss (float)
         """
-        self._compile_model()
+        self.compile_model()
 
         if self.load_checkpoint_path is not None:
             self._load_checkpoint(self.load_checkpoint_path)
