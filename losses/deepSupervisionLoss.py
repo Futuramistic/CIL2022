@@ -5,7 +5,7 @@ import keras.backend as K
 
 def DeepSupervisionLoss(function=DiceLoss, loss_weights=None, **kwargs):
     """
-    Wrapper used for the deep supervision loss that sums weighted loss of each desired output
+    TODO How to comment this?
     """
     def loss(targets, inputs):
         targets = K.flatten(tf.cast(targets, tf.float32))
