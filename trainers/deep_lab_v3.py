@@ -132,9 +132,7 @@ class DeepLabV3Trainer(TorchTrainer):
         model.eval()
         test_loss = 0
         with torch.no_grad():
-            for idx,(x, y, _) in enumerate(test_loader):
-                if idx > 2:
-                    continue
+            for (x, y, _) in test_loader:
                 x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
                 preds = model(x)
                 test_loss += self.loss_function(preds, y).item()

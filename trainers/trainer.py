@@ -117,6 +117,7 @@ class Trainer(abc.ABC):
         Returns:
             True if successfully established a connection
         """
+        return False # TODO: revert after debug
         if self.mlflow_initialized:
             return True
         

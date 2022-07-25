@@ -376,9 +376,7 @@ class TorchTrainer(Trainer, abc.ABC):
         model.eval()
         test_loss = 0
         with torch.no_grad():
-            for idx, (x, y, _) in enumerate(test_loader):
-                if idx > 2:
-                    continue
+            for (x, y, _) in test_loader:
                 x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.long)
                 y = torch.squeeze(y, dim=1)
                 preds = model(x)
