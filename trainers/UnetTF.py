@@ -50,10 +50,6 @@ class UNetTFTrainer(TFTrainer):
             loss_function = DiceLoss
             # loss_function = K.losses.BinaryCrossentropy(from_logits=False,
             #                                            reduction=K.losses.Reduction.SUM_OVER_BATCH_SIZE)
-        if isinstance(loss_function,list):
-            self.loss_function_name = 'DeepSupervision'
-            if loss_weights is not None:
-                self.loss_weights = loss_weights
 
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)
@@ -92,6 +88,11 @@ class UNetTFTrainer(TFTrainer):
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
                          segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold,
                          use_sample_weighting, f1_threshold_to_log_checkpoint)
+
+        if isinstance(loss_function,list):
+            self.loss_function_name = 'DeepSupervision'
+            if loss_weights is not None:
+                self.loss_weights = loss_weights
 
     def _get_hyperparams(self):
         """
