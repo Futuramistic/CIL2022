@@ -204,7 +204,7 @@ def prediction_stats_tf(thresholded_prediction, targets, classes, dtype=tf.dtype
 
     return {'tp': tp, 'fp': fp, 'tn': tn, 'fn': fn}
 
-@tf.function
+
 def precision_tf(thresholded_prediction, targets, target_class):
     """
     Compute prediction precision
@@ -220,7 +220,7 @@ def precision_tf(thresholded_prediction, targets, target_class):
     precision_metric.update_state(tf.cast(tf.equal(targets,target_class),tf.float32), tf.cast(tf.equal(thresholded_prediction,target_class),tf.float32))
     return precision_metric.result().numpy()
 
-@tf.function
+
 def recall_tf(thresholded_prediction, targets, target_class):
     """
     Compute prediction recall
