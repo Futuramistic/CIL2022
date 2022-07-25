@@ -50,8 +50,8 @@ class UNetTFTrainer(TFTrainer):
             loss_function = DiceLoss
             # loss_function = K.losses.BinaryCrossentropy(from_logits=False,
             #                                            reduction=K.losses.Reduction.SUM_OVER_BATCH_SIZE)
-        elif isinstance(loss_function,list):
-            self.loss_function_name = 'Deep Supervision'
+        if isinstance(loss_function,list):
+            self.loss_function_name = 'DeepSupervision'
             if loss_weights is not None:
                 self.loss_weights = loss_weights
 
