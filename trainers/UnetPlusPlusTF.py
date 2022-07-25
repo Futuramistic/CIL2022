@@ -15,7 +15,8 @@ class UNetPlusPlusTrainer(TFTrainer):
                  batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
-                 blobs_removal_threshold=0, hyper_seg_threshold=False, use_adaboost=False):
+                 blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False, 
+                 use_adaboost=False):
         """
         Set omitted parameters to model-specific defaults, then call superclass __init__ function
         @Warning: some arguments depend on others not being None, so respect this order!
@@ -75,7 +76,7 @@ class UNetPlusPlusTrainer(TFTrainer):
                          num_epochs, batch_size, optimizer_or_lr, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
                          segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold,
-                         use_adaboost)
+                         use_sample_weighting, use_adaboost)
 
     def _get_hyperparams(self):
         """

@@ -8,6 +8,7 @@ env/
 onnx-tensorflow/
 ZZZ_own_code_testing.py
 dataset/
+adaboost/adaboost_runs/
 .idea/
 mlruns/
 checkpoints/
@@ -23,4 +24,3 @@ output_preds/
 *.pt
 *.zip
 *.csv
-adaboost/adaboost_runs/
