@@ -419,20 +419,20 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         up4 = Concatenate(axis=3)([up_convo2, convo1_1, convo5_1, convo4_1, convo3_1])
         up4 = Convo_Block(name=name + "-up-4", filters=nb_filters[6], **down_args)(up4)
 
-        outconvo = Conv2D(name=name + "-final-convo", **out_args)(up4)
+        outconvo = Conv2D(name="outconvo", **out_args)(up4)
         sigmoid = Activation(tf.nn.sigmoid, dtype=tf.float32)
         if deep_supervision:
             side1 = UpSampling2D(name=name + "up-side1", size=(16, 16), interpolation='bilinear')(convo5)
-            side1 = Conv2D(name=name + '-side1', **out_args)(side1)
+            side1 = Conv2D(name='side1', **out_args)(side1)
 
             side2 = UpSampling2D(name=name + "up-side2", size=(8, 8), interpolation='bilinear')(up1)
-            side2 = Conv2D(name=name + '-side2', **out_args)(side2)
+            side2 = Conv2D(name='side2', **out_args)(side2)
 
             side3 = UpSampling2D(name=name + "up-side3", size=(4, 4), interpolation='bilinear')(up2)
-            side3 = Conv2D(name=name + '-side3', **out_args)(side3)
+            side3 = Conv2D(name='side3', **out_args)(side3)
 
             side4 = UpSampling2D(name=name + "up-side4", size=(2, 2), interpolation='bilinear')(up3)
-            side4 = Conv2D(name=name + '-side4', **out_args)(side4)
+            side4 = Conv2D(name='side4', **out_args)(side4)
 
             if cgm:
                 cls = Dropout(rate=cgm_dropout)(convo5)
