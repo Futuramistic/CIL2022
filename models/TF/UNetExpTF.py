@@ -274,7 +274,8 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_size': (3, 3),
             'padding': 'same',
             'kernel_initializer': kernel_init,
-            'kernel_regularizer': kernel_regularizer
+            'kernel_regularizer': kernel_regularizer,
+            'activation': tf.nn.sigmoid
         }
 
         convo_trans_args = {
@@ -420,7 +421,6 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         up4 = Convo_Block(name=name + "-up-4", filters=nb_filters[6], **down_args)(up4)
 
         outconvo = Conv2D(name="outconvo", **out_args)(up4)
-        sigmoid = Activation(tf.nn.sigmoid, dtype=tf.float32)
         if deep_supervision:
             side1 = UpSampling2D(name=name + "up-side1", size=(16, 16), interpolation='bilinear')(convo5)
             side1 = Conv2D(name='side1', **out_args)(side1)
@@ -438,7 +438,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
                 cls = Dropout(rate=cgm_dropout)(convo5)
                 cls = Conv2D(filters=2, kernel_size=(1, 1), padding='same', kernel_initializer=kernel_init)(cls)
                 cls = GlobalMaxPool2D()(cls)
-                cls = sigmoid(cls)
+                cls = Activation(tf.nn.sigmoid, dtype=tf.float32)(cls)
                 cls = K.backend.max(cls, axis=-1)
 
                 outconvo = multiply([outconvo, cls])
@@ -447,8 +447,8 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
                 side3 = multiply([side3, cls])
                 side4 = multiply([side4, cls])
 
-            return tf.stack([sigmoid(outconvo), sigmoid(side1), sigmoid(side2), sigmoid(side3), sigmoid(side4)])
-        return sigmoid(outconvo)
+            return tf.stack([outconvo, side1, side2, side3, side4])
+        return outconvo
 
     inputs = K.Input(input_shape)
     outputs = __build_model(inputs)
