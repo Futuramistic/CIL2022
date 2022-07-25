@@ -280,7 +280,7 @@ class TFDataLoader(DataLoader):
         """
         tf.keras.models.save_model(model, filepath)
 
-    @tf.function(reduce_retracing=True)
+    @tf.function
     def augmentation(self, image, label):
         """
         Apply various data augmentations to the image
