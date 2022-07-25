@@ -1,8 +1,8 @@
 from data_handling import *
-from models import *
 from models.reinforcement.first_try import SimpleRLCNNMinimal
 from trainers import *
 from trainers.rl_trainer_torch_minimal import TorchRLTrainerMinimal
+from models import *
 
 
 class Factory(abc.ABC):
@@ -155,7 +155,7 @@ class TwoShotNetFactory(Factory):
         return UNetTrainer
 
     def get_model_class(self):
-        return TwoShotNet
+        return torch.TwoShotNet
         
     def get_dataloader_class(self):
         return TorchDataLoader

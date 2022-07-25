@@ -79,7 +79,8 @@ class AdaBooster:
             model = self.factory.get_model_class()(**self.model_args)
             
             # Create the trainer using the commandline arguments
-            trainer = self.factory.get_trainer_class()(dataloader=self.dataloader, model=model,
+            trainer_class = self.factory.get_trainer_class()
+            trainer = trainer_class(dataloader=self.dataloader, model=model,
                                                 **self.trainer_args)
             
             # adapt the mlflow experiment name for each new model
@@ -91,7 +92,6 @@ class AdaBooster:
             f1_eval = trainer.eval()['f1_road_scores']
             best_model_checkpoint = trainer.curr_best_checkpoint_path
             if best_model_checkpoint is None:
-                self.experiment_name
                 curr_run_idx += 1
                 print("No checkpoint was saved. Omitting this run")
                 continue
@@ -99,17 +99,15 @@ class AdaBooster:
             self.experiment_names.append(new_run_name)
             self.model_weights.append(f1_eval)
             
-            # calculate daat errors
-            data_inverse_f1_scores = trainer.weights
-            # normalize between 0 and 1
-            set_during_training = data_inverse_f1_scores[data_inverse_f1_scores != 2]
-            normalized = set_during_training / (
-                    2 * np.max(np.absolute(set_during_training)))  # between -0.5 and +0.5
-            data_inverse_f1_scores[data_inverse_f1_scores != 2] = normalized + 0.5  # between 0 and 1
-            # probability of zero is not wished for
+            # calculate data errors
+            if issubclass(trainer_class, TorchTrainer):
+                data_inverse_f1_scores = trainer.weights
+            else:
+                data_inverse_f1_scores = trainer.get_F1_score_training_no_shuffle()
+            
             # values that have not been set in the training process just receive the old sampling probability
             data_inverse_f1_scores[data_inverse_f1_scores == 2] = self.dataloader.weights[data_inverse_f1_scores == 2]
-            weights_groundtruth_term = (1-data_inverse_f1_scores)*(-1) + data_inverse_f1_scores
+            weights_groundtruth_term = (data_inverse_f1_scores-1) + data_inverse_f1_scores
             
             # calculate model error 
             model_error = np.sum(self.dataloader.weights*weights_groundtruth_term) / np.sum(self.dataloader.weights)
@@ -119,7 +117,16 @@ class AdaBooster:
             # calculate new data weights
             self.dataloader.weights = self.dataloader.weights*np.exp(total_model_performance*weights_groundtruth_term)
             
-            self.update_files() # save only if training went through
+            # normalize between 0 and 1 again (no negative values allowed)
+            normalized = self.dataloader.weights / (
+                    2 * np.max(np.absolute(self.dataloader.weights)))  # between -0.5 and +0.5
+            self.dataloader.weights = normalized + 0.5  # between 0 and 1
+            
+            # normalize so sum of weights is 1
+            self.dataloader.weights /= sum(self.dataloader.weights)
+            
+            # save
+            self.update_files()
             
             if curr_run_idx == 0:
                 self.dataloader.weights_set = True

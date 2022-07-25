@@ -125,9 +125,10 @@ class TFTrainer(Trainer, abc.ABC):
 
             if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']:
                 self.best_val_loss = logs['val_loss']
+                self.trainer.curr_best_checkpoint_path = os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt")
                 keras.models.save_model(model=self.model,
                                         filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"))
-            remove_local_checkpoint = not self.adaboost
+            remove_local_checkpoint = not self.trainer.adaboost
             mlflow_logger.log_checkpoints(remove_local_checkpoint)
 
             self.epoch_idx += 1
@@ -138,7 +139,7 @@ class TFTrainer(Trainer, abc.ABC):
             # if self.original_checkpoint_hash is not None and os.path.isdir(f'original_checkpoint_{self.original_checkpoint_hash}.ckpt'):
             #     shutil.rmtree(f'original_checkpoint_{self.original_checkpoint_hash}.ckpt')
             
-            if self.trainer.use_sample_weighting or self.trainer.adaboost:
+            if self.trainer.use_sample_weighting:
                 # normalize and update weights
                 self.weights_temp = np.asarray(self.weights_temp)[len(self.trainer.train_dataset_size)] # cut off if too many were saved due to the last batch
                 normalized = self.weights_temp / (2*np.max(np.absolute(self.weights_temp))) # between -0.5 and +0.5
@@ -146,7 +147,7 @@ class TFTrainer(Trainer, abc.ABC):
                 # probability of zero is not wished for
                 self.trainer.weights[self.trainer.weights == 2] = np.min(self.trainer.weights[self.trainer.weights != 2])
                 # tf.keras.backend.set_value(self.model.weighted_metrics, self.trainer.weights)
-                # weights don't have to add up to 1 --> Done
+                # weights don't have to add up to 1
 
         def on_train_batch_begin(self, batch, logs=None):
             """
@@ -354,6 +355,39 @@ class TFTrainer(Trainer, abc.ABC):
             # save final checkpoint
             keras.models.save_model(model=self.model,
                                     filepath=os.path.join(CHECKPOINTS_DIR, "cp_final.ckpt"))
+        
+    def get_F1_scores_training_no_shuffle(self):
+        """
+        Compute the F1 score on the training set without shuffling
+        used e.g. in adaboost to determine the next sample weight
+        """
+        train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
+                                                                    preprocessing=self.preprocessing,
+                                                                    suppress_adaboost_weighting=True)
+        
+        f1_weighted_scores = []
+        threshold = self.segmentation_threshold
+        if self.hyper_seg_threshold:
+            threshold = self.get_best_segmentation_threshold()
+        train_dataset_size, _, _ = self.dataloader.get_dataset_sizes(split=self.split)
+        for x, y in train_loader.take(train_dataset_size):
+            output = self.model(x)
+
+            # More channels than needed - U^2-Net-style
+            if len(output.shape) == 5:
+                output = output[0]
+            preds = tf.cast(tf.squeeze(output) >= threshold, tf.dtypes.int8)
+            blb_input = preds.numpy()
+            preds = remove_blobs(blb_input, threshold=self.blobs_removal_threshold)
+            # print('tf preds 2', preds.shape)$
+            
+            precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted,\
+            f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted = precision_recall_f1_score_tf(preds, y)
+
+            f1_weighted_scores.append(f1_weighted)
+
+        return (f1_weighted_scores)
+        
 
     def get_F1_score_validation(self):
         """
@@ -378,7 +412,7 @@ class TFTrainer(Trainer, abc.ABC):
         if self.hyper_seg_threshold:
             threshold = self.get_best_segmentation_threshold()
         _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
-        for x, y in self.test_loader.take(test_dataset_size):
+        for x, y in self.test_loader.take(3):
             output = self.model(x)
 
             # More channels than needed - U^2-Net-style

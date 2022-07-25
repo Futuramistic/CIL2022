@@ -68,3 +68,6 @@ Debugging:
         }
     ]
 }
+
+# Debugging tensorflow adaboost
+`python main.py --model=attunet --dataset=original --batch_size=2 --split=0.03 --evaluation_interval=1 -E=UnetPPAdaboost --optimizer_or_lr=1e-4 --num_epochs=1 --checkpoint_interval=1 --use_adaboost=True --adaboost_runs=2`
