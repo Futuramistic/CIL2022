@@ -89,7 +89,7 @@ class UNetTFTrainer(TFTrainer):
                          segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold,
                          use_sample_weighting, f1_threshold_to_log_checkpoint)
 
-        if isinstance(loss_function,dict):
+        if isinstance(loss_function,dict) or isinstance(loss_function,list):
             self.loss_function_name = 'DeepSupervision'
             if loss_weights is not None:
                 self.loss_weights = loss_weights
