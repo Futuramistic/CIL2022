@@ -35,14 +35,14 @@ The overall structure of the repository is described below.
 ```
 .
 ├── data_handling                   # Scripts for loading datasets
-└── dataset                         # Folder containing the datasets
+├── dataset                         # Folder containing the datasets
     ├── <dataset-name-1>
     ├── <dataset-name-2>  
     └── ...     
 ├── factory                         # Helper for Loading models
 ├── hyperopt_                       # Utilities for hyperparameter searches (using the HyperOpt framework)
 ├── losses                          # Folder with losses used across models
-└── models                          # Folder with our various models
+├── models                          # Folder with our various models
     ├── reinforcement               # RL models
     ├── Torch                       # Torch models
     └── TF                          # Tensorflow models
