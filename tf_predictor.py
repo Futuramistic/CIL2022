@@ -8,7 +8,7 @@ from losses.precision_recall_f1 import precision_recall_f1_score_tf
 import tensorflow.keras as K
 from utils import *
 import numpy as np
-from losses.loss_harmonizer import DEFAULT_TF_DIM_LAYOUT
+from losses.loss_harmonizer import DEFAULT_TF_DIM_LAYOUT, collapse_channel_dim_tf
 import argparse
 import tensorflow as tf
 import tensorflow_addons as tfa
@@ -95,11 +95,15 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True, checkp
                 if apply_sigmoid:
                     output_ = K.layers.Activation('sigmoid')(output_)
 
+                output_ = tf.expand_dims(collapse_channel_dim_tf(output_, take_argmax=False),
+                                         DEFAULT_TF_DIM_LAYOUT.index('C'))
+
                 if with_augmentation:
                     output_ = _unify(tf.squeeze(output_))
                 
                 preds = output_ >= thresh
-                _, _, _, _, _, _, _, f1_weighted, _, _, f1_patchified_weighted = precision_recall_f1_score_tf(preds, y)
+                _, _, _, _, _, _, _, f1_weighted, _, _, f1_patchified_weighted =\
+                    precision_recall_f1_score_tf(tf.squeeze(preds), tf.squeeze(y))
                 # change between f1_weighted and f1_patchified_weighted as appropriate
                 f1_scores.append(f1_weighted)
                 del x_
@@ -287,4 +291,3 @@ if __name__ == '__main__':
 
     # # use GPU if available, else use CPU:
     main()
-
