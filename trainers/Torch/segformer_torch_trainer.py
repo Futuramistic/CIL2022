@@ -1,6 +1,6 @@
 import torch
 
-from .trainer_torch import TorchTrainer
+from trainers.trainer_torch import TorchTrainer
 from utils import *
 from torch import optim
 

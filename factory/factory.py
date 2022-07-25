@@ -2,7 +2,7 @@ from data_handling import *
 from models import *
 from models.reinforcement.first_try import SimpleRLCNNMinimal
 from trainers import *
-from trainers.rl_trainer_torch_minimal import TorchRLTrainerMinimal
+from trainers.reinforcement.rl_trainer_torch_minimal import TorchRLTrainerMinimal
 
 
 class Factory(abc.ABC):

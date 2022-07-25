@@ -1,7 +1,7 @@
 import torch
 
 from losses import MixedLoss
-from .trainer_torch import TorchTrainer
+from trainers.trainer_torch import TorchTrainer
 from utils import *
 from torch import optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau

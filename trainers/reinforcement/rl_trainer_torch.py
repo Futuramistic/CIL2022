@@ -7,9 +7,9 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Subset
 
 from losses.precision_recall_f1 import *
-from models.reinforcement.environment import DEFAULT_REWARDS_MINIMAL, SegmentationEnvironmentMinimal
+from models.reinforcement.environment import SegmentationEnvironment, DEFAULT_REWARDS
 from utils.logging import mlflow_logger
-from .trainer_torch import TorchTrainer
+from trainers.trainer_torch import TorchTrainer
 from utils import *
 
 import gym
@@ -27,15 +27,15 @@ from PIL import Image, ImageDraw
 
 EPSILON = 1e-5
 
-class TorchRLTrainerMinimal(TorchTrainer):
+class TorchRLTrainer(TorchTrainer):
     def __init__(self, dataloader, model, preprocessing=None,
                  experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
                  optimizer_or_lr=None, scheduler=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
-                 load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
-                 rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), std=[1e-3, 1e-3], reward_discount_factor=0.99,
+                 load_checkpoint_path=None, segmentation_threshold=None, history_size=5, use_channelwise_norm=False,
+                 max_rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), std=[1e-3, 1e-3, 1e-3, 1e-3, 1e-2], reward_discount_factor=0.99,
                  num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20,
-                 rewards = None, blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False,
+                 min_steps=20, rewards = None, blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False,
                  f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
         """
         Trainer for RL-based models.
@@ -62,42 +62,42 @@ class TorchRLTrainerMinimal(TorchTrainer):
         if loss_function is not None:
             raise RuntimeError('Custom losses not supported by TorchRLTrainer')
         
-        if preprocessing is None:
-            if use_channelwise_norm and dataloader.dataset in DATASET_STATS:
-                def channelwise_preprocessing(x, is_gt):
-                    if is_gt:
-                        return x[:1, :, :].float() / 255
-                    stats = DATASET_STATS[dataloader.dataset]
-                    x = x[:3, :, :].float()
-                    x[0] = (x[0] - stats['pixel_mean_0']) / stats['pixel_std_0']
-                    x[1] = (x[1] - stats['pixel_mean_1']) / stats['pixel_std_1']
-                    x[2] = (x[2] - stats['pixel_mean_2']) / stats['pixel_std_2']
-                    return x
-                preprocessing = channelwise_preprocessing
-            else:
-                # convert samples to float32 \in [0, 1] & remove A channel;
-                # convert ground truth to int \in {0, 1} & remove A channel
-                preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
+        preprocessing = None
+        if use_channelwise_norm and dataloader.dataset in DATASET_STATS:
+            def channelwise_preprocessing(x, is_gt):
+                if is_gt:
+                    return x[:1, :, :].float() / 255
+                stats = DATASET_STATS[dataloader.dataset]
+                x = x[:3, :, :].float()
+                x[0] = (x[0] - stats['pixel_mean_0']) / stats['pixel_std_0']
+                x[1] = (x[1] - stats['pixel_mean_1']) / stats['pixel_std_1']
+                x[2] = (x[2] - stats['pixel_mean_2']) / stats['pixel_std_2']
+                return x
+            preprocessing = channelwise_preprocessing
+        else:
+            # convert samples to float32 \in [0, 1] & remove A channel;
+            # convert ground truth to int \in {0, 1} & remove A channel
+            preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
 
         if optimizer_or_lr is None:
-            optimizer_or_lr = TorchRLTrainerMinimal.get_default_optimizer_with_lr(1e-4, model)
+            optimizer_or_lr = TorchRLTrainer.get_default_optimizer_with_lr(1e-4, model)
         elif isinstance(optimizer_or_lr, int) or isinstance(optimizer_or_lr, float):
-            optimizer_or_lr = TorchRLTrainerMinimal.get_default_optimizer_with_lr(optimizer_or_lr, model)
+            optimizer_or_lr = TorchRLTrainer.get_default_optimizer_with_lr(optimizer_or_lr, model)
 
         if scheduler is None:
             scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer_or_lr, lr_lambda=lambda epoch: 1.0)
         
         if isinstance(std, int) or isinstance(std, float):
-            std = [std]*2
+            std = [std]*5
 
         super().__init__(dataloader=dataloader, model=model, preprocessing=preprocessing,
                  experiment_name=experiment_name, run_name=run_name, split=split, num_epochs=num_epochs, batch_size=batch_size,
                  optimizer_or_lr=optimizer_or_lr, scheduler=scheduler, loss_function=loss_function, loss_function_hyperparams=loss_function_hyperparams,
                  evaluation_interval=evaluation_interval, num_samples_to_visualize=num_samples_to_visualize, checkpoint_interval=checkpoint_interval,
-                 load_checkpoint_path=load_checkpoint_path, segmentation_threshold=segmentation_threshold, use_channelwise_norm=use_channelwise_norm,
-                 blobs_removal_threshold=blobs_removal_threshold, hyper_seg_threshold=hyper_seg_threshold, use_sample_weighting=False,
-                 f1_threshold_to_log_checkpoint=f1_threshold_to_log_checkpoint)  # use_sample_weighting not needed in RL
-        self.rollout_len = int(rollout_len)
+                 load_checkpoint_path=load_checkpoint_path, segmentation_threshold=segmentation_threshold, blobs_removal_threshold=blobs_removal_threshold, 
+                 hyper_seg_threshold=hyper_seg_threshold, use_sample_weighting=False) # use_sampling_weighting not needed in RL
+        self.history_size = int(history_size)
+        self.max_rollout_len = int(max_rollout_len)
         self.replay_memory_capacity = int(replay_memory_capacity)
         self.std = torch.tensor(std, device=self.device).detach()
         self.reward_discount_factor = float(reward_discount_factor)
@@ -105,7 +105,8 @@ class TorchRLTrainerMinimal(TorchTrainer):
         self.sample_from_action_distributions = bool(sample_from_action_distributions)
         self.policy_batch_size = int(policy_batch_size)
         self.visualization_interval = int(visualization_interval)
-        self.rewards = DEFAULT_REWARDS_MINIMAL if rewards is None else rewards
+        self.min_steps = int(min_steps)
+        self.rewards = DEFAULT_REWARDS if rewards is None else rewards
 
         # self.scheduler set by TorchTrainer superclass
 
@@ -191,7 +192,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
             # memory.push(observation, model_output, sampled_actions,
             #                   self.terminated, reward, torch.tensor(float('nan')))
             for step_idx in reversed(range(len(self.memory))):  # differs from tutorial code (but appears to be equivalent)
-                terminated = self.memory[step_idx][3]
+                terminated = self.memory[step_idx][3] 
                 future_return = self.memory[step_idx + 1][-1] if step_idx < len(self.memory) - 1 else 0
                 current_reward = self.memory[step_idx][4]
                 self.memory[step_idx][-1] = current_reward + future_return * gamma * (1 - terminated)
@@ -233,13 +234,15 @@ class TorchRLTrainerMinimal(TorchTrainer):
             preds_batch = []
             longest_animation_length = 0
             
-            for idx, sample_y in enumerate(batch_ys):
-                sample_y_gpu =\
-                    sample_y.to(self.device, dtype=torch.long)
+            for idx, sample_x in enumerate(batch_xs):
+                sample_y = batch_ys[idx]
+                sample_x, sample_y_gpu =\
+                    sample_x.to(self.device, dtype=torch.float32), sample_y.to(self.device, dtype=torch.long)
                 # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
                 # accordingly, sample_y must be of shape (H, W) not (1, H, W)
                 sample_y_gpu = torch.squeeze(sample_y_gpu)
-                env = SegmentationEnvironmentMinimal(sample_y_gpu, self.model.patch_size, rewards = self.rewards)
+                env = SegmentationEnvironment(sample_x, sample_y_gpu, self.model.patch_size, self.history_size,
+                                              self.test_loader.img_val_min, self.test_loader.img_val_max, rewards = self.rewards)
                 env.reset()
                 
                 # in https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html,
@@ -361,15 +364,14 @@ class TorchRLTrainerMinimal(TorchTrainer):
         train_loss = 0
 
         for (xs, ys) in train_loader:
-            for idx, sample_y in enumerate(ys):
-                # sample_y = ys[idx]
-                # sample_x, sample_y = sample_x.to(device, dtype=torch.float32), sample_y.to(device, dtype=torch.long)
-                sample_y = sample_y.to(device, dtype=torch.long)
+            for idx, sample_x in enumerate(xs):
+                sample_y = ys[idx]
+                sample_x, sample_y = sample_x.to(device, dtype=torch.float32), sample_y.to(device, dtype=torch.long)
                 # insert each patch into ReplayMemory
                 # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
                 # accordingly, sample_y must be of shape (H, W) not (1, H, W)
                 sample_y = torch.squeeze(sample_y)
-                env = SegmentationEnvironmentMinimal(sample_y, self.model.patch_size, self.rewards) # take standard reward
+                env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size, train_loader.img_val_min, train_loader.img_val_max, self.rewards)
                 # using maximum memory capacity for balancing_trajectory_length is suboptimal;
                 # could e.g. empirically approximate expected trajectory length and use that instead
                 memory = self.ReplayMemory(capacity=int(self.replay_memory_capacity),
@@ -408,7 +410,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
                         # recalculate log probabilities (see tutorial: also recalculated)
                         # if we do not recalculate, we will get 
 
-                        model_output = self.model(observation_sample.unsqueeze(0).unsqueeze(0))
+                        model_output = self.model(observation_sample.unsqueeze(0))
 
                         # mean = alpha / (alpha + beta)
 
@@ -454,12 +456,13 @@ class TorchRLTrainerMinimal(TorchTrainer):
         test_loss = 0
 
         for (xs, ys) in test_loader:
-            for idx, sample_y in enumerate(ys):
-                sample_y = sample_y.to(device, dtype=torch.long)
+            for idx, sample_x in enumerate(xs):
+                sample_y = ys[idx]
+                sample_x, sample_y = sample_x.to(device, dtype=torch.float32), sample_y.to(device, dtype=torch.long)
                 # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
                 # accordingly, sample_y must be of shape (H, W) not (1, H, W)
                 sample_y = torch.squeeze(sample_y)
-                env = SegmentationEnvironmentMinimal(sample_y, self.model.patch_size, rewards=self.rewards) # take standard reward
+                env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size, test_loader.img_val_min, test_loader.img_val_max, self.rewards)
 
                 # "state" is input to model
                 # observation in init state: RGB (3), history (5 by default), brush state (1)
@@ -512,17 +515,17 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
         env.reset()
         predictions_nsteps = [env.get_unpadded_segmentation().float().detach().cpu().numpy()]
-        positions_nsteps = [env.get_rounded_agent_pos()]
+        positions_nsteps = [env.agent_pos]
 
         info_sum = {'reward_decomp_quantities': {}, 'reward_decomp_sums': {}}
 
-        observation, _, info = env.step(env.get_neutral_action())
+        observation, _, _, info = env.step(env.get_neutral_action())
         info_sum['reward_decomp_quantities'] = {k: info_sum['reward_decomp_quantities'].get(k, 0.0) + v for k, v in info['reward_decomp_quantities'].items()}
         info_sum['reward_decomp_sums'] = {k: info_sum['reward_decomp_sums'].get(k, 0.0) + v for k, v in info['reward_decomp_sums'].items()}
 
 
         predictions_nsteps.append(env.get_unpadded_segmentation().float().detach().cpu().numpy())
-        positions_nsteps.append(env.get_rounded_agent_pos())
+        positions_nsteps.append(env.agent_pos)
 
 
         eps_reward = 0.0
@@ -530,8 +533,8 @@ class TorchRLTrainerMinimal(TorchTrainer):
         if sample_from_action_distributions is None:
             sample_from_action_distributions = self.sample_from_action_distributions
 
-        for timestep_idx in range(self.rollout_len):  # loop until model terminates or max len reached
-            model_output = self.model(observation.detach().unsqueeze(0).unsqueeze(0)).detach()
+        for timestep_idx in range(self.max_rollout_len):  # loop until model terminates or max len reached
+            model_output = self.model(observation.detach().unsqueeze(0)).detach()
 
             # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate', all in [0,1]
             # we use the output of the network as the direct prediction instead of sampling like during training
@@ -554,12 +557,16 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
             action_rounded_list = []
             action_rounded_list.append(-1 + 2 * action[0])  # delta_angle in [-1, 1] (later changed to [-pi, pi] in SegmentationEnvironment)
-            action_rounded_list.append(torch.round(-1 + 2 * action[1]))  # new_brush_state
+            action_rounded_list.append(action[1] * (env.min_patch_size / 2))  # magnitude
+            action_rounded_list.append(torch.round(-1 + 2 * action[2]))  # new_brush_state
+            # sigmoid stretched --> float [0, min_patch_size]
+            action_rounded_list.append(action[3] * (env.min_patch_size / 2)) # new_brush_radius
+            # sigmoid rounded --> float [0, 1]
+            action_rounded_list.append(torch.gt(action[4], 0.9).float()) # terminated only if output bigger than 0.9
 
             action_rounded = torch.cat([tensor.unsqueeze(0) for tensor in action_rounded_list], dim=0)
 
-            new_observation, reward, info = env.step(action_rounded)
-            terminated = torch.Tensor([timestep_idx == self.rollout_len-1]).to(self.device)
+            new_observation, reward, terminated, info = env.step(action_rounded)
             info_sum['reward_decomp_quantities'] = {k: info_sum['reward_decomp_quantities'].get(k, 0.0) + v for k, v in info['reward_decomp_quantities'].items()}
             info_sum['reward_decomp_sums'] = {k: info_sum['reward_decomp_sums'].get(k, 0.0) + v for k, v in info['reward_decomp_sums'].items()}
             
@@ -571,7 +578,10 @@ class TorchRLTrainerMinimal(TorchTrainer):
             
             if visualization_interval > 0 and timestep_idx % visualization_interval == 0:
                 predictions_nsteps.append((env.get_unpadded_segmentation().float().detach().cpu().numpy()).astype(int))
-                positions_nsteps.append(env.get_rounded_agent_pos())
+                positions_nsteps.append(env.agent_pos)
+            
+            if terminated and timestep_idx >= self.min_steps:
+                break
         
         info_avg = {'reward_decomp_quantities': {}, 'reward_decomp_sums': {}}
         # timestep_idx + 1 due to zero-based indexing; add another 1 due to initial timestep 
@@ -603,15 +613,16 @@ class TorchRLTrainerMinimal(TorchTrainer):
         precisions, recalls, f1_scores = [], [], []
         num_samples = 0
         for (xs, ys) in self.test_loader:
-            for idx, sample_y in enumerate(ys):
+            for idx, sample_x in enumerate(xs):
                 num_samples += 1
 
-                sample_y = sample_y.to(self.device, dtype=torch.long)
+                sample_y = ys[idx]
+                sample_x, sample_y = sample_x.to(self.device, dtype=torch.float32), sample_y.to(self.device, dtype=torch.long)
                 
                 # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
                 # accordingly, sample_y must be of shape (H, W) not (1, H, W)
                 sample_y = torch.squeeze(sample_y)
-                env = SegmentationEnvironmentMinimal(sample_y, self.model.patch_size) # take standard reward
+                env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size, self.test_loader.img_val_min, self.test_loader.img_val_max, self.rewards)
 
                 # loop until termination/timeout already inside this function
                 _, _, reward, trajectory_info = self.trajectory_step(env, sample_from_action_distributions=False)
@@ -678,11 +689,11 @@ class TorchRLTrainerMinimal(TorchTrainer):
     def _get_hyperparams(self):
         return {**(super()._get_hyperparams()),
                 **({param: getattr(self, param)
-                   for param in ['history_size', 'rollout_len', 'replay_memory_capacity', 'reward_discount_factor',
+                   for param in ['history_size', 'max_rollout_len', 'replay_memory_capacity', 'reward_discount_factor',
                                  'num_policy_epochs', 'policy_batch_size', 'sample_from_action_distributions',
-                                 'visualization_interval']
+                                 'visualization_interval', 'min_steps']
                    if hasattr(self, param)}),
-                **({k: v.item() for k, v in zip(['std_delta_angle', 'std_brush_state'], self.std)}),
+                **({k: v.item() for k, v in zip(['std_delta_angle', 'std_magnitude', 'std_brush_state', 'std_brush_radius', 'std_terminate'], self.std)}),
                 **({'rl_' + k: v for k, v in self.rewards.items()}),
                 **({param: getattr(self.model, param)
                    for param in ['patch_size']

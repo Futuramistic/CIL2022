@@ -1,13 +1,14 @@
 import tensorflow as tf
 import tensorflow.keras as K
 
-from .trainer_tf import TFTrainer
+from losses.u2net_loss import U2NET_loss
+from trainers.trainer_tf import TFTrainer
 from utils import *
 
 
-class GLDenseUNetTrainer(TFTrainer):
+class U2NetTFTrainer(TFTrainer):
     """
-    Trainer for the GL-Dense-U-Net model.
+    Trainer for the UnetTF model.
     """
 
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
@@ -27,6 +28,8 @@ class GLDenseUNetTrainer(TFTrainer):
         if split is None:
             split = DEFAULT_TRAIN_FRACTION
 
+        # Large batch size used online: 32
+        # Possible overkill
         if batch_size is None:
             batch_size = 8
 
@@ -37,20 +40,22 @@ class GLDenseUNetTrainer(TFTrainer):
             num_epochs = math.ceil(100000 / steps_per_training_epoch)
 
         if optimizer_or_lr is None:
-            optimizer_or_lr = GLDenseUNetTrainer.get_default_optimizer_with_lr(1e-3, model)
+            optimizer_or_lr = U2NetTFTrainer.get_default_optimizer_with_lr(lr=1e-3)
         elif isinstance(optimizer_or_lr, int) or isinstance(optimizer_or_lr, float):
-            optimizer_or_lr = GLDenseUNetTrainer.get_default_optimizer_with_lr(optimizer_or_lr, model)
+            optimizer_or_lr = U2NetTFTrainer.get_default_optimizer_with_lr(lr=optimizer_or_lr)
 
+        # According to the online github repo
         if loss_function is None:
-            cat_xent = K.losses.SparseCategoricalCrossentropy(from_logits=False)
-            loss_function = lambda targets, inputs, cat_xent=cat_xent: cat_xent(tf.squeeze(targets, axis=-1), inputs)
-            #loss_function = DiceLoss()
-            #self.loss_function_name = 'DiceLoss'
-            self.loss_function_name = 'SparseCatXEnt'
+            loss_function = U2NET_loss
+
 
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)
 
+        # convert model input to float32 \in [0, 1] & remove A channel;
+        # convert ground truth to int \in {0, 1} & remove A channel
+
+        # note: no batch dim
         preprocessing = None
         if use_channelwise_norm and dataloader.dataset in DATASET_STATS:
             def channelwise_preprocessing(x, is_gt):
@@ -73,7 +78,7 @@ class GLDenseUNetTrainer(TFTrainer):
         super().__init__(dataloader, model, preprocessing, steps_per_training_epoch, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
-                         segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, False,
+                         segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold,
                          use_sample_weighting, f1_threshold_to_log_checkpoint)
 
     def _get_hyperparams(self):
@@ -82,21 +87,18 @@ class GLDenseUNetTrainer(TFTrainer):
         """
         return {**(super()._get_hyperparams()),
                 **({param: getattr(self.model, param)
-                   for param in ['growth_rate', 'layers_per_block', 'conv2d_activation', 'num_classes',
-                                 'input_resize_dim', 'l2_regularization_param']
+                   for param in ['dropout', 'kernel_init', 'normalize', 'kernel_regularizer', 'up_transpose']
                    if hasattr(self.model, param)})}
-
+    
     @staticmethod
-    def get_default_optimizer_with_lr(lr, model):
+    def get_default_optimizer_with_lr(lr):
         """
         Return the default optimizer for this network.
         Args:
             lr (float): Learning rate of the optimizer
-            model: Model whose parameters we want to train
 
-        @Note: Uses learning rate decay, see:
-        https://github.com/cugxyy/GL-Dense-U-Net/blob/ce104189692dd8e1a22ddcabc9f2f685a8345806/Model/multi_gpu_train.py
+        @Note: No mention on learning rate decay; can be reintroduced
         """
-        lr_schedule = K.optimizers.schedules.ExponentialDecay(initial_learning_rate=lr, decay_rate=0.1,
-                                                              decay_steps=30000, staircase=True)
-        return K.optimizers.Adam(lr_schedule)
+        # lr_schedule = K.optimizers.schedules.ExponentialDecay(initial_learning_rate=lr, decay_rate=0.1,
+        #                                                      decay_steps=30000, staircase=True)
+        return K.optimizers.Adam(learning_rate=lr, beta_1=.9, beta_2=.999, epsilon=1e-08)

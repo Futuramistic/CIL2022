@@ -1,14 +1,14 @@
 import tensorflow as tf
 import tensorflow.keras as K
 
-from losses import DiceBCELoss2, DiceBCELoss1
-from .trainer_tf import TFTrainer
+from losses import DiceLoss
+from trainers.trainer_tf import TFTrainer
 from utils import *
 
 
-class UNetPlusPlusTrainer(TFTrainer):
+class AttUNetTrainer(TFTrainer):
     """
-    Trainer for the UnetPlusPlusTF model.
+    Trainer for the AttUnetTF model.
     """
 
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
@@ -28,10 +28,9 @@ class UNetPlusPlusTrainer(TFTrainer):
         if split is None:
             split = DEFAULT_TRAIN_FRACTION
 
-        # Large batch size used in paper: 64
-        # Possible overkill
+        # Paper recommends batch size of 2-4
         if batch_size is None:
-            batch_size = 4
+            batch_size = 2
 
         train_set_size, test_set_size, unlabeled_test_set_size = dataloader.get_dataset_sizes(split=split)
         steps_per_training_epoch = train_set_size // batch_size
@@ -40,15 +39,13 @@ class UNetPlusPlusTrainer(TFTrainer):
             num_epochs = math.ceil(100000 / steps_per_training_epoch)
 
         if optimizer_or_lr is None:
-            # CAREFUL! Smaller learning rate recommended in comparision to other models !!!
-            optimizer_or_lr = UNetPlusPlusTrainer.get_default_optimizer_with_lr(lr=1e-4)
+            optimizer_or_lr = AttUNetTrainer.get_default_optimizer_with_lr(lr=1e-3)
         elif isinstance(optimizer_or_lr, int) or isinstance(optimizer_or_lr, float):
-            optimizer_or_lr = UNetPlusPlusTrainer.get_default_optimizer_with_lr(lr=optimizer_or_lr)
+            optimizer_or_lr = AttUNetTrainer.get_default_optimizer_with_lr(lr=optimizer_or_lr)
 
         # According to the paper
-        # Try DiceBCELoss2 
         if loss_function is None:
-            loss_function = DiceBCELoss1
+            loss_function = DiceLoss
 
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)
@@ -84,9 +81,9 @@ class UNetPlusPlusTrainer(TFTrainer):
         """
         return {**(super()._get_hyperparams()),
                 **({param: getattr(self.model, param)
-                   for param in ['dropout', 'kernel_init', 'normalize', 'up_transpose', 'average', 'kernel_regularizer']
+                   for param in ['dropout', 'kernel_init', 'normalize', 'up_transpose', 'kernel_regularizer']
                    if hasattr(self.model, param)})}
-    
+
     @staticmethod
     def get_default_optimizer_with_lr(lr):
         """

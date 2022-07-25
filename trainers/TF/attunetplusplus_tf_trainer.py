@@ -2,7 +2,7 @@ import tensorflow as tf
 import tensorflow.keras as K
 
 from losses import DiceBCELoss2, DiceBCELoss1, FocalLoss
-from .trainer_tf import TFTrainer
+from trainers.trainer_tf import TFTrainer
 from utils import *
 
 

@@ -2,14 +2,17 @@ from .trainer import Trainer
 from .trainer_tf import TFTrainer
 from .trainer_torch import TorchTrainer
 
-from .attunetplusplus_tf_trainer import AttUNetPlusPlusTrainer
-from .attunet_tf_trainer import AttUNetTrainer
-from .gldenseunet_tf_trainer import GLDenseUNetTrainer
-from .unet_torch_trainer import UNetTrainer
-from .unetplusplus_tf_trainer import UNetPlusPlusTrainer
-from .unet_tf_trainer import UNetTFTrainer
-from .cranet_torch_trainer import CRANetTrainer
-from .deeplabv3_torch_trainer import DeepLabV3Trainer
-from .deeplabv3gan_torch_trainer import DeepLabV3PlusGANTrainer
-from .rl_trainer_torch import TorchRLTrainer
-from .segformer_torch_trainer import SegFormerTrainer
+from .TF.attunetplusplus_tf_trainer import AttUNetPlusPlusTrainer
+from .TF.attunet_tf_trainer import AttUNetTrainer
+from .TF.gldenseunet_tf_trainer import GLDenseUNetTrainer
+from .TF.unetplusplus_tf_trainer import UNetPlusPlusTrainer
+from .TF.unet_tf_trainer import UNetTFTrainer
+from .TF.u2net_tf_trainer import U2NetTFTrainer
+
+from .Torch.unet_torch_trainer import UNetTrainer
+from .Torch.cranet_torch_trainer import CRANetTrainer
+from .Torch.deeplabv3_torch_trainer import DeepLabV3Trainer
+from .Torch.deeplabv3gan_torch_trainer import DeepLabV3PlusGANTrainer
+from .Torch.segformer_torch_trainer import SegFormerTrainer
+
+from .reinforcement.rl_trainer_torch import TorchRLTrainer
