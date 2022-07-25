@@ -258,8 +258,12 @@ def main():
         data_format = "channels_last" if channel_dim_idx == 3 else "channels_first"
 
         if output.shape[channel_dim_idx] > 1:
-            output = np.argmax(output, axis=channel_dim_idx)
-            output = np.expand_dims(output, axis=channel_dim_idx)
+            output = collapse_channel_dim_tf(output, take_argmax=False)
+            # Prior incorrect version (caused loss of precision for softmax-based models
+            # due to premature rounding): 
+            # output = np.argmax(output, axis=channel_dim_idx)
+            # output = np.argmax(output, axis=channel_dim_idx)
+            # output = np.expand_dims(output, axis=channel_dim_idx)
 
         if with_augmentation:
             output = tf.expand_dims(_unify(tf.squeeze(output)), -1)  # add channel dimension back in
