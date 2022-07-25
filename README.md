@@ -14,16 +14,16 @@ research process and results.
 * Noureddine Gueddach
 
 ## Contents
-1. [Our Image Segmentation Framework](our-image-segmentation-framework)
-2. [Code structure](code-structure)
-3. [Requirements](requirements)
-4. [Datasets](datasets)
-5. [Models](models)
-6. [Training](training)
-7. [Evaluation](evaluation)
-8. [Reproducibility](reproducibility)
-9. [Pre-trained Models](pre-trained-models)
-10. [Results](results)
+1. [Our Image Segmentation Framework](#our-image-segmentation-framework)
+2. [Code structure](#code-structure)
+3. [Requirements](#requirements)
+4. [Datasets](#datasets)
+5. [Models](#models)
+6. [Training](#training)
+7. [Evaluation](#evaluation)
+8. [Reproducibility](#reproducibility)
+9. [Pre-trained Models](#pre-trained-models)
+10. [Results](#results)
 
 ## Our Image Segmentation Framework
 We conceived our framework to be able to handle both tensorflow-based models and torch-based models, as both are ubiquitous in the literature. To track our experiments, we used the MLFlow framework. Although it makes the code base a bit more complex, it allowed us to have a centralized space where we could log and **share** our experiments, model checkpoints, hyperparameters and so on. For hyperparameter tuning, we use [HyperOpt](http://hyperopt.github.io/hyperopt/), a framework conceived to optimize hyper parameter searches.
