@@ -115,8 +115,10 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
             # Adversarial ground truths
             valid = Variable(Tensor(x.size(0), 1).fill_(1.0), requires_grad=False)
             fake = Variable(Tensor(x.size(0), 1).fill_(0.0), requires_grad=False)
+
             # Configure input
             real_imgs = Variable(y.type(Tensor))  # original uses x, but we probably need y for our purposes
+            gen_imgs = model(x, apply_activation=False)
 
             # ====================
             # Train Discriminator
@@ -124,9 +126,11 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
             self.optimizer_D.zero_grad()
 
             # Measure discriminator's ability to classify real from generated samples
-            real_loss = self.adversarial_loss(self.D(real_imgs), valid)
-            fake_loss = self.adversarial_loss(self.D(gen_imgs.detach()), fake)
-            d_loss = (real_loss + fake_loss) / 2
+            # real_loss = self.adversarial_loss(self.D(real_imgs), valid)
+            # fake_loss = self.adversarial_loss(self.D(gen_imgs.detach()), fake)
+            # d_loss = (real_loss + fake_loss) / 2
+
+            d_loss = -torch.mean(self.D(real_imgs)) + torch.mean(self.D(gen_imgs))
 
             d_loss.backward()
             self.optimizer_D.step()
@@ -142,17 +146,17 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
             if i % self.train_gen_every == 0:
                 if x.shape[0] == 1:
                     continue  # drop if the last batch has size of 1 (otherwise the deeplabv3 model crashes)
-                gen_imgs = model(x, apply_activation=False)
                 loss = self.loss_function(gen_imgs, y)
-                loss += self.adv_lambda * self.adversarial_loss(self.D(gen_imgs), valid)
+                # loss += self.adv_lambda * self.adversarial_loss(self.D(gen_imgs), valid)
+                loss += - self.adv_lambda * torch.mean(self.D(gen_imgs))
                 with torch.no_grad():
                     train_loss += loss.item()
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
 
-            if self.use_sample_weighting:
-                self.weights[sample_idx] = loss.item()
+                if self.use_sample_weighting:
+                    self.weights[sample_idx] = loss.item()
 
             callback_handler.on_train_batch_end()
             del x
