@@ -121,6 +121,7 @@ class AdaBooster:
             normalized = self.dataloader.weights / (
                     2 * np.max(np.absolute(self.dataloader.weights)))  # between -0.5 and +0.5
             self.dataloader.weights = normalized + 0.5  # between 0 and 1
+            self.dataloder.weights[self.dataloader.weights < 0] = 1e-3
             
             # normalize so sum of weights is 1
             self.dataloader.weights /= sum(self.dataloader.weights)

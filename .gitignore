@@ -2,13 +2,12 @@
 env/
 **/weights/
 .vscode/
-*.pth
 **/__pycache__/
 **/other_maybe_relevant_code/
 onnx-tensorflow/
 ZZZ_own_code_testing.py
 dataset/
-adaboost/adaboost_runs/
+adaboost/adaboost_runs
 .idea/
 mlruns/
 checkpoints/
@@ -24,3 +23,6 @@ output_preds/
 *.pt
 *.zip
 *.csv
+*.pth
+*.pkl
+*.ply
