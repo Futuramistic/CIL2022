@@ -13,7 +13,19 @@ research process and results.
 * Anne Marx
 * Noureddine Gueddach
 
-## Our image segmentation Framework
+## Contents
+1. [Our Image Segmentation Framework](our-image-segmentation-framework)
+2. [Code structure](code-structure)
+3. [Requirements](requirements)
+4. [Datasets](datasets)
+5. [Models](models)
+6. [Training](training)
+7. [Evaluation](evaluation)
+8. [Reproducibility](reproducibility)
+9. [Pre-trained Models](pre-trained-models)
+10. [Results](results)
+
+## Our Image Segmentation Framework
 We conceived our framework to be able to handle both tensorflow-based models and torch-based models, as both are ubiquitous in the literature. To track our experiments, we used the MLFlow framework. Although it makes the code base a bit more complex, it allowed us to have a centralized space where we could log and **share** our experiments, model checkpoints, hyperparameters and so on. For hyperparameter tuning, we use [HyperOpt](http://hyperopt.github.io/hyperopt/), a framework conceived to optimize hyper parameter searches.
 
 The overall structure of the repository is described below.
@@ -32,9 +44,12 @@ The overall structure of the repository is described below.
 ├── losses                          # Folder with losses used across models
 └── models                          # Folder with our various models
     ├── reinforcement               # RL models
-    ├── torch                       # Torch models
+    ├── Torch                       # Torch models
     └── TF                          # Tensorflow models
 ├── trainers                        # Custom trainers for each model
+    ├── reinforcement               # Trainers for RL models
+    ├── Torch                       # Trainers for Torch models
+    └── TF                          # Trainers for Tensorflow models
 ├── utils                           # Utility functions and constants
 └── processing                      # Contains processing files such as preprocessing, downloading etc.
 torch_predictor.py                  # Script for making predictions on a torch model
