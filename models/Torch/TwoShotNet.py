@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from models.torch.Unet import UNet
+from models.Torch.Unet import UNet
 
 
 class TwoShotNet(nn.Module):
