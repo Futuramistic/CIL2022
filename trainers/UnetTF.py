@@ -1,6 +1,5 @@
 import tensorflow as tf
 import tensorflow.keras as K
-
 from losses import DiceLoss
 from .trainer_tf import TFTrainer
 from utils import *
@@ -16,7 +15,7 @@ class UNetTFTrainer(TFTrainer):
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, pre_process=None, use_channelwise_norm=False,
                  blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False,
-                 f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
+                 f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT, loss_weights = None):
         """
         Set omitted parameters to model-specific defaults, then call superclass __init__ function
         @Warning: some arguments depend on others not being None, so respect this order!
@@ -51,6 +50,10 @@ class UNetTFTrainer(TFTrainer):
             loss_function = DiceLoss
             # loss_function = K.losses.BinaryCrossentropy(from_logits=False,
             #                                            reduction=K.losses.Reduction.SUM_OVER_BATCH_SIZE)
+        elif isinstance(loss_function,list):
+            self.loss_function_name = 'Deep Supervision'
+            if loss_weights is not None:
+                self.loss_weights = loss_weights
 
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)
@@ -112,3 +115,12 @@ class UNetTFTrainer(TFTrainer):
         # lr_schedule = K.optimizers.schedules.ExponentialDecay(initial_learning_rate=lr, decay_rate=0.1,
         #                                                      decay_steps=30000, staircase=True)
         return K.optimizers.Adam(learning_rate=lr)
+
+    def _compile_model(self):
+        """
+        Compile the model with the object's loss function and optimizer
+        """
+        if self.loss_weights is not None:
+            print("Using deep supervision compile...")
+            self.model.compile(loss=self.loss_function, optimizer=self.optimizer_or_lr,loss_weights=self.loss_weights)
+        self.model.compile(loss=self.loss_function, optimizer=self.optimizer_or_lr)
