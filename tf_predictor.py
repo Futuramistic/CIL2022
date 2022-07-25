@@ -60,7 +60,7 @@ def get_saliency_map(model, image):
     return tf.image.grayscale_to_rgb(saliency_image_gray)
 
 
-def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True):
+def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True, checkpoint=None):
     """
     Line search segmentation thresholds and select the one that works
     the best on the training set.
@@ -69,7 +69,13 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True):
         apply_sigmoid (bool): whether to apply the sigmoid on the output of the model
         with_augmentation (bool): If true, augment the images, predict on each augmented version,
         then ensemble the predictions
+        checkpoint (str): path to checkpoint of model (used for caching the best threshold)
     """
+    cache_path = '.'.join(checkpoint.split('.')[:-1]) + '_best_threshold_cache.txt' if checkpoint is not None else None
+    if cache_path is not None and os.path.isfile(cache_path):
+        with open(cache_path, 'r') as f:
+            return float(f.read())
+    
     best_thresh = 0
     best_f1_score = 0
     for thresh in np.linspace(0, 1, 41):
@@ -104,6 +110,11 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True):
             best_thresh = thresh
             best_f1_score = f1_score
     print('Best F1-score on train set:', best_f1_score, 'achieved with a threshold of:', best_thresh)
+
+    if cache_path is not None:
+        with open(cache_path, 'w') as f:
+            f.write(str(best_thresh))
+
     return best_thresh
 
 
@@ -173,21 +184,27 @@ def main():
     parser.add_argument('-c', '--checkpoint', type=str, required=True)
     parser.add_argument('--apply_sigmoid', dest='apply_sigmoid', action='store_true', required=False)
     parser.add_argument('--saliency', dest='compute_saliency', action='store_true', required=False)
+    parser.add_argument('-o', '--floating_output_dir', type=str,
+                        help='The directory to store the output of the network to, if --floating_prediction is passed',
+                        required=False, default=OUTPUT_FLOAT_DIR)
+    parser.add_argument('--use_floating_output_cache', action='store_true', help='If specified, do not recompute floating predictions if they are found in floating_output_dir', required=False)
     parser.set_defaults(apply_sigmoid=False)
     parser.set_defaults(compute_saliency=False)
     parser.set_defaults(floating_prediction=False)
     parser.add_argument('--floating_prediction', dest='floating_prediction', action='store_true',
                         help='If specified, dump the output of the network to a pickle file, else the default '
-                             'behavior is to threshold the output to get a binary prediction.')
+                             'behavior is to threshold the output to get a binary prediction')
     options = parser.parse_args()
-
-    os.makedirs(OUTPUT_FLOAT_DIR, exist_ok=True)
 
     model_name = options.model
     trained_model_path = options.checkpoint
     apply_sigmoid = options.apply_sigmoid
     compute_saliency = options.compute_saliency
+    floating_output_dir = options.floating_output_dir
     floating_prediction = options.floating_prediction
+    use_floating_output_cache = options.use_floating_output_cache
+
+    os.makedirs(floating_output_dir, exist_ok=True)
 
     global model
     # Create loader, trainer etc. from factory
@@ -208,13 +225,20 @@ def main():
 
     train_bs = 16
     train_dataset_size, _, _ = dataloader.get_dataset_sizes(split=0.2)
-    # segmentation_threshold = compute_best_threshold(train_loader.take((train_dataset_size // train_bs) * train_bs),
-    #                                                 apply_sigmoid=apply_sigmoid)
-    segmentation_threshold = 0.5  # TODO remove this
+    segmentation_threshold = compute_best_threshold(train_loader.take(train_dataset_size),
+                                                    apply_sigmoid=apply_sigmoid,
+                                                    checkpoint=trained_model_path)
 
     # Prediction
     i = 0
     for x in tqdm(test_loader):
+        if i > test_set_size - 1:
+            break
+        
+        if floating_prediction and use_floating_output_cache and os.path.isfile(f'{floating_output_dir}/satimage_{offset+i}.pkl'):
+            i += 1
+            continue
+        
         if compute_saliency:
             K.preprocessing.image.save_img(f'{SALIENCY_MAP_DIR}/saliency_map_{offset+i}.png', get_saliency_map(model,x))
 
@@ -240,8 +264,12 @@ def main():
             output = output[0]
 
         if floating_prediction:
-            with open(f'{OUTPUT_FLOAT_DIR}/satimage_{offset + i}.pkl', 'wb') as handle:
+            with open(f'{floating_output_dir}/satimage_{offset + i}.pkl', 'wb') as handle:
                 array = np.squeeze(output.numpy())
+                # rescale so that old optimal threshold is at 0.5
+                array = (array < segmentation_threshold) * array / segmentation_threshold * 0.5 + \
+                        (array >= segmentation_threshold) * \
+                        ((array - segmentation_threshold) / (1 - segmentation_threshold) + 0.5)
                 pickle.dump(array, handle)
         else:
             pred = tf.cast(output >= segmentation_threshold, tf.int32) * 255
@@ -253,4 +281,10 @@ def main():
 
 
 if __name__ == '__main__':
+    # # use CPU for prediction even though GPU is available (e.g. for memory reasons):
+    # with tf.device('/cpu:0'):
+    #    main()
+
+    # # use GPU if available, else use CPU:
     main()
+

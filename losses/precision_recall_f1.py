@@ -182,9 +182,8 @@ def prediction_stats_tf(thresholded_prediction, targets, classes, dtype=tf.dtype
         dtype: Type of the tensors
         pred_stats (dict): precomputed statistics, or None if none available
     """
-    targets = collapse_channel_dim_tf(targets, take_argmax=True)
-    thresholded_prediction = tf.cast(collapse_channel_dim_tf(thresholded_prediction, take_argmax=True),
-                                     dtype=targets.dtype)
+    targets = tf.squeeze(collapse_channel_dim_tf(tf.expand_dims(targets, 0) if len(targets.shape) == 3 else targets, take_argmax=True))
+    thresholded_prediction = tf.squeeze(tf.cast(collapse_channel_dim_tf(tf.expand_dims(thresholded_prediction, 0) if len(thresholded_prediction.shape) == 3 else thresholded_prediction, take_argmax=True), dtype=targets.dtype))
 
     tp, fp, tn, fn = [tf.zeros(1, dtype=dtype) for _ in range(4)]
 
@@ -214,6 +213,9 @@ def precision_tf(thresholded_prediction, targets, target_class):
         targets (TF Tensor): The target tensor
         target_class (int): Class to predict for
     """
+    targets = tf.squeeze(collapse_channel_dim_tf(tf.expand_dims(targets, 0) if len(targets.shape) == 3 else targets, take_argmax=True))
+    thresholded_prediction = tf.squeeze(tf.cast(collapse_channel_dim_tf(tf.expand_dims(thresholded_prediction, 0) if len(thresholded_prediction.shape) == 3 else thresholded_prediction, take_argmax=True), dtype=targets.dtype))
+    
     precision_metric = K.metrics.Precision(dtype=tf.float32)
     precision_metric.update_state(tf.cast(tf.equal(targets,target_class),tf.float32), tf.cast(tf.equal(thresholded_prediction,target_class),tf.float32))
     return precision_metric.result().numpy()
@@ -227,6 +229,9 @@ def recall_tf(thresholded_prediction, targets, target_class):
         targets (TF Tensor): The target tensor
         target_class (int): Class to predict for
     """
+    targets = tf.squeeze(collapse_channel_dim_tf(tf.expand_dims(targets, 0) if len(targets.shape) == 3 else targets, take_argmax=True))
+    thresholded_prediction = tf.squeeze(tf.cast(collapse_channel_dim_tf(tf.expand_dims(thresholded_prediction, 0) if len(thresholded_prediction.shape) == 3 else thresholded_prediction, take_argmax=True), dtype=targets.dtype))
+    
     recall_metric = K.metrics.Recall(dtype=tf.float32)
     recall_metric.update_state(tf.cast(tf.equal(targets,target_class),tf.float32), tf.cast(tf.equal(thresholded_prediction,target_class),tf.float32))
     return recall_metric.result().numpy()
@@ -259,6 +264,9 @@ def tf_count(t, val):
 
 
 def patchified_f1_scores_tf(thresholded_prediction, targets, patch_thresh=0.25):
+    targets = tf.squeeze(collapse_channel_dim_tf(tf.expand_dims(targets, 0) if len(targets.shape) == 3 else targets, take_argmax=True))
+    thresholded_prediction = tf.squeeze(tf.cast(collapse_channel_dim_tf(tf.expand_dims(thresholded_prediction, 0) if len(thresholded_prediction.shape) == 3 else thresholded_prediction, take_argmax=True), dtype=targets.dtype))
+    
     patch_sums_pred = tf.zeros([*thresholded_prediction.shape[:-2],
                                  thresholded_prediction.shape[-2] // 16,
                                  thresholded_prediction.shape[-1] // 16]).numpy()
@@ -294,6 +302,9 @@ def precision_recall_f1_score_tf(thresholded_prediction, targets):
         thresholded_prediction (TF Tensor): binary prediction
         targets (TF Tensor): The target tensor
     """
+    targets = tf.squeeze(collapse_channel_dim_tf(tf.expand_dims(targets, 0) if len(targets.shape) == 3 else targets, take_argmax=True))
+    thresholded_prediction = tf.squeeze(tf.cast(collapse_channel_dim_tf(tf.expand_dims(thresholded_prediction, 0) if len(thresholded_prediction.shape) == 3 else thresholded_prediction, take_argmax=True), dtype=targets.dtype))
+    
     thresholded_prediction = tf.cast(tf.squeeze(thresholded_prediction),dtype=tf.int8)
     targets = tf.cast(tf.squeeze(targets),dtype=tf.int8)
 

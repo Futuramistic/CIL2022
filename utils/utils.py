@@ -128,35 +128,64 @@ DATASET_ZIP_URLS = {
     # validation split 3 of original dataset (samples "satimage_50.png" to "satimage_74.png" from "original" dataset
     # used as validation set)
     "original_split_3": "https://polybox.ethz.ch/index.php/s/eQdRlIKlIGJ7EWg/download",
+    
+    # validation split 2 of original dataset (samples "satimage_25.png" to "satimage_49.png" from "original" dataset used as validation set), with augmented training set using Preprocessor (x6)
+    "original_split_2_aug_6": "https://polybox.ethz.ch/index.php/s/aMHd9GlkUcxOpjS/download",
+    
+    # validation split 3 of original dataset (samples "satimage_50.png" to "satimage_74.png" from "original" dataset used as validation set), with augmented training set using Preprocessor (x6)
+    "original_split_3_aug_6": "https://polybox.ethz.ch/index.php/s/B4kB2bNmkkp4Fl2/download",
+
+    # hand-filtered dataset of 1597 satellite images screenshotted from Google Maps
+    # same 25 validation samples as in "new_original", "new_ext_original" and
+    # "new_original_aug_6" datasets; use split of 0.9846 to use exactly these 25 samples as the validation set
+    "maps_filtered": "https://polybox.ethz.ch/index.php/s/MfCcVyZRJ6TRDWb/download"
 }
 DATASET_STATS = {
-    "original": {
-        "pixel_mean_0": 161.983, "pixel_mean_1": 162.134, "pixel_mean_2": 162.231,
-        "pixel_std_0": 72.398, "pixel_std_1": 72.468, "pixel_std_2": 72.195},
-    "new_original": {
-        "pixel_mean_0": 161.983, "pixel_mean_1": 162.134, "pixel_mean_2": 162.231,
-        "pixel_std_0": 72.398, "pixel_std_1": 72.468, "pixel_std_2": 72.195},
-    "new_ext_original": {
-        "pixel_mean_0": 156.617, "pixel_mean_1": 156.717, "pixel_mean_2": 156.736,
-        "pixel_std_0": 73.563, "pixel_std_1": 73.595, "pixel_std_2": 73.470},
-    "new_original_aug_6": {
-        "pixel_mean_0": 97.204, "pixel_mean_1": 103.475, "pixel_mean_2": 108.853,
-        "pixel_std_0": 95.648, "pixel_std_1": 95.778, "pixel_std_2": 95.376},
-    "original_aug_6": {
-        "pixel_mean_0": 151.766, "pixel_mean_1": 153.037, "pixel_mean_2": 154.239,
-        "pixel_std_0": 83.284, "pixel_std_1": 82.505, "pixel_std_2": 81.720},
-    "ext_original_aug_6": {
-        'pixel_mean_0': 94.396, 'pixel_mean_1': 100.863, 'pixel_mean_2': 106.722,
-        'pixel_std_0': 93.997, 'pixel_std_1': 94.120, 'pixel_std_2': 93.762},
-    "new_ext_original_oversampled": {
-        'pixel_mean_0': 161.241, 'pixel_mean_1': 161.431, 'pixel_mean_2': 161.521,
-        'pixel_std_0': 72.192, 'pixel_std_1': 72.179, 'pixel_std_2': 71.944},
-    "ext_original_aug_6_oversampled": {
-        'pixel_mean_0': 97.640, 'pixel_mean_1': 103.620, 'pixel_mean_2': 109.856,
-        'pixel_std_0': 95.424, 'pixel_std_1': 95.355, 'pixel_std_2': 94.905},
-    "original_gt": {
-        "pixel_mean_0": 0.120, "pixel_mean_1": 0.120, "pixel_mean_2": 0.120,
-        "pixel_std_0": 5.551, "pixel_std_1": 5.545, "pixel_std_2": 5.536}
+'original': {
+    'pixel_mean_0': 161.983, 'pixel_mean_1': 162.134, 'pixel_mean_2': 162.231,
+    'pixel_std_0': 72.398, 'pixel_std_1': 72.468, 'pixel_std_2': 72.195},
+'new_original': {
+    'pixel_mean_0': 161.983, 'pixel_mean_1': 162.134, 'pixel_mean_2': 162.231,
+    'pixel_std_0': 72.398, 'pixel_std_1': 72.468, 'pixel_std_2': 72.195},
+'new_ext_original': {
+    'pixel_mean_0': 156.617, 'pixel_mean_1': 156.717, 'pixel_mean_2': 156.736,
+    'pixel_std_0': 73.563, 'pixel_std_1': 73.595, 'pixel_std_2': 73.470},
+'new_original_aug_6': {
+    'pixel_mean_0': 97.204, 'pixel_mean_1': 103.475, 'pixel_mean_2': 108.853,
+    'pixel_std_0': 95.648, 'pixel_std_1': 95.778, 'pixel_std_2': 95.376},
+'original_aug_6': {
+    'pixel_mean_0': 151.766, 'pixel_mean_1': 153.037, 'pixel_mean_2': 154.239,
+    'pixel_std_0': 83.284, 'pixel_std_1': 82.505, 'pixel_std_2': 81.720},
+'ext_original_aug_6': {
+    'pixel_mean_0': 94.396, 'pixel_mean_1': 100.863, 'pixel_mean_2': 106.722,
+    'pixel_std_0': 93.997, 'pixel_std_1': 94.120, 'pixel_std_2': 93.762},
+'new_ext_original_oversampled': {
+    'pixel_mean_0': 161.241, 'pixel_mean_1': 161.431, 'pixel_mean_2': 161.521,
+    'pixel_std_0': 72.192, 'pixel_std_1': 72.179, 'pixel_std_2': 71.944},
+'ext_original_aug_6_oversampled': {
+    'pixel_mean_0': 97.640, 'pixel_mean_1': 103.620, 'pixel_mean_2': 109.856,
+    'pixel_std_0': 95.424, 'pixel_std_1': 95.355, 'pixel_std_2': 94.905},
+'original_gt': {
+    'pixel_mean_0': 0.120, 'pixel_mean_1': 0.120, 'pixel_mean_2': 0.120,
+    'pixel_std_0': 5.551, 'pixel_std_1': 5.545, 'pixel_std_2': 5.536},
+'original_split_1': {
+    'pixel_mean_0': 161.983, 'pixel_mean_1': 162.134, 'pixel_mean_2': 162.231,
+    'pixel_std_0': 72.398, 'pixel_std_1': 72.468, 'pixel_std_2': 72.195},
+'original_split_2': {
+    'pixel_mean_0': 161.983, 'pixel_mean_1': 162.134, 'pixel_mean_2': 162.231,
+    'pixel_std_0': 72.398, 'pixel_std_1': 72.468, 'pixel_std_2': 72.195},
+'original_split_3': {
+    'pixel_mean_0': 161.983, 'pixel_mean_1': 162.134, 'pixel_mean_2': 162.231,
+    'pixel_std_0': 72.398, 'pixel_std_1': 72.468, 'pixel_std_2': 72.195},
+'original_split_2_aug_6': {
+    'pixel_mean_0': 97.594, 'pixel_mean_1': 103.687, 'pixel_mean_2': 109.030,
+    'pixel_std_0': 95.714, 'pixel_std_1': 95.744, 'pixel_std_2': 95.355},
+'original_split_3_aug_6': {
+    'pixel_mean_0': 97.711, 'pixel_mean_1': 103.910, 'pixel_mean_2': 109.287,
+    'pixel_std_0': 95.788, 'pixel_std_1': 95.909, 'pixel_std_2': 95.496},
+'maps_filtered': {
+    'pixel_mean_0': 128.833, 'pixel_mean_1': 128.790, 'pixel_mean_2': 128.829, 'pixel_std_0': 54.380,
+    'pixel_std_1': 54.207, 'pixel_std_2': 54.045}
 }
 
 # in case multiple jobs are running in the same directory, SESSION_ID will prevent name conflicts
