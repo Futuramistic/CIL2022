@@ -147,7 +147,7 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
                 # if x.shape[0] == 1:
                 #     continue  # drop if the last batch has size of 1 (otherwise the deeplabv3 model crashes)
                 loss = self.loss_function(gen_imgs, y)
-                loss += self.adv_lambda * self.adversarial_loss(self.D(gen_imgs), valid)
+                # loss += self.adv_lambda * self.adversarial_loss(self.D(gen_imgs), valid)
                 loss += - self.adv_lambda * torch.mean(self.D(gen_imgs))
                 with torch.no_grad():
                     train_loss += loss.item()
