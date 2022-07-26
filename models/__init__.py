@@ -10,5 +10,6 @@ from .Torch.CRA_Net import OurDinkNet50
 from .Torch.DeepLabV3PlusGAN import DeepLabV3PlusGAN
 from .reinforcement.first_try import SimpleRLCNN
 from .Torch.segformer import SegFormer
+from .Torch.lawin import Lawin
 from .TF import blocks as tf_blocks
 from .TF.UNetExpTF import UNet3PlusTF, UNetExpTF
