@@ -11,6 +11,14 @@ from tqdm import tqdm
 from datetime import datetime
 import subprocess
 
+# in order to fix some tensorflow issue for the dataloader weighting
+from tensorflow.compat.v1 import ConfigProto
+from tensorflow.compat.v1 import InteractiveSession
+def fix_gpu():
+    config = ConfigProto()
+    config.gpu_options.allow_growth = True
+    session = InteractiveSession(config=config)
+
 class AdaBooster:
     def __init__(self, factory, known_args_dict, unknown_args_dict,  model_spec_args, trainer_spec_args, dataloader_spec_args, is_debug):
         """An Adaboost class for performing the classical adaboost algorithm. The evaluation parameter will create the submission files on
@@ -29,6 +37,8 @@ class AdaBooster:
         self.trainer_args = trainer_spec_args
         self.dataloader_args = dataloader_spec_args
         self.is_debug = is_debug
+
+        fix_gpu()
         
         # Create the dataloader using the commandline arguments
         self.dataloader = factory.get_dataloader_class()(**dataloader_spec_args)

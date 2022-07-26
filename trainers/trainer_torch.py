@@ -412,19 +412,22 @@ class TorchTrainer(Trainer, abc.ABC):
         for (x, y, _) in self.train_loader:
             x = x.to(self.device, dtype=torch.float32)
             y = y.to(self.device, dtype=torch.float32)
-            output = self.model(x)
-            if type(output) is tuple:
-                output = output[0]
-            preds = collapse_channel_dim_torch((output >= threshold).float(), take_argmax=True)
-            preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
+            for idx, single_batch in enumerate(x):
+                single_batch = single_batch[None, :]
+                gt = y[idx, :][None, :]
+                output = self.model(single_batch)
+                if type(output) is tuple:
+                    output = output[0]
+                preds = collapse_channel_dim_torch((output >= threshold).float(), take_argmax=True)
+                preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
 
-            precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted,\
-            f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted = precision_recall_f1_score_torch(preds, y)
+                precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted,\
+                f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted = precision_recall_f1_score_torch(preds, gt)
 
-            f1_weighted_scores.append(f1_weighted.cpu())
-            
-            del x
-            del y
+                f1_weighted_scores.append(f1_weighted.cpu())
+                
+                del x
+                del y
 
         return (f1_weighted_scores)
 

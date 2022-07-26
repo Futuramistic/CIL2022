@@ -319,6 +319,39 @@ def precision_recall_f1_score_tf(thresholded_prediction, targets):
             precision_bkgd, recall_bkgd, f1_bkgd, 
             f1_macro, f1_weighted,
             f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted)
+    
+def f1_score_per_sample_tf(thresholded_prediction, targets):
+    """
+    Compute f1 score for every sample instead of averaging over the batch
+    Args:
+        thresholded_prediction (TF Tensor): binary prediction
+        targets (TF Tensor): The target tensor
+    """
+    thresholded_prediction = tf.cast(tf.squeeze(thresholded_prediction),dtype=tf.int8)
+    targets = tf.cast(tf.squeeze(targets),dtype=tf.int8)
+
+    precision_road = precision_tf(thresholded_prediction,targets,1)
+    precision_bkgd = precision_tf(thresholded_prediction,targets,0)
+
+    recall_road = recall_tf(thresholded_prediction,targets,1)
+    recall_bkgd = recall_tf(thresholded_prediction,targets,0)
+
+    f1_road = f1_tf(thresholded_prediction,targets,1)
+    f1_bkgd = f1_tf(thresholded_prediction,targets,0)
+    
+    ones_weight =   tf_count(targets,1).numpy().item()/tf.size(targets,out_type=tf.int32).numpy().item()
+    zeros_weight =  tf_count(targets,0).numpy().item()/tf.size(targets,out_type=tf.int32).numpy().item()
+
+    f1_macro = (f1_road+f1_bkgd)/2.0
+    f1_weighted = ones_weight * f1_road + zeros_weight * f1_bkgd
+    
+    f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted =\
+        patchified_f1_scores_tf(thresholded_prediction, targets)
+
+    return (precision_road, recall_road, f1_road, 
+            precision_bkgd, recall_bkgd, f1_bkgd, 
+            f1_macro, f1_weighted,
+            f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted)
 
 def f1_score_tf(thresholded_prediction, targets):
     """

@@ -380,6 +380,7 @@ class TFTrainer(Trainer, abc.ABC):
             threshold = self.get_best_segmentation_threshold()
         train_dataset_size, _, _ = self.dataloader.get_dataset_sizes(split=self.split)
         for x, y in train_loader.take(train_dataset_size):
+            # for 
             output = self.model(x)
 
             # More channels than needed - U^2-Net-style

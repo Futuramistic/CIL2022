@@ -114,7 +114,6 @@ class TorchDataLoader(DataLoader):
             if not self.weights_set:
                 # init with equal weights
                 self.weights = np.ones((len(ret.dataset)), dtype=np.float16)*(1/len(ret.dataset))
-            print(self.weights)
             sampler = WeightedRandomSampler(weights=self.weights, num_samples=training_data_len, replacement=True)
             ret = torchDL(self.training_data, batch_size, sampler = sampler, **args) # shuffling is mutually exclusive with sampler
         ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)
