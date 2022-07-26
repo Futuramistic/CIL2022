@@ -122,11 +122,11 @@ class TFTrainer(Trainer, abc.ABC):
             # checkpoint, we simply check at the end of each epoch whether there are any checkpoints to upload
             # and upload them if necessary
 
-            if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']\
-               and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint:
-                self.best_val_loss = logs['val_loss']
-                keras.models.save_model(model=self.model,
-                                        filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"),save_traces=False,include_optimizer=False)
+            #if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']\
+            #   and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint:
+            #    self.best_val_loss = logs['val_loss']
+            #    keras.models.save_model(model=self.model,
+            #                            filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"),save_traces=False,include_optimizer=False)
 
             mlflow_logger.log_checkpoints()
 

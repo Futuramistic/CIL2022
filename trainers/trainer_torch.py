@@ -104,12 +104,12 @@ class TorchTrainer(Trainer, abc.ABC):
                     if self.trainer.do_checkpoint and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint:
                         self.trainer._save_checkpoint(self.trainer.model, None, None, None, best="f1")
 
-                if self.trainer.do_checkpoint \
-                        and self.iteration_idx % self.trainer.checkpoint_interval == 0 \
-                        and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint \
-                        and self.iteration_idx > 0:  # avoid creating checkpoints at iteration 0
-                    self.trainer._save_checkpoint(self.trainer.model, self.epoch_idx, self.epoch_iteration_idx,
-                                                  self.iteration_idx)
+            if self.trainer.do_checkpoint \
+                    and self.iteration_idx % self.trainer.checkpoint_interval == 0 \
+                    and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint \
+                    and self.iteration_idx > 0:  # avoid creating checkpoints at iteration 0
+                self.trainer._save_checkpoint(self.trainer.model, self.epoch_idx, self.epoch_iteration_idx,
+                                                self.iteration_idx)
 
             self.iteration_idx += 1
             self.epoch_iteration_idx += 1
@@ -305,6 +305,7 @@ class TorchTrainer(Trainer, abc.ABC):
 
             mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=self.callback_handler.iteration_idx)
             mlflow_logger.log_logfiles()
+        
         if self.do_checkpoint:
             # save final checkpoint
             self._save_checkpoint(self.model, None, None, None)
