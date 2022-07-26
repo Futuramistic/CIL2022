@@ -99,7 +99,7 @@ class AdaBooster:
             self.experiment_names.append(new_run_name)
             self.model_weights.append(f1_eval)
             
-            data_inverse_f1_scores = trainer.get_F1_score_training_no_shuffle()
+            data_inverse_f1_scores = trainer.get_F1_scores_training_no_shuffle()
             
             # values that have not been set in the training process just receive the old sampling probability
             data_inverse_f1_scores[data_inverse_f1_scores == 2] = self.dataloader.weights[data_inverse_f1_scores == 2]
