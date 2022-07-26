@@ -240,6 +240,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
               cgm=False,
               cgm_dropout=0.1,
               architecture=None,
+              freeze=True,
               **kwargs):
     """
     Custom UNetExp Network:
@@ -286,16 +287,29 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         }
         nb_filters_concat = [32, 128, 256, 448]
         pretrained = None
-        inputs = K.applications.vgg19.preprocess_input(tf.cast(inputs,dtype=tf.float32))
+
+        base_model = None
         if architecture == "vgg":
+            inputs = K.applications.vgg19.preprocess_input(tf.cast(inputs,dtype=tf.float32))
             layer_names = ['block2_conv2', 'block3_conv4', 'block4_conv4', 'block5_conv4']
-            vgg = K.applications.VGG19(include_top=False, weights='imagenet', input_shape=input_shape)
-            for layer in vgg.layers:
-                layer.trainable = False
-            outputs = [vgg.get_layer(name).output for name in layer_names]
-            model = K.Model([vgg.input], outputs)
+            base_model = K.applications.VGG19(include_top=False, weights='imagenet', input_shape=input_shape)
+        elif architecture == "resnet50":
+            inputs = K.applications.resnet_v2.preprocess_input(tf.cast(inputs,dtype=tf.float32))
+            layer_names = ['conv1_conv', 'conv2_block3_1_relu', 'conv3_block4_1_relu', 'conv4_block6_1_relu']
+            base_model = K.applications.ResNet50V2(include_top=False, weights='imagenet', input_shape=input_shape)
+        elif architecture == "resnet152":
+            inputs = K.applications.resnet_v2.preprocess_input(tf.cast(inputs,dtype=tf.float32))
+            layer_names = ['conv1_conv', 'conv2_block3_1_relu', 'conv3_block8_1_relu', 'conv4_block36_1_relu']
+            base_model = K.applications.ResNet152V2(include_top=False, weights='imagenet', input_shape=input_shape)
+        
+        if base_model is not None:
+            # Layers can be unfrozen for fine-tunning ALREADY TRAINED models
+            for layer in base_model.layers:
+                layer.trainable = not freeze
+            outputs = [base_model.get_layer(name).output for name in layer_names]
+            model = K.Model([base_model.input], outputs)
             pretrained = model(inputs)
-            # Fully add vgg convolutions
+            # Fully add transfer layers
             nb_filters_concat = [96, 192, 320, 512]
 
         convo1, pool1 = Down_Block(name=name + "-down-block-1", filters=nb_filters[0], **down_args)(inputs)
