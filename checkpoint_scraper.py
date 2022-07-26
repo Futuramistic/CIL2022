@@ -137,7 +137,8 @@ def main(model_name, sftp_paths_file, checkpoints_output_dir, output_predictions
     #     else:
     #         print('Exiting...')
     #         return
-    # os.mkdir(checkpoints_output_dir)
+    
+    os.makedirs(checkpoints_output_dir, exist_ok=True)
 
     # Read the checkpoint paths
     current_model_name = options.model
