@@ -307,7 +307,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             # BatchNorm should be trainable at all times to learn dataset specifics
             if freeze:
                 for layer in base_model.layers:
-                    if "BatchNormalization" in layer.__class__.__name__:
+                    if isinstance(layer,K.layer.BatchNormalization):
                         layer.trainable = True
                     else:
                         layer.trainable = False
