@@ -219,7 +219,9 @@ def main():
 
     # Load the trained model weights
     model.load_weights(trained_model_path)
-
+    # Freeze layers
+    for layer in model.layers: 
+        layer.trainable = False
     preprocessing = trainer.preprocessing
     original_dataloader = factory.get_dataloader_class()(dataset='original')
     train_loader = original_dataloader.get_training_dataloader(split=0.174, batch_size=1, preprocessing=preprocessing)
