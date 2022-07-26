@@ -203,10 +203,10 @@ class TFDataLoader(DataLoader):
             
             if shuffle:
                 return tf.data.Dataset.from_generator(
-                    lambda: ((get_data_from_idx(sample_idx)) for _ in itertools.count() for sample_idx in  utils.consistent_shuffling(sampled_dist)), output_types=output_types)
+                    lambda: ((get_data_from_idx(sample_idx[0])) for _ in itertools.count() for sample_idx in  utils.consistent_shuffling(sampled_dist)), output_types=output_types)
             else:
                 return tf.data.Dataset.from_generator(
-                    lambda: ((get_data_from_idx(sample_idx)) for _ in itertools.count() for sample_idx in sampled_dist), output_types=output_types)
+                    lambda: ((get_data_from_idx(sample_idx[0])) for _ in itertools.count() for sample_idx in sampled_dist), output_types=output_types)
         else:
             # no weighting needed for data without groundtruth
             def get_data_from_idx(sample_idx):
@@ -214,10 +214,10 @@ class TFDataLoader(DataLoader):
                 return parse_img(img_path)
             if shuffle:
                 return tf.data.Dataset.from_generator(
-                    lambda: ((get_data_from_idx(sample_idx)) for _ in itertools.count() for sample_idx in utils.consistent_shuffling(sampled_dist)), output_types=output_types)
+                    lambda: ((get_data_from_idx(sample_idx[0])) for _ in itertools.count() for sample_idx in utils.consistent_shuffling(sampled_dist)), output_types=output_types)
             else:
                 return tf.data.Dataset.from_generator(
-                    lambda: ((get_data_from_idx(sample_idx)) for _ in itertools.count() for sample_idx in sampled_dist), output_types=output_types)
+                    lambda: ((get_data_from_idx(sample_idx[0])) for _ in itertools.count() for sample_idx in sampled_dist), output_types=output_types)
                 
     def get_training_data_for_one_epoch(self, split, preprocessing=None, **args):
         """
