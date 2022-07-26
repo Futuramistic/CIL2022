@@ -240,7 +240,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
               cgm=False,
               cgm_dropout=0.1,
               architecture=None,
-              freeze=True
+              freeze=True,
               **kwargs):
     """
     Custom UNetExp Network:
