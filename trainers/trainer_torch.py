@@ -280,7 +280,7 @@ class TorchTrainer(Trainer, abc.ABC):
         callback_handler = self.Callback(self, mlflow_run, self.model)
         best_val_loss = 1e12
         
-        if self.use_sample_weighting or self.adaboost:
+        if self.use_sample_weighting:
             # init all samples with the same weight, is overwritten in _train_step()
             self.weights = np.ones((len(self.train_loader.dataset)), dtype=np.float16)*2 # start with 2 as 1 - f1 score cannot reach this value
                 
@@ -349,7 +349,7 @@ class TorchTrainer(Trainer, abc.ABC):
             loss.backward()
             opt.step()
             callback_handler.on_train_batch_end()
-            if self.use_sample_weighting or self.adaboost:
+            if self.use_sample_weighting:
                 threshold = getattr(self, 'last_hyper_threshold', self.segmentation_threshold)
                 # weight based on F1 score of batch
                 self.weights[sample_idx] = \
@@ -394,6 +394,39 @@ class TorchTrainer(Trainer, abc.ABC):
         """
         *_, f1_patchified_weighted, _ = self.get_precision_recall_F1_score_validation()
         return f1_patchified_weighted
+    
+    def get_F1_scores_training_no_shuffle(self):
+        """
+        Compute the F1 score on the training set without shuffling
+        used in adaboost to determine the next sample weight
+        Returns
+            f1 weighted scores for each sample (List[float])
+        """
+        self.model.eval()
+        f1_weighted_scores = []
+        threshold = self.segmentation_threshold
+        if self.hyper_seg_threshold:
+            self.last_hyper_threshold = threshold
+            threshold = self.get_best_segmentation_threshold()
+        # in adaboost, the train loader doesn't use shuffling by default
+        for (x, y, _) in self.train_loader:
+            x = x.to(self.device, dtype=torch.float32)
+            y = y.to(self.device, dtype=torch.float32)
+            output = self.model(x)
+            if type(output) is tuple:
+                output = output[0]
+            preds = collapse_channel_dim_torch((output >= threshold).float(), take_argmax=True)
+            preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
+
+            precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted,\
+            f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted = precision_recall_f1_score_torch(preds, y)
+
+            f1_weighted_scores.append(f1_weighted)
+            
+            del x
+            del y
+
+        return (f1_weighted_scores)
 
     def get_precision_recall_F1_score_validation(self):
         """

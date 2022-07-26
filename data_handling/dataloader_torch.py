@@ -77,7 +77,7 @@ class TorchDataLoader(DataLoader):
         Args:
             split (float): training/test splitting ratio, e.g. 0.8 for 80"%" training and 20"%" test data
             batch_size (int): training batch size
-            weights (list of floats): weights for sampling probability of each datapoint, 
+            weights (list of floats): weights for sampling probability of each datapoint, these are not the adaboost sample weights 
                 if None: don't use any weights
                 if empty list: first run with equal weighting
                 if not empty: list of weights for each data sample
@@ -106,7 +106,7 @@ class TorchDataLoader(DataLoader):
             ret = torchDL(self.training_data, batch_size, shuffle=True, **args)
             
         elif not self.use_adaboost:
-            # sample weighting is mutually exclusive with adaboost
+            # sample weighting (which adapts the sample weights after each epoch of the current model) is mutually exclusive with adaboost
             sampler = WeightedRandomSampler(weights, training_data_len, replacement=True)
             ret = torchDL(self.training_data, batch_size, sampler = sampler, **args) # shuffling is mutually exclusive with sampler
         
@@ -114,7 +114,8 @@ class TorchDataLoader(DataLoader):
             if not self.weights_set:
                 # init with equal weights
                 self.weights = np.ones((len(ret.dataset)), dtype=np.float16)*(1/len(ret.dataset))
-            sampler = WeightedRandomSampler(self.weights, training_data_len, replacement=True)
+            print(self.weights)
+            sampler = WeightedRandomSampler(weights=self.weights, num_samples=training_data_len, replacement=True)
             ret = torchDL(self.training_data, batch_size, sampler = sampler, **args) # shuffling is mutually exclusive with sampler
         ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)
         return ret

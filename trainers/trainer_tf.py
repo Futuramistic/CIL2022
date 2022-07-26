@@ -125,9 +125,11 @@ class TFTrainer(Trainer, abc.ABC):
 
             if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']:
                 self.best_val_loss = logs['val_loss']
-                self.trainer.curr_best_checkpoint_path = os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt")
+                checkpoint_path = f"{CHECKPOINTS_DIR}/cp_best_val_loss.ckpt"
+                if self.trainer.adaboost and self.curr_best_checkpoint_path is None:
+                    self.trainer.curr_best_checkpoint_path = checkpoint_path
                 keras.models.save_model(model=self.model,
-                                        filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"))
+                                        filepath=checkpoint_path)
             remove_local_checkpoint = not self.trainer.adaboost
             mlflow_logger.log_checkpoints(remove_local_checkpoint)
 
@@ -353,8 +355,11 @@ class TFTrainer(Trainer, abc.ABC):
 
         if self.do_checkpoint:
             # save final checkpoint
+            checkpoint_path = f"{CHECKPOINTS_DIR}/cp_final.ckpt"
+            if self.adaboost and self.curr_best_checkpoint_path is None:
+                self.curr_best_checkpoint_path = checkpoint_path
             keras.models.save_model(model=self.model,
-                                    filepath=os.path.join(CHECKPOINTS_DIR, "cp_final.ckpt"))
+                                    filepath=checkpoint_path)
         
     def get_F1_scores_training_no_shuffle(self):
         """
