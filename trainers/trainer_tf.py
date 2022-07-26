@@ -370,7 +370,7 @@ class TFTrainer(Trainer, abc.ABC):
         Compute the F1 score on the training set without shuffling
         used e.g. in adaboost to determine the next sample weight
         """
-        train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
+        train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=1,
                                                                     preprocessing=self.preprocessing,
                                                                     suppress_adaboost_weighting=True)
         
@@ -380,7 +380,6 @@ class TFTrainer(Trainer, abc.ABC):
             threshold = self.get_best_segmentation_threshold()
         train_dataset_size, _, _ = self.dataloader.get_dataset_sizes(split=self.split)
         for x, y in train_loader.take(train_dataset_size):
-            # for 
             output = self.model(x)
 
             # More channels than needed - U^2-Net-style
@@ -389,7 +388,7 @@ class TFTrainer(Trainer, abc.ABC):
             preds = tf.cast(tf.squeeze(output) >= threshold, tf.dtypes.int8)
             blb_input = preds.numpy()
             preds = remove_blobs(blb_input, threshold=self.blobs_removal_threshold)
-            # print('tf preds 2', preds.shape)$
+            # print('tf preds 2', preds.shape)
             
             precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted,\
             f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted = precision_recall_f1_score_tf(preds, y)
