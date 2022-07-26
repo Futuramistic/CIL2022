@@ -304,8 +304,16 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         
         if base_model is not None:
             # Layers can be unfrozen for fine-tunning ALREADY TRAINED models
-            for layer in base_model.layers:
-                layer.trainable = not freeze
+            # BatchNorm should be trainable at all times to learn dataset specifics
+            if freeze:
+                for layer in base_model.layers:
+                    if "BatchNormalization" in layer.__class__.__name__:
+                        layer.trainable = True
+                    else:
+                        layer.trainable = False
+            else:
+                for layer in base_model.layers:
+                    layer.trainable=True
             outputs = [base_model.get_layer(name).output for name in layer_names]
             model = K.Model([base_model.input], outputs)
             pretrained = model(inputs)
