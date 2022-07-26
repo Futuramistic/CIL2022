@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow.keras as K
 
-from losses import DiceLoss
+from losses import FocalTverskyLoss
 from trainers.trainer_tf import TFTrainer
 from utils import *
 
@@ -14,7 +14,7 @@ class UNetTFTrainer(TFTrainer):
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
                  batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
-                 load_checkpoint_path=None, segmentation_threshold=None, pre_process=None, use_channelwise_norm=False,
+                 load_checkpoint_path=None, segmentation_threshold=None, pre_process="vgg", use_channelwise_norm=False,
                  blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False,
                  f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
         """
@@ -42,13 +42,13 @@ class UNetTFTrainer(TFTrainer):
         if optimizer_or_lr is None:
             # CAREFUL! Smaller learning rate recommended in comparision to other models !!!
             # Even 1e-5 was recommended, but might take ages
-            optimizer_or_lr = UNetTFTrainer.get_default_optimizer_with_lr(lr=1e-4)
+            optimizer_or_lr = UNetTFTrainer.get_default_optimizer_with_lr(lr=1e-3)
         elif isinstance(optimizer_or_lr, int) or isinstance(optimizer_or_lr, float):
             optimizer_or_lr = UNetTFTrainer.get_default_optimizer_with_lr(lr=optimizer_or_lr)
 
         # According to the online github repo
         if loss_function is None:
-            loss_function = DiceLoss
+            loss_function = FocalTverskyLoss(alpha=0.3,beta=0.7,gamma=0.75)
             # loss_function = K.losses.BinaryCrossentropy(from_logits=False,
             #                                            reduction=K.losses.Reduction.SUM_OVER_BATCH_SIZE)
 
@@ -87,7 +87,7 @@ class UNetTFTrainer(TFTrainer):
         super().__init__(dataloader, model, preprocessing, steps_per_training_epoch, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
-                         segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold,
+                         segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, False,  # hyper_seg_threshold
                          use_sample_weighting, f1_threshold_to_log_checkpoint)
 
     def _get_hyperparams(self):
@@ -111,4 +111,4 @@ class UNetTFTrainer(TFTrainer):
         """
         # lr_schedule = K.optimizers.schedules.ExponentialDecay(initial_learning_rate=lr, decay_rate=0.1,
         #                                                      decay_steps=30000, staircase=True)
-        return K.optimizers.Adam(learning_rate=lr)
+        return K.optimizers.Adam(learning_rate=lr, clipnorm=1.0)

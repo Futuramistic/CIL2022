@@ -231,15 +231,15 @@ Custom model that:
 
 def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
               name="UNetEXPTF",
-              dropout=0.5,
+              dropout=0.0,
               kernel_init='he_normal',
               normalize=True,
-              kernel_regularizer=K.regularizers.l2(),
+              kernel_regularizer=None,
               use_learnable_pool=False,
               deep_supervision=False,
               cgm=False,
               cgm_dropout=0.1,
-              architecture=None,
+              architecture="vgg",
               freeze=True,
               **kwargs):
     """
