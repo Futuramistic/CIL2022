@@ -102,7 +102,9 @@ class AdaBooster:
             data_f1_scores = np.asarray(trainer.get_F1_scores_training_no_shuffle(), dtype=float)
             
             # values that have not been set in the training process just receive the old sampling probability
-            data_f1_scores[data_f1_scores == 2] = self.dataloader.weights[data_f1_scores == 2]
+            print(len(data_f1_scores))
+            print(len(self.dataloader.weights))
+            # data_f1_scores[data_f1_scores == 2] = self.dataloader.weights[data_f1_scores == 2]
             weights_groundtruth_term = (-data_f1_scores) + (1-data_f1_scores)
             
             # calculate model error 
