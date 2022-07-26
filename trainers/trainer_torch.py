@@ -421,7 +421,7 @@ class TorchTrainer(Trainer, abc.ABC):
             precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted,\
             f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted = precision_recall_f1_score_torch(preds, y)
 
-            f1_weighted_scores.append(f1_weighted)
+            f1_weighted_scores.append(f1_weighted.cpu())
             
             del x
             del y
