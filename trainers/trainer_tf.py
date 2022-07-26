@@ -127,8 +127,8 @@ class TFTrainer(Trainer, abc.ABC):
             #    self.best_val_loss = logs['val_loss']
             #    keras.models.save_model(model=self.model,
             #                            filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"),save_traces=False,include_optimizer=False)
-
-            mlflow_logger.log_checkpoints()
+            #    mlflow_logger.log_checkpoints()
+            
 
             self.epoch_idx += 1
             self.epoch_iteration_idx = 0
@@ -186,6 +186,7 @@ class TFTrainer(Trainer, abc.ABC):
                     self.best_f1_score = f1_weighted
                     if self.trainer.do_checkpoint and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint:
                         keras.models.save_model(model=self.model, filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_f1.ckpt"),save_traces=False,include_optimizer=False)
+                        mlflow_logger.log_checkpoints()
 
             if self.trainer.do_checkpoint \
                     and self.iteration_idx % self.trainer.checkpoint_interval == 0 \
@@ -195,6 +196,7 @@ class TFTrainer(Trainer, abc.ABC):
                                   f'_it-{"%05i" % self.epoch_iteration_idx}' + \
                                   f'_step-{self.iteration_idx}.ckpt'
                 keras.models.save_model(model=self.trainer.model, filepath=checkpoint_path,save_traces=False,include_optimizer=False)
+                mlflow_logger.log_checkpoints()
 
             self.iteration_idx += 1
             self.epoch_iteration_idx += 1
@@ -355,6 +357,7 @@ class TFTrainer(Trainer, abc.ABC):
             # save final checkpoint
             keras.models.save_model(model=self.model,
                                     filepath=os.path.join(CHECKPOINTS_DIR, "cp_final.ckpt"),save_traces=False,include_optimizer=False)
+            mlflow_logger.log_checkpoints()
 
     def get_F1_score_validation(self):
         """
