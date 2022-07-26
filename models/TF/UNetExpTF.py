@@ -301,13 +301,17 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             inputs = K.applications.resnet_v2.preprocess_input(tf.cast(inputs,dtype=tf.float32))
             layer_names = ['conv1_conv', 'conv2_block3_1_relu', 'conv3_block8_1_relu', 'conv4_block36_1_relu']
             base_model = K.applications.ResNet152V2(include_top=False, weights='imagenet', input_shape=input_shape)
+        elif architecture == "resnet101":
+            inputs = K.applications.resnet_v2.preprocess_input(tf.cast(inputs,dtype=tf.float32))
+            layer_names = ['conv1_conv', 'conv2_block3_1_relu', 'conv3_block4_1_relu', 'conv4_block23_1_relu']
+            base_model = K.applications.ResNet101V2(include_top=False, weights='imagenet', input_shape=input_shape)
         
         if base_model is not None:
             # Layers can be unfrozen for fine-tunning ALREADY TRAINED models
             # BatchNorm should be trainable at all times to learn dataset specifics
             if freeze:
                 for layer in base_model.layers:
-                    if isinstance(layer,K.layer.BatchNormalization):
+                    if isinstance(layer,K.layers.BatchNormalization):
                         layer.trainable = True
                     else:
                         layer.trainable = False
