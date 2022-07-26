@@ -47,7 +47,7 @@ class UNetTFTrainer(TFTrainer):
 
         # According to the online github repo
         if loss_function is None:
-            loss_function = DiceLoss
+            loss_function = DiceLoss()
             # loss_function = K.losses.BinaryCrossentropy(from_logits=False,
             #                                            reduction=K.losses.Reduction.SUM_OVER_BATCH_SIZE)
 
