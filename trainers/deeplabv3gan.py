@@ -146,7 +146,7 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
             del x
             del y
             
-            if self.use_sample_weighting or self.adaboost:
+            if self.use_sample_weighting:
                 self.weights[sample_idx] = loss.item()
 
         train_loss /= len(train_loader.dataset)
