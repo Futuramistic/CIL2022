@@ -179,7 +179,7 @@ class AdaBooster:
                 return_code = os.system(command)
             else:
                 # TF
-                command = f"python tf_predictor.py", "--model={self.known_args_dict['model']} --checkpoint={checkpoint}"
+                command = f"python tf_predictor.py --model={self.known_args_dict['model']} --checkpoint={checkpoint}"
                 if 'apply_sigmoid' in self.known_args_dict.keys():
                     command += " --apply_sigmoid"
                 return_code = os.system(command)
