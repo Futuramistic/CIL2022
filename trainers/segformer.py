@@ -62,7 +62,7 @@ class SegFormerTrainer(TorchTrainer):
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)
 
-        preprocessing = None
+        self.preprocessing = None
         if use_channelwise_norm and dataloader.dataset in DATASET_STATS:
             def channelwise_preprocessing(x, is_gt):
                 if is_gt:
@@ -73,11 +73,11 @@ class SegFormerTrainer(TorchTrainer):
                 x[1] = (x[1] - stats['pixel_mean_1']) / stats['pixel_std_1']
                 x[2] = (x[2] - stats['pixel_mean_2']) / stats['pixel_std_2']
                 return x
-            preprocessing = channelwise_preprocessing
+            self.preprocessing = channelwise_preprocessing
         else:
             # convert samples to float32 \in [0, 1] & remove A channel;
             # convert ground truth to int \in {0, 1} & remove A channel
-            preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
+            self.preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
 
         super().__init__(dataloader, model, experiment_name, run_name, split,
                          num_epochs, batch_size, optimizer_or_lr, loss_function, loss_function_hyperparams,
