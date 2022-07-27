@@ -14,7 +14,7 @@ class UNetTFTrainer(TFTrainer):
     def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
                  batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
-                 load_checkpoint_path=None, segmentation_threshold=None, pre_process=None, use_channelwise_norm=False,
+                 load_checkpoint_path=None, segmentation_threshold=None, pre_process="vgg", use_channelwise_norm=False,
                  blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False,use_adaboost=False):
         """
         Set omitted parameters to model-specific defaults, then call superclass __init__ function
@@ -30,7 +30,7 @@ class UNetTFTrainer(TFTrainer):
         # Large batch size used online: 32
         # Possible overkill
         if batch_size is None:
-            batch_size = 4
+            batch_size = 2
 
         train_set_size, test_set_size, unlabeled_test_set_size = dataloader.get_dataset_sizes(split=split)
         steps_per_training_epoch = train_set_size // batch_size

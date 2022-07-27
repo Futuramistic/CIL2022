@@ -41,7 +41,7 @@ class TFTrainer(Trainer, abc.ABC):
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
-                         blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting, use_adaboost)
+                         blobs_removal_threshold, False, use_sample_weighting, use_adaboost)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
@@ -197,7 +197,7 @@ class TFTrainer(Trainer, abc.ABC):
                                                          self.epoch_iteration_idx)
                 # save the best f1 score checkpoint
                 if self.trainer.do_checkpoint and self.best_score <= f1_weighted\
-                   and DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT < self.f1_score:
+                   and DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT < self.best_score:
                     checkpoint_path = f"{CHECKPOINTS_DIR}/cp_best_f1.ckpt"
                     if self.trainer.adaboost and self.trainer.checkpoints_folder is None:
                         self.trainer.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))

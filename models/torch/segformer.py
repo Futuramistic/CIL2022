@@ -461,7 +461,7 @@ import warnings
 #from mmseg.models.utils import *
 #import attr
 
-from IPython import embed
+# from IPython import embed
 
 
 def resize(input,
