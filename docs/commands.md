@@ -29,7 +29,7 @@ Debugging:
     ]
 }
 
-# testing weightes samples (tf) via cranet
+# testing weightes samples (tf) via unetexp
 `python main.py --model=unetexp --dataset=new_original_aug_6 -E=TestingWeightedSamplingTf -R=run1 --split=0.03 --batch_size=2 --blobs_removal_threshold=0 -i=1 --use_geometric_augmentation=True --use_color_augmentation=False --dropout=0.0 --num_epochs=3 --optimizer_or_lr=0.001 --hyper_seg_threshold=False -w=True`
 
 # Debugging with launch.json
@@ -76,4 +76,7 @@ Debugging:
 `bsub -n 1 -W 75:00 -R "rusage[ngpus_excl_p=1, mem=10000]" -R "select[gpu_model0==NVIDIAGeForceGTX1080]" "python main.py -m=deeplabv3 --use_adaboost=True --adaboost_runs=10 --dataset=original_split_1 -E DeepLabV3AdaboostFinal --split=0.827 --num_epochs=75 --checkpoint_interval=25 --hyper_seg_threshold=True --optimizer_or_lr=0.0002 --use_geometric_augmentation=True --use_color_augmentation=True"`
 
 # SegFormer Run on Euler with Adaboost
-`bsub -n 1 -W 75:00 -R "rusage[ngpus_excl_p=1, mem=25000]" -R "select[gpu_model0==NVIDIAGeForceGTX1080]" "python main.py -m=segformer --use_adaboost=True --adaboost_runs=10 --dataset=original_split_1 -E SegFormerAdaboost --split=0.827 --num_epochs=260 --checkpoint_interval=100000 --hyper_seg_threshold=True --optimizer_or_lr=0.0005 --batch_size=2 --use_geometric_augmentation=True --use_color_augmentation=True --blobs_removal_threshold=0 --hyper_seg_threshold=True"`
+`bsub -n 1 -W 75:00 -R "rusage[ngpus_excl_p=1, mem=25000]" -R "select[gpu_model0==NVIDIAGeForceGTX1080]" "python main.py -m=segformer --use_adaboost=True --adaboost_runs=10 --dataset=original_split_1 -E SegFormerAdaboost12345 --split=0.827 --num_epochs=260 --checkpoint_interval=100000 --hyper_seg_threshold=True --optimizer_or_lr=0.0005 --batch_size=2 --use_geometric_augmentation=True --use_color_augmentation=True --blobs_removal_threshold=0 --hyper_seg_threshold=True"`
+
+# UnetExp on Euler with Adaboost (sadly only bs=1 possible)
+`bsub -n 1 -W 75:00 -R "rusage[ngpus_excl_p=1, mem=28000]" -R "select[gpu_model0==NVIDIAGeForceGTX1080]" "python main.py --model=unetexp --dataset=new_original_aug_6 --split=0.971 --batch_size=2 --blobs_removal_threshold=0 --use_geometric_augmentation=True --use_color_augmentation=False --dropout=0.0 --num_epochs=100 --optimizer_or_lr=0.001 --hyper_seg_threshold=False --input_shape=[400,400,3] --architecture='vgg' --experiment_name=12345 --normalize=True --dropout=0.0 --kernel_regularizer=\(None\) --load_checkpoint_path=sftp://mlflow_user:waiMohu749@algvrithm.com:22/mlruns/169/37ab12b7fd784ab2931a9010e082027d/artifacts/checkpoints/cp_best_f1.ckpt --use_adaboost=True --adaboost_runs=10"`

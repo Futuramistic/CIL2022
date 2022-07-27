@@ -1,6 +1,7 @@
 from data_handling import *
 from models.reinforcement.first_try import SimpleRLCNNMinimal
 from trainers import *
+from models import *
 from trainers.reinforcement.rl_trainer_torch_minimal import TorchRLTrainerMinimal
 
 
