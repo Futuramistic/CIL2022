@@ -122,16 +122,23 @@ class TFTrainer(Trainer, abc.ABC):
             # since we don't have a way of getting notified when KC.ModelCheckpoint has finished creating the
             # checkpoint, we simply check at the end of each epoch whether there are any checkpoints to upload
             # and upload them if necessary
-
+            
             if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']:
                 self.best_val_loss = logs['val_loss']
                 checkpoint_path = f"{CHECKPOINTS_DIR}/cp_best_val_loss.ckpt"
-                if self.trainer.adaboost and self.trainer.curr_best_checkpoint_path is None:
-                    self.trainer.curr_best_checkpoint_path = checkpoint_path
+                if self.trainer.adaboost and self.trainer.checkpoints_folder is None:
+                    self.trainer.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
+                    if not os.path.exists(self.trainer.checkpoints_folder):
+                        os.makedirs(self.trainer.checkpoints_folder)
+                if self.trainer.adaboost:
+                    # we always want the best validation f1 score to be our currently best model
+                    self.trainer.curr_best_checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_val_loss.ckpt")
+                    checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_val_loss.ckpt")
                 keras.models.save_model(model=self.model,
                                         filepath=checkpoint_path)
             remove_local_checkpoint = not self.trainer.adaboost
-            mlflow_logger.log_checkpoints(remove_local_checkpoint)
+            other_checkpoint_name = None if not self.trainer.adaboost else self.trainer.checkpoints_folder
+            mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
 
             self.epoch_idx += 1
             self.epoch_iteration_idx = 0
@@ -186,8 +193,17 @@ class TFTrainer(Trainer, abc.ABC):
                                                          self.epoch_iteration_idx)
                 # save the best f1 score checkpoint
                 if self.trainer.do_checkpoint and self.best_score <= f1_weighted:
+                    checkpoint_path = f"{CHECKPOINTS_DIR}/cp_best_f1.ckpt"
+                    if self.trainer.adaboost and self.trainer.checkpoints_folder is None:
+                        self.trainer.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
+                        if not os.path.exists(self.trainer.checkpoints_folder):
+                            os.makedirs(self.trainer.checkpoints_folder)
+                    if self.trainer.adaboost and self.trainer.curr_best_checkpoint_path is None:
+                        self.trainer.curr_best_checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_f1.ckpt")
+                    if self.trainer.adaboost:
+                        checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_f1.ckpt")
                     self.best_score = f1_weighted
-                    keras.models.save_model(model=self.model, filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_f1.ckpt"))
+                    keras.models.save_model(model=self.model, filepath=checkpoint_path)
 
             if self.trainer.do_checkpoint \
                     and self.iteration_idx % self.trainer.checkpoint_interval == 0 \
@@ -360,8 +376,14 @@ class TFTrainer(Trainer, abc.ABC):
         if self.do_checkpoint:
             # save final checkpoint
             checkpoint_path = f"{CHECKPOINTS_DIR}/cp_final.ckpt"
+            if self.adaboost and self.checkpoints_folder is None:
+                self.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
+                if not os.path.exists(self.trainer.checkpoints_folder):
+                        os.makedirs(self.trainer.checkpoints_folder)
             if self.adaboost and self.curr_best_checkpoint_path is None:
-                self.curr_best_checkpoint_path = checkpoint_path
+                self.curr_best_checkpoint_path = os.path.join(self.checkpoints_folder, "cp_final.ckpt")
+            if self.adaboost:
+                checkpoint_path = os.path.join(self.checkpoints_folder, "cp_final.ckpt")
             keras.models.save_model(model=self.model,
                                     filepath=checkpoint_path)
         
