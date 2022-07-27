@@ -1,6 +1,6 @@
 import torch
 
-from trainers.trainer_torch import TorchTrainer
+from .trainer_torch import TorchTrainer
 from utils import *
 from torch import optim
 
@@ -17,10 +17,11 @@ class SegFormerTrainer(TorchTrainer):
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
                  use_channelwise_norm=True, blobs_removal_threshold=0, hyper_seg_threshold=False,
-                 use_sample_weighting=False, use_adaboost=False, f1_threshold_to_log_checkpoint= 0.88):
+                 use_sample_weighting=False, use_adaboost=False):
         """
         Set omitted parameters to model-specific defaults, then call superclass __init__ function
         @Warning: some arguments depend on others not being None, so respect this order!
+
         Args:
             Refer to the TFTrainer superclass for more details on the arguments
         """
@@ -62,7 +63,7 @@ class SegFormerTrainer(TorchTrainer):
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)
 
-        self.preprocessing = None
+        preprocessing = None
         if use_channelwise_norm and dataloader.dataset in DATASET_STATS:
             def channelwise_preprocessing(x, is_gt):
                 if is_gt:
@@ -73,26 +74,28 @@ class SegFormerTrainer(TorchTrainer):
                 x[1] = (x[1] - stats['pixel_mean_1']) / stats['pixel_std_1']
                 x[2] = (x[2] - stats['pixel_mean_2']) / stats['pixel_std_2']
                 return x
-            self.preprocessing = channelwise_preprocessing
+            preprocessing = channelwise_preprocessing
         else:
             # convert samples to float32 \in [0, 1] & remove A channel;
             # convert ground truth to int \in {0, 1} & remove A channel
-            self.preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
+            preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
 
-        super().__init__(dataloader, model, experiment_name, run_name, split,
-                         num_epochs, batch_size, optimizer_or_lr, loss_function, loss_function_hyperparams,
+        super().__init__(dataloader, model, preprocessing, experiment_name, run_name, split,
+                         num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
                          segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold,
-                         use_sample_weighting, use_adaboost, f1_threshold_to_log_checkpoint)
+                         use_sample_weighting, use_adaboost)
         
     def _train_step(self, model, device, train_loader, callback_handler):
         """
         Train the model for one step. Uses Custom LR for head
+
         Args:
             model: The model to train
             device: either 'cuda' or 'cpu'
             train_loader: train dataset loader object
             callback_handler: To be called when the train step is over
+
         Returns:
             train loss (float)
         """
@@ -104,7 +107,7 @@ class SegFormerTrainer(TorchTrainer):
         for (x, y, sample_idx) in train_loader:
             x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.float32)
             y = torch.squeeze(y, dim=1)  # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
-            preds = model(x, apply_activation=False)
+            preds = model(x, softmax=False)
             loss = self.loss_function(preds, y)
             with torch.no_grad():
                 train_loss += loss.item()
@@ -113,6 +116,8 @@ class SegFormerTrainer(TorchTrainer):
             loss.backward()
             opt_backbone.step()
             opt_head.step()
+            if self.use_sample_weighting:
+                self.weights[sample_idx] = loss.item()
             callback_handler.on_train_batch_end()
             del x
             del y
@@ -124,10 +129,12 @@ class SegFormerTrainer(TorchTrainer):
     def _eval_step(self, model, device, test_loader):
         """
         Evaluate the model. Called at the end of each epoch
+
         Args:
             model: model to evaluate
             device: either 'cuda' or 'cpu'
             test_loader: loader for the samples to evaluate the model on
+
         Returns:
             test loss (float)
         """
@@ -137,7 +144,7 @@ class SegFormerTrainer(TorchTrainer):
             for (x, y, sample_idx) in test_loader:
                 x, y = x.to(device, dtype=torch.float32), y.to(device, dtype=torch.long)
                 y = torch.squeeze(y, dim=1)
-                preds = model(x, apply_activation=False)
+                preds = model(x, softmax=False)
                 test_loss += self.loss_function(preds, y).item()
                 del x
                 del y
