@@ -45,7 +45,7 @@ def compute_best_threshold(loader, apply_sigmoid):
                 if apply_sigmoid:
                     output_ = K.layers.Activation('sigmoid')(output_)
                 preds = (output_ >= thresh).astype(np.int8)
-                _, _, f1_score = precision_recall_f1_score_tf(preds, y)
+                *_, f1_score = precision_recall_f1_score_tf(preds, y)
                 f1_scores.append(f1_score.cpu().numpy())
                 del x_
                 del y

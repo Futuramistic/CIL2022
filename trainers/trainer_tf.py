@@ -385,8 +385,8 @@ class TFTrainer(Trainer, abc.ABC):
             checkpoint_path = f"{CHECKPOINTS_DIR}/cp_final.ckpt"
             if self.adaboost and self.checkpoints_folder is None:
                 self.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
-                if not os.path.exists(self.trainer.checkpoints_folder):
-                        os.makedirs(self.trainer.checkpoints_folder)
+                if not os.path.exists(self.checkpoints_folder):
+                    os.makedirs(self.checkpoints_folder)
             if self.adaboost and self.curr_best_checkpoint_path is None:
                 self.curr_best_checkpoint_path = os.path.join(self.checkpoints_folder, "cp_final.ckpt")
             if self.adaboost:
@@ -394,8 +394,8 @@ class TFTrainer(Trainer, abc.ABC):
             keras.models.save_model(model=self.model,
                                     filepath=checkpoint_path)
             
-            remove_local_checkpoint = not self.trainer.adaboost
-            other_checkpoint_name = None if not self.trainer.adaboost else self.trainer.checkpoints_folder
+            remove_local_checkpoint = not self.adaboost
+            other_checkpoint_name = None if not self.adaboost else self.checkpoints_folder
             mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
         
     def get_F1_scores_training_no_shuffle(self):
