@@ -18,6 +18,8 @@ def fix_gpu():
     config = ConfigProto()
     config.gpu_options.allow_growth = True
     session = InteractiveSession(config=config)
+    
+SMOL = 1e-8
 
 class AdaBooster:
     def __init__(self, factory, known_args_dict, unknown_args_dict,  model_spec_args, trainer_spec_args, dataloader_spec_args, is_debug):
@@ -119,21 +121,23 @@ class AdaBooster:
             
             # calculate model error 
             model_error = np.sum(self.dataloader.weights*weights_groundtruth_term) / np.sum(self.dataloader.weights)
-            total_model_performance = 0.5 * np.log((1-model_error)/model_error)
+            log_term = (1-model_error)/model_error
+            log_term[log_term <= 0] = SMOL
+            total_model_performance = 0.5 * np.log()
             self.model_weights.append(total_model_performance)
             
             # calculate new data weights
             self.dataloader.weights = self.dataloader.weights*np.exp(total_model_performance*weights_groundtruth_term)
-            
+            self.dataloader.weights
             # normalize between 0 and 1 again (no negative values allowed)
             normalized = self.dataloader.weights / (
                     2 * np.max(np.absolute(self.dataloader.weights)))  # between -0.5 and +0.5
             self.dataloader.weights = normalized + 0.5  # between 0 and 1
             self.dataloader.weights[self.dataloader.weights < 0] = 1e-3
-            
+            print(self.dataloader.weights)
             # normalize so sum of weights is 1
             self.dataloader.weights /= sum(self.dataloader.weights)
-            
+            print(self.dataloader.weights)
             # save
             self.update_files()
             
