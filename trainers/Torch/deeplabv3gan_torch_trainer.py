@@ -120,26 +120,6 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
             real_imgs = Variable(y.type(Tensor))  # original uses x, but we probably need y for our purposes
             gen_imgs = model(x, apply_activation=False)
 
-            # ====================
-            # Train Discriminator
-
-            self.optimizer_D.zero_grad()
-
-            # Measure discriminator's ability to classify real from generated samples
-            # real_loss = self.adversarial_loss(self.D(real_imgs), valid)
-            # fake_loss = self.adversarial_loss(self.D(gen_imgs.detach()), fake)
-            # d_loss = (real_loss + fake_loss) / 2
-
-            d_loss = -torch.mean(self.D(real_imgs)) + torch.mean(self.D(gen_imgs))
-
-            d_loss.backward(retain_graph=True)
-            self.optimizer_D.step()
-
-            # Clip weights of discriminator
-            clip_val = 0.1
-            for p in self.D.parameters():
-                p.data.clamp_(-clip_val, clip_val)
-
             # ================
             # Train generator
             opt.zero_grad()
@@ -159,6 +139,26 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
 
                 if self.use_sample_weighting:
                     self.weights[sample_idx] = loss.item()
+                    
+            # ====================
+            # Train Discriminator
+
+            self.optimizer_D.zero_grad()
+
+            # Measure discriminator's ability to classify real from generated samples
+            # real_loss = self.adversarial_loss(self.D(real_imgs), valid)
+            # fake_loss = self.adversarial_loss(self.D(gen_imgs.detach()), fake)
+            # d_loss = (real_loss + fake_loss) / 2
+
+            d_loss = -torch.mean(self.D(real_imgs)) + torch.mean(self.D(gen_imgs))
+
+            d_loss.backward()
+            self.optimizer_D.step()
+
+            # Clip weights of discriminator
+            clip_val = 0.1
+            for p in self.D.parameters():
+                p.data.clamp_(-clip_val, clip_val)
 
             callback_handler.on_train_batch_end()
             del x
