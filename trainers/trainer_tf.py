@@ -122,14 +122,14 @@ class TFTrainer(Trainer, abc.ABC):
             # since we don't have a way of getting notified when KC.ModelCheckpoint has finished creating the
             # checkpoint, we simply check at the end of each epoch whether there are any checkpoints to upload
             # and upload them if necessary
-
+            
             if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']:
                 self.best_val_loss = logs['val_loss']
                 checkpoint_path = f"{CHECKPOINTS_DIR}/cp_best_val_loss.ckpt"
                 if self.trainer.adaboost and self.trainer.checkpoints_folder is None:
+                    self.trainer.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
                     if not os.path.exists(self.trainer.checkpoints_folder):
                         os.makedirs(self.trainer.checkpoints_folder)
-                    self.trainer.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
                 if self.trainer.adaboost:
                     # we always want the best validation f1 score to be our currently best model
                     self.trainer.curr_best_checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_val_loss.ckpt")
@@ -137,7 +137,8 @@ class TFTrainer(Trainer, abc.ABC):
                 keras.models.save_model(model=self.model,
                                         filepath=checkpoint_path)
             remove_local_checkpoint = not self.trainer.adaboost
-            mlflow_logger.log_checkpoints(remove_local_checkpoint)
+            other_checkpoint_name = None if not self.trainer.adaboost else self.trainer.checkpoints_folder
+            mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
 
             self.epoch_idx += 1
             self.epoch_iteration_idx = 0
@@ -238,6 +239,9 @@ class TFTrainer(Trainer, abc.ABC):
         vis_batch_size = min(num_to_visualize, self.batch_size)
 
         _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
+        #TODO: overwrite
+        test_dataset_size = 3
+        num_fixed_samples = 3
         if num_to_visualize >= test_dataset_size:
             # just visualize the entire test set
             vis_dataloader = self.test_loader.take(test_dataset_size).batch(vis_batch_size)
@@ -351,6 +355,9 @@ class TFTrainer(Trainer, abc.ABC):
         self.test_loader = self.dataloader.get_testing_dataloader(batch_size=1,
                                                                   preprocessing=self.preprocessing)
         self.train_dataset_size, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
+
+        #TODO: revert
+        test_dataset_size = 2
         
         callbacks = [TFTrainer.Callback(self, mlflow_run)]
         # model checkpointing functionality moved into TFTrainer.Callback to allow for custom checkpoint names
@@ -371,6 +378,8 @@ class TFTrainer(Trainer, abc.ABC):
             checkpoint_path = f"{CHECKPOINTS_DIR}/cp_final.ckpt"
             if self.adaboost and self.checkpoints_folder is None:
                 self.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
+                if not os.path.exists(self.trainer.checkpoints_folder):
+                        os.makedirs(self.trainer.checkpoints_folder)
             if self.adaboost and self.curr_best_checkpoint_path is None:
                 self.curr_best_checkpoint_path = os.path.join(self.checkpoints_folder, "cp_final.ckpt")
             if self.adaboost:
@@ -434,6 +443,7 @@ class TFTrainer(Trainer, abc.ABC):
         if self.hyper_seg_threshold:
             threshold = self.get_best_segmentation_threshold()
         _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
+        test_dataset_size = 3 #TODO: revert
         for x, y in self.test_loader.take(test_dataset_size):
             output = self.model(x)
 
