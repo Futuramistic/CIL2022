@@ -295,15 +295,15 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             base_model = K.applications.VGG19(include_top=False, weights='imagenet', input_shape=input_shape)
         elif architecture == "resnet50":
             inputs = K.applications.resnet_v2.preprocess_input(tf.cast(inputs,dtype=tf.float32))
-            layer_names = ['conv1_conv', 'conv2_block3_1_relu', 'conv3_block4_1_relu', 'conv4_block6_1_relu']
+            layer_names = ['conv1_conv', 'conv2_block3_1_conv', 'conv3_block4_1_conv', 'conv4_block6_1_conv']
             base_model = K.applications.ResNet50V2(include_top=False, weights='imagenet', input_shape=input_shape)
         elif architecture == "resnet152":
             inputs = K.applications.resnet_v2.preprocess_input(tf.cast(inputs,dtype=tf.float32))
-            layer_names = ['conv1_conv', 'conv2_block3_1_relu', 'conv3_block8_1_relu', 'conv4_block36_1_relu']
+            layer_names = ['conv1_conv', 'conv2_block3_1_conv', 'conv3_block8_1_conv', 'conv4_block36_1_conv']
             base_model = K.applications.ResNet152V2(include_top=False, weights='imagenet', input_shape=input_shape)
         elif architecture == "resnet101":
             inputs = K.applications.resnet_v2.preprocess_input(tf.cast(inputs,dtype=tf.float32))
-            layer_names = ['conv1_conv', 'conv2_block3_1_relu', 'conv3_block4_1_relu', 'conv4_block23_1_relu']
+            layer_names = ['conv1_conv', 'conv2_block3_1_conv', 'conv3_block4_1_conv', 'conv4_block23_1_conv']
             base_model = K.applications.ResNet101V2(include_top=False, weights='imagenet', input_shape=input_shape)
         
         if base_model is not None:
