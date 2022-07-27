@@ -79,8 +79,8 @@ class SegFormerTrainer(TorchTrainer):
             # convert ground truth to int \in {0, 1} & remove A channel
             preprocessing = lambda x, is_gt: (x[:3, :, :].float() / 255.0) if not is_gt else (x[:1, :, :].float() / 255)
 
-        super().__init__(dataloader, model, preprocessing, experiment_name, run_name, split,
-                         num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
+        super().__init__(dataloader, model, experiment_name, run_name, split,
+                         num_epochs, batch_size, optimizer_or_lr, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
                          segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold,
                          use_sample_weighting, use_adaboost, f1_threshold_to_log_checkpoint)
