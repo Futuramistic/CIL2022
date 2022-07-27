@@ -239,9 +239,6 @@ class TFTrainer(Trainer, abc.ABC):
         vis_batch_size = min(num_to_visualize, self.batch_size)
 
         _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
-        #TODO: overwrite
-        test_dataset_size = 3
-        num_fixed_samples = 3
         if num_to_visualize >= test_dataset_size:
             # just visualize the entire test set
             vis_dataloader = self.test_loader.take(test_dataset_size).batch(vis_batch_size)
@@ -355,9 +352,6 @@ class TFTrainer(Trainer, abc.ABC):
         self.test_loader = self.dataloader.get_testing_dataloader(batch_size=1,
                                                                   preprocessing=self.preprocessing)
         self.train_dataset_size, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
-
-        #TODO: revert
-        test_dataset_size = 2
         
         callbacks = [TFTrainer.Callback(self, mlflow_run)]
         # model checkpointing functionality moved into TFTrainer.Callback to allow for custom checkpoint names
@@ -443,7 +437,6 @@ class TFTrainer(Trainer, abc.ABC):
         if self.hyper_seg_threshold:
             threshold = self.get_best_segmentation_threshold()
         _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
-        test_dataset_size = 3 #TODO: revert
         for x, y in self.test_loader.take(test_dataset_size):
             output = self.model(x)
 
