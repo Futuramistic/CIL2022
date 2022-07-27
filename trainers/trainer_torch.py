@@ -199,8 +199,8 @@ class TorchTrainer(Trainer, abc.ABC):
                     if not os.path.exists(self.checkpoints_folder):
                         os.makedirs(self.checkpoints_folder)
                 if self.curr_best_checkpoint_path is None:
-                    self.curr_best_checkpoint_path = os.path.join(self.checkpoints_folder, "cp_best_{best}.pt")
-                checkpoint_path = os.path.join(self.checkpoints_folder, "cp_best_{best}.pt")
+                    self.curr_best_checkpoint_path = os.path.join(self.checkpoints_folder, f"cp_best_{best}.pt")
+                checkpoint_path = os.path.join(self.checkpoints_folder, f"cp_best_{best}.pt")
         else:
             checkpoint_path = f'{CHECKPOINTS_DIR}/cp_final.pt'
             if self.adaboost and self.curr_best_checkpoint_path is None:
