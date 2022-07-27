@@ -2,6 +2,7 @@
 import torch
 import numpy as np
 import tensorflow.keras as K
+import tensorflow.keras.utils as K_utils
 import argparse
 import torchvision.transforms.functional as TF
 
@@ -42,7 +43,7 @@ def compute_best_threshold(loader, apply_sigmoid):
     for thresh in np.linspace(0, 1, 21):
         f1_scores = []
         with torch.no_grad():
-            for (x_, y) in tqdm(loader):
+            for (x_, y, _) in tqdm(loader):
                 x_ = x_.to(device, dtype=torch.float32)
                 y = y.to(device, dtype=torch.float32)
                 output_ = model(x_)
@@ -97,8 +98,8 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=False):
             pred *= 255
             while len(pred.shape) == 2:
                 pred = pred[None, :, :]
-            K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred,
-                                           data_format="channels_first")
+            K_utils.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred,
+                             data_format="channels_first")
             i += 1
             del x
 

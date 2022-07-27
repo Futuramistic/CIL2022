@@ -97,7 +97,8 @@ class TorchTrainer(Trainer, abc.ABC):
                                                          self.epoch_iteration_idx)
 
                 # Save checkpoints
-                if self.trainer.do_checkpoint and self.best_f1_score < self.f1_score:
+                if self.trainer.do_checkpoint and self.best_f1_score < self.f1_score\
+                   and DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT <= self.f1_score:
                     self.best_f1_score = self.f1_score
                     self.trainer._save_checkpoint(self.trainer.model, None, None, None, best="f1")
 
@@ -316,9 +317,9 @@ class TorchTrainer(Trainer, abc.ABC):
                 # weights don't have to add up to 1 --> Done
             last_test_loss = self._eval_step(self.model, self.device, self.test_loader)
             metrics = {'train_loss': last_train_loss, 'test_loss': last_test_loss}
-            if self.do_checkpoint and best_val_loss > last_test_loss:
-                best_val_loss = last_test_loss
-                self._save_checkpoint(self.model, None, None, None, best="test_loss")
+            # if self.do_checkpoint and best_val_loss > last_test_loss:
+            #     best_val_loss = last_test_loss
+            #     self._save_checkpoint(self.model, None, None, None, best="test_loss")
             print('\nEpoch %i finished at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()) % epoch)
             print('Metrics: %s\n' % str(metrics))
 

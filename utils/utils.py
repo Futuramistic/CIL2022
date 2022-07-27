@@ -24,12 +24,25 @@ DEFAULT_SEGMENTATION_THRESHOLD = 0.5
 DEFAULT_TRAIN_FRACTION = 0.8
 DEFAULT_NUM_SAMPLES_TO_VISUALIZE = 36
 DEFAULT_BLOBS_REMOVAL_THRESHOLD = 100
+DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT = 0.75  # refers to weighted F1 score; reduced here
 DEFAULT_TF_INPUT_SHAPE = (None, None, 3)
 
 # Contains the URLs where our datasets are stored, as well as a short description for each dataset
 DATASET_ZIP_URLS = {
     # "original": dataset used in the ETHZ CIL Road Segmentation 2022 Kaggle competition
     "original": "https://polybox.ethz.ch/index.php/s/x2RcSv4MOG3rtPB/download",
+
+    # validation split 1 of original dataset (samples "satimage_0.png" to "satimage_24.png" from "original" dataset
+    # used as validation set)
+    "original_split_1": "https://polybox.ethz.ch/index.php/s/EhNndrS2fIWfWZF/download",
+    
+    # validation split 2 of original dataset (samples "satimage_25.png" to "satimage_49.png" from "original" dataset
+    # used as validation set)
+    "original_split_2": "https://polybox.ethz.ch/index.php/s/TKzv8THbJPEdH9i/download",
+    
+    # validation split 3 of original dataset (samples "satimage_50.png" to "satimage_74.png" from "original" dataset
+    # used as validation set)
+    "original_split_3": "https://polybox.ethz.ch/index.php/s/eQdRlIKlIGJ7EWg/download",
 
     # "ext_original": "original" dataset, extended with 80 images scraped from Google Maps
     "ext_original": "https://polybox.ethz.ch/index.php/s/mj4aokQ7ZMouMyh/download",
