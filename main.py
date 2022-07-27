@@ -8,6 +8,7 @@ import json
 import numpy as np
 import random
 import re
+from adaboost.adaboost import AdaBooster
 
 from factory import Factory
 from utils import *
@@ -36,12 +37,12 @@ def main():
                     'max_rollout_len', 'std', 'reward_discount_factor', 'num_policy_epochs', 'policy_batch_size',
                     'sample_from_action_distributions', 'visualization_interval', 'min_steps', 'rollout_len',
                     'blobs_removal_threshold', 'T', 'hyper_seg_threshold', 'w', 'use_sample_weighting',
-                    'f1_threshold_to_log_checkpoint']
+                    'use_adaboost', 'a', 'f1_threshold_to_log_checkpoint']
     dataloader_args = ['dataset', 'd', 'use_geometric_augmentation', 'use_color_augmentation',
-                       'aug_brightness', 'aug_contrast', 'aug_saturation']
+                       'aug_brightness', 'aug_contrast', 'aug_saturation', 'use_adaboost', 'a']
 
     # list of other arguments to avoid passing to constructor of model class
-    filter_args = ['h', 'model', 'm', 'evaluate', 'eval', 'V', 'seed', 'S']
+    filter_args = ['h', 'model', 'm', 'evaluate', 'eval', 'V', 'seed', 'S', 'adaboost_runs', 'A']
 
     parser = argparse.ArgumentParser(description='Implementation of ETHZ CIL Road Segmentation 2022 project')
     parser.add_argument('-m', '--model', type=str, required=True)
@@ -72,6 +73,10 @@ def main():
     parser.add_argument('-w', '--use_sample_weighting', type=bool, required=False, default=False,
                         help="If True, use sample weighting during training to train more on samples with big errors.\
                             Currently only working with torch")
+    parser.add_argument('-a', '--use_adaboost', type=bool, required=False, default=False,
+                        help="If True, apply the Adaboost algorithm to the training")
+    parser.add_argument('-A', '--adaboost_runs', type=int, required=False, default=20,
+                        help="Only if adaboost is used, specify the number of models to ensemble")
     known_args, unknown_args = parser.parse_known_args()
 
     # Process the commandline arguments
@@ -99,18 +104,31 @@ def main():
     torch.manual_seed(known_args.seed)
     np.random.seed(known_args.seed)
     tf.random.set_seed(known_args.seed)
-
+    
     # Load the model by name from the factory
     factory = Factory.get_factory(known_args.model)
+    
+    # specify the arguments for the dataloader, trainer and model class
+    model_spec_args = {k: v for k, v in arg_dict.items() if k.lower() not in [*trainer_args, *dataloader_args, *filter_args]}
+    trainer_spec_args = {k: v for k, v in arg_dict.items() if k.lower() in trainer_args}
+    dataloader_spec_args = {k: v for k, v in arg_dict.items() if k.lower() in dataloader_args}
+    
+    # call adaboost script if adaboost is used
+    if known_args_dict["use_adaboost"]:
+        adabooster = AdaBooster(factory, known_args_dict, unknown_args_dict, model_spec_args, trainer_spec_args, dataloader_spec_args, IS_DEBUG)
+        adabooster.run()
+        return
+    
     # Create the dataloader using the commandline arguments
-    dataloader = factory.get_dataloader_class()(**{k: v for k, v in arg_dict.items() if k.lower() in dataloader_args})
+    dataloader = factory.get_dataloader_class()(**dataloader_spec_args)
+    
     # Create the model using the commandline arguments
-    model = factory.get_model_class()(**{k: v for k, v in arg_dict.items() if k.lower() not in [*trainer_args,
-                                                                                                *dataloader_args,
-                                                                                                *filter_args]})
+    model = factory.get_model_class()(**model_spec_args)
+    
     # Create the trainer using the commandline arguments
     trainer = factory.get_trainer_class()(dataloader=dataloader, model=model,
-                                          **{k: v for k, v in arg_dict.items() if k.lower() in trainer_args})
+                                        **trainer_spec_args)
+        
 
     # do not move these Pushbullet messages into the Trainer class, as this may lead to a large amount of
     # messages when using Hyperopt
@@ -124,16 +142,16 @@ def main():
         metrics = trainer.eval()
         if not IS_DEBUG:
             pushbullet_logger.send_pushbullet_message(('Evaluation finished. Metrics: %s\n' % str(metrics)) + \
-                                                      f'Hyperparameters:\n{trainer._get_hyperparams()}')
+                                                    f'Hyperparameters:\n{trainer._get_hyperparams()}')
     else:
         # train
         if not IS_DEBUG:
             pushbullet_logger.send_pushbullet_message('Training started.\n' + \
-                                                      f'Hyperparameters:\n{trainer._get_hyperparams()}')
+                                                    f'Hyperparameters:\n{trainer._get_hyperparams()}')
         last_test_loss = trainer.train()
         if not IS_DEBUG:
             pushbullet_logger.send_pushbullet_message(('Training finished. Last test loss: %.4f\n' % last_test_loss) + \
-                                                      f'Hyperparameters:\n{trainer._get_hyperparams()}')
+                                                    f'Hyperparameters:\n{trainer._get_hyperparams()}')
 
 
 if __name__ == '__main__':

@@ -18,7 +18,7 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
                  use_channelwise_norm=False, adv_lambda=0.1, adv_lr=1e-4, blobs_removal_threshold=0,
-                 hyper_seg_threshold=False, use_sample_weighting=False,
+                 hyper_seg_threshold=False, use_sample_weighting=False, use_adaboost=False,
                  f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
         """
         Set omitted parameters to model-specific defaults, then call superclass __init__ function
@@ -83,7 +83,7 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
                          segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, hyper_seg_threshold,
-                         use_sample_weighting, f1_threshold_to_log_checkpoint)
+                         use_sample_weighting, use_adaboost, f1_threshold_to_log_checkpoint)
 
     def _train_step(self, model, device, train_loader, callback_handler):
         """

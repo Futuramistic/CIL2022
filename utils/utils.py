@@ -32,6 +32,18 @@ DATASET_ZIP_URLS = {
     # "original": dataset used in the ETHZ CIL Road Segmentation 2022 Kaggle competition
     "original": "https://polybox.ethz.ch/index.php/s/x2RcSv4MOG3rtPB/download",
 
+    # validation split 1 of original dataset (samples "satimage_0.png" to "satimage_24.png" from "original" dataset
+    # used as validation set)
+    "original_split_1": "https://polybox.ethz.ch/index.php/s/EhNndrS2fIWfWZF/download",
+    
+    # validation split 2 of original dataset (samples "satimage_25.png" to "satimage_49.png" from "original" dataset
+    # used as validation set)
+    "original_split_2": "https://polybox.ethz.ch/index.php/s/TKzv8THbJPEdH9i/download",
+    
+    # validation split 3 of original dataset (samples "satimage_50.png" to "satimage_74.png" from "original" dataset
+    # used as validation set)
+    "original_split_3": "https://polybox.ethz.ch/index.php/s/eQdRlIKlIGJ7EWg/download",
+
     # "ext_original": "original" dataset, extended with 80 images scraped from Google Maps
     "ext_original": "https://polybox.ethz.ch/index.php/s/mj4aokQ7ZMouMyh/download",
 

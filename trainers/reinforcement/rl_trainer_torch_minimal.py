@@ -36,7 +36,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
                  rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), std=[1e-3, 1e-3], reward_discount_factor=0.99,
                  num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20,
                  rewards = None, blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False,
-                 f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
+                 use_adaboost=False, f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
         """
         Trainer for RL-based models.
         Args:
@@ -96,7 +96,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
                  evaluation_interval=evaluation_interval, num_samples_to_visualize=num_samples_to_visualize, checkpoint_interval=checkpoint_interval,
                  load_checkpoint_path=load_checkpoint_path, segmentation_threshold=segmentation_threshold, use_channelwise_norm=use_channelwise_norm,
                  blobs_removal_threshold=blobs_removal_threshold, hyper_seg_threshold=hyper_seg_threshold, use_sample_weighting=False,
-                 f1_threshold_to_log_checkpoint=f1_threshold_to_log_checkpoint)  # use_sample_weighting not needed in RL
+                 use_adaboost=False, f1_threshold_to_log_checkpoint=f1_threshold_to_log_checkpoint)  # use_sample_weighting and adaboost not needed in RL
         self.rollout_len = int(rollout_len)
         self.replay_memory_capacity = int(replay_memory_capacity)
         self.std = torch.tensor(std, device=self.device).detach()

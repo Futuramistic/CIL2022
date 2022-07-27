@@ -26,7 +26,7 @@ class TorchTrainer(Trainer, abc.ABC):
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
                  blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False,
-                 f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
+                 use_adaboost=False, f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
         """
         Initializes a Torch Trainer
         Args:
@@ -40,7 +40,7 @@ class TorchTrainer(Trainer, abc.ABC):
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
-                         blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting,
+                         blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting, use_adaboost,
                          f1_threshold_to_log_checkpoint)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
@@ -197,18 +197,37 @@ class TorchTrainer(Trainer, abc.ABC):
                               f'_step-{total_iteration}.pt'
         elif best is not None:
             checkpoint_path = f'{CHECKPOINTS_DIR}/cp_best_{best}.pt'
+            if self.adaboost and best == "test_loss":
+                if self.checkpoints_folder is None:
+                    self.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
+                    if not os.path.exists(self.checkpoints_folder):
+                        os.makedirs(self.checkpoints_folder)
+                if self.curr_best_checkpoint_path is None:
+                    self.curr_best_checkpoint_path = os.path.join(self.checkpoints_folder, f"cp_best_{best}.pt")
+                checkpoint_path = os.path.join(self.checkpoints_folder, f"cp_best_{best}.pt")
         else:
             checkpoint_path = f'{CHECKPOINTS_DIR}/cp_final.pt'
+            if self.adaboost and self.curr_best_checkpoint_path is None:
+                if self.checkpoints_folder is None:
+                    self.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
+                    if not os.path.exists(self.checkpoints_folder):
+                        os.makedirs(self.checkpoints_folder)
+                if self.curr_best_checkpoint_path is None:
+                    self.curr_best_checkpoint_path = os.path.join(self.checkpoints_folder, "cp_final.pt")
+                checkpoint_path = self.curr_best_checkpoint_path
         torch.save({
             'epoch': epoch,
             'model': model.state_dict(),
             'optimizer': self.optimizer_or_lr.state_dict()
         }, checkpoint_path)
+        
 
         # checkpoints should be logged to MLflow right after their creation, so that if training is
         # stopped/crashes *without* reaching the final "mlflow_logger.log_checkpoints()" call in trainer.py,
         # prior checkpoints have already been persisted
-        mlflow_logger.log_checkpoints()
+        remove_local_checkpoint = not self.adaboost
+        other_checkpoint_name = None if not self.adaboost else self.checkpoints_folder
+        mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
 
     def _load_checkpoint(self, checkpoint_path):
         """
@@ -263,7 +282,7 @@ class TorchTrainer(Trainer, abc.ABC):
         print('Hyperparameters:')
         print(self._get_hyperparams())
         print('')
-
+        
         self.train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                                     preprocessing=self.preprocessing)
         self.test_loader = self.dataloader.get_testing_dataloader(batch_size=1, preprocessing=self.preprocessing)
@@ -277,8 +296,11 @@ class TorchTrainer(Trainer, abc.ABC):
         # use self.Callback instead of TorchTrainer.Callback, to allow subclasses to overwrite the callback handler
         self.callback_handler = self.Callback(self, mlflow_run, self.model)
         best_val_loss = 1e12
-        # init all samples with the same weight, is overwritten in _train_step()
-        self.weights = np.zeros((len(self.train_loader.dataset)), dtype=np.float16)
+        
+        if self.use_sample_weighting:
+            # init all samples with the same weight, is overwritten in _train_step()
+            self.weights = np.ones((len(self.train_loader.dataset)), dtype=np.float16)*2 # start with 2 as 1 - f1 score cannot reach this value
+                
         for epoch in range(self.num_epochs):
             if self.use_sample_weighting and epoch != 0:
                 self.train_loader = self.dataloader.get_training_dataloader(split=self.split,
@@ -288,18 +310,18 @@ class TorchTrainer(Trainer, abc.ABC):
             last_train_loss = self._train_step(self.model, self.device, self.train_loader, self.callback_handler)
             if self.use_sample_weighting:  # update sample weight
                 # normalize
-                weights_set_during_training = self.weights[self.weights != 0]
+                weights_set_during_training = self.weights[self.weights != 2]
                 normalized = weights_set_during_training / (
                         2 * np.max(np.absolute(weights_set_during_training)))  # between -0.5 and +0.5
-                self.weights[self.weights != 0] = normalized + 0.5  # between 0 and 1
+                self.weights[self.weights != 2] = normalized + 0.5  # between 0 and 1
                 # probability of zero is not wished for
-                self.weights[self.weights == 0] = np.min(self.weights[self.weights != 0])
+                self.weights[self.weights == 2] = np.min(self.weights[self.weights != 2])
                 # weights don't have to add up to 1 --> Done
             last_test_loss = self._eval_step(self.model, self.device, self.test_loader)
             metrics = {'train_loss': last_train_loss, 'test_loss': last_test_loss}
-            #if self.do_checkpoint and best_val_loss > last_test_loss:
-            #    best_val_loss = last_test_loss
-            #    self._save_checkpoint(self.model, None, None, None, best="test_loss")
+            # if self.do_checkpoint and best_val_loss > last_test_loss:
+            #     best_val_loss = last_test_loss
+            #     self._save_checkpoint(self.model, None, None, None, best="test_loss")
             print('\nEpoch %i finished at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()) % epoch)
             print('Metrics: %s\n' % str(metrics))
 
@@ -389,6 +411,40 @@ class TorchTrainer(Trainer, abc.ABC):
         """
         *_, f1_patchified_weighted, _ = self.get_precision_recall_F1_score_validation()
         return f1_patchified_weighted
+    
+    def get_F1_scores_training_no_shuffle(self):
+        """
+        Compute the F1 score on the training set without shuffling
+        used in adaboost to determine the next sample weight
+        Returns
+            f1 weighted scores for each sample (List[float])
+        """
+        self.model.eval()
+        f1_weighted_scores = []
+        threshold = self.segmentation_threshold
+        if self.hyper_seg_threshold:
+            self.last_hyper_threshold = threshold
+            threshold = self.get_best_segmentation_threshold()
+        # in adaboost, the train loader doesn't use shuffling by default
+        train_loader = self.dataloader.get_training_dataloader(split=self.split,
+                        batch_size=1, preprocessing=self.preprocessing)
+        for (x, y, _) in train_loader:
+            x = x.to(self.device, dtype=torch.float32)
+            y = y.to(self.device, dtype=torch.float32)
+            output = self.model(x)
+            if type(output) is tuple:
+                output = output[0]
+            preds = collapse_channel_dim_torch((output >= threshold).float(), take_argmax=True)
+            preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
+
+            precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted,\
+            f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted = precision_recall_f1_score_torch(preds, y)
+
+            f1_weighted_scores.append(f1_weighted.cpu())
+            
+            del x
+            del y
+        return (f1_weighted_scores)
 
     def get_precision_recall_F1_score_validation(self):
         """

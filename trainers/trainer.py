@@ -26,7 +26,7 @@ class Trainer(abc.ABC):
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
                  blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False,
-                 f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
+                 use_adaboost=False, f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
         """
         Args:
             dataloader: the DataLoader to use when training the model
@@ -58,6 +58,7 @@ class Trainer(abc.ABC):
                                  (measured by F1 score)
             use_sample_weighting: whether to use sample weighting to train more on samples with worse losses; weights 
                                  are recalculated after each epoch
+            use_adaboost: If True, the trainer is part of the adaboost algorithm
         """
         self.dataloader = dataloader
         self.model = model
@@ -106,6 +107,11 @@ class Trainer(abc.ABC):
         if not self.do_checkpoint:
             print('\n*** WARNING: no checkpoints of this model will be created! Specify valid checkpoint_interval '
                   '(in iterations) to Trainer in order to create checkpoints. ***\n')
+        
+        self.adaboost = use_adaboost
+        if self.adaboost:
+            self.curr_best_checkpoint_path = None
+            self.checkpoints_folder = None
 
     def _init_mlflow(self):
         """
@@ -113,6 +119,7 @@ class Trainer(abc.ABC):
         Returns:
             True if successfully established a connection
         """
+        # return False # TODO: revert after debug
         if self.mlflow_initialized:
             return True
         
@@ -230,6 +237,7 @@ class Trainer(abc.ABC):
             'session_id': SESSION_ID,
             'use_hyperopt_for_optimal_threshold': self.hyper_seg_threshold,
             'use_sample_weighting': self.use_sample_weighting,
+            'use_adaboost': self.adaboost,
             **(optim_hyparam_serializer.serialize_optimizer_hyperparams(self.optimizer_or_lr)),
             **({f'loss_{k}': v for k, v in self.loss_function_hyperparams.items()})
         }
@@ -286,7 +294,9 @@ class Trainer(abc.ABC):
                     mlflow_logger.log_command_line()  # log command line used to execute the script, if available
                     last_test_loss = self._fit_model(mlflow_run=run)
                     if self.do_checkpoint:
-                        mlflow_logger.log_checkpoints()
+                        remove_local_checkpoint = not self.adaboost
+                        other_checkpoint_name = None if not self.adaboost else self.checkpoints_folder
+                        mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
                     mlflow_logger.log_logfiles()
                 except Exception as e:
                     err_msg = f'*** Exception encountered: ***\n{e}'
@@ -298,7 +308,7 @@ class Trainer(abc.ABC):
         else:
             last_test_loss = self._fit_model(mlflow_run=None)
 
-        if os.path.exists(CHECKPOINTS_DIR):
+        if os.path.exists(CHECKPOINTS_DIR) and not self.adaboost:
             shutil.rmtree(CHECKPOINTS_DIR)
 
         return last_test_loss
@@ -322,14 +332,20 @@ class Trainer(abc.ABC):
                     mlflow_logger.log_codebase()  # log codebase before training, to be invariant to train crashes/stops
                     mlflow_logger.log_command_line()  # log command line used to execute the script, if available
                     
-                    precision, recall, f1_score, threshold = self.get_precision_recall_F1_score_validation()
-                    metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score,
-                               'seg_threshold': threshold}
+                    precisions_road, recalls_road, f1_road_scores, precisions_bkgd, \
+                        recalls_bkgd, f1_bkgd_scores, f1_macro_scores, f1_weighted_scores,\
+                            f1_road_patchified_scores, f1_bkgd_patchified_scores, f1_patchified_weighted_scores,\
+                                threshold = self.get_precision_recall_F1_score_validation()
+                    metrics = {'precisions_road': precisions_road, 'recalls_road': recalls_road, 'f1_road_scores': f1_road_scores,
+                               'precisions_bkgd': precisions_bkgd, 'recalls_bkgd': recalls_bkgd, 'f1_bkgd_scores': f1_bkgd_scores,
+                               'f1_macro_scores': f1_macro_scores, 'f1_weighted_scores': f1_weighted_scores, 
+                               'f1_road_patchified_scores': f1_road_patchified_scores, 'f1_bkgd_patchified_scores':f1_bkgd_patchified_scores,
+                               'f1_patchified_weighted_scores':f1_patchified_weighted_scores, 'seg_threshold': threshold}
                     print(f'Evaluation metrics: {metrics}')
                     if mlflow_logger.logging_to_mlflow_enabled():
                         mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=0)
                         if self.num_samples_to_visualize is not None and self.num_samples_to_visualize > 0:
-                            mlflow_logger.log_visualizations(self, 0)
+                            mlflow_logger.log_visualizations(self, 0, 0, 0)
 
                     mlflow_logger.log_logfiles()
                 except Exception as e:
@@ -340,8 +356,15 @@ class Trainer(abc.ABC):
                         pushbullet_logger.send_pushbullet_message(err_msg)
                     raise e
         else:
-            precision, recall, f1_score, threshold = self.get_precision_recall_F1_score_validation()
-            metrics = {'precision': precision, 'recall': recall, 'f1_score': f1_score, 'seg_threshold': threshold}
+            precisions_road, recalls_road, f1_road_scores, precisions_bkgd, \
+                        recalls_bkgd, f1_bkgd_scores, f1_macro_scores, f1_weighted_scores,\
+                            f1_road_patchified_scores, f1_bkgd_patchified_scores, f1_patchified_weighted_scores,\
+                                threshold = self.get_precision_recall_F1_score_validation()
+            metrics = {'precisions_road': precisions_road, 'recalls_road': recalls_road, 'f1_road_scores': f1_road_scores,
+                               'precisions_bkgd': precisions_bkgd, 'recalls_bkgd': recalls_bkgd, 'f1_bkgd_scores': f1_bkgd_scores,
+                               'f1_macro_scores': f1_macro_scores, 'f1_weighted_scores': f1_weighted_scores, 
+                               'f1_road_patchified_scores': f1_road_patchified_scores, 'f1_bkgd_patchified_scores':f1_bkgd_patchified_scores,
+                               'f1_patchified_weighted_scores':f1_patchified_weighted_scores, 'seg_threshold': threshold}
             print(f'Evaluation metrics: {metrics}')
 
         return metrics

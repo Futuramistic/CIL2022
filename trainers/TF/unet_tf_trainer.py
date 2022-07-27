@@ -16,7 +16,7 @@ class UNetTFTrainer(TFTrainer):
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, pre_process="vgg", use_channelwise_norm=False,
                  blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False,
-                 f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
+                 use_adaboost=False, f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
         """
         Set omitted parameters to model-specific defaults, then call superclass __init__ function
         @Warning: some arguments depend on others not being None, so respect this order!
@@ -31,7 +31,7 @@ class UNetTFTrainer(TFTrainer):
         # Large batch size used online: 32
         # Possible overkill
         if batch_size is None:
-            batch_size = 4
+            batch_size = 2
 
         train_set_size, test_set_size, unlabeled_test_set_size = dataloader.get_dataset_sizes(split=split)
         steps_per_training_epoch = train_set_size // batch_size
@@ -88,7 +88,7 @@ class UNetTFTrainer(TFTrainer):
                          num_epochs, batch_size, optimizer_or_lr, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
                          segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, False,  # hyper_seg_threshold
-                         use_sample_weighting, f1_threshold_to_log_checkpoint)
+                         use_sample_weighting, use_adaboost, f1_threshold_to_log_checkpoint)
 
     def _get_hyperparams(self):
         """

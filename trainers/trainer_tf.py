@@ -27,7 +27,7 @@ class TFTrainer(Trainer, abc.ABC):
                  optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None, evaluation_interval=None,
                  num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
                  segmentation_threshold=None, use_channelwise_norm=False, blobs_removal_threshold=0,
-                 hyper_seg_threshold=False, use_sample_weighting=False,
+                 hyper_seg_threshold=False, use_sample_weighting=False, use_adaboost=False,
                  f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
         """
         Initializes a Tensorflow trainer
@@ -41,7 +41,7 @@ class TFTrainer(Trainer, abc.ABC):
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
                          blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting,
-                         f1_threshold_to_log_checkpoint)
+                         use_adaboost, f1_threshold_to_log_checkpoint)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
@@ -52,6 +52,7 @@ class TFTrainer(Trainer, abc.ABC):
             # initialize again, else we will not use entire training dataset but only a split of 0.2 !
             self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                     preprocessing=self.preprocessing)
+        
 
     class Callback(KC.Callback):
         """
@@ -129,6 +130,27 @@ class TFTrainer(Trainer, abc.ABC):
             #                            filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"),save_traces=False,include_optimizer=False)
             #    mlflow_logger.log_checkpoints()
             
+            
+            # if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']:
+            #     self.best_val_loss = logs['val_loss']
+            #     checkpoint_path = f"{CHECKPOINTS_DIR}/cp_best_val_loss.ckpt"
+            #     if self.trainer.adaboost and self.trainer.checkpoints_folder is None:
+            #         self.trainer.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
+            #         if not os.path.exists(self.trainer.checkpoints_folder):
+            #             os.makedirs(self.trainer.checkpoints_folder)
+            #     if self.trainer.adaboost:
+            #         # we always want the best validation f1 score to be our currently best model
+            #         # not for validation loss, only for f1:
+            #         # self.trainer.curr_best_checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_val_loss.ckpt")
+            #         checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_val_loss.ckpt")
+            #     keras.models.save_model(model=self.model,
+            #                             filepath=checkpoint_path)
+            
+            # log checkpoints right away when created (consider this when merging)
+            
+            # remove_local_checkpoint = not self.trainer.adaboost
+            # other_checkpoint_name = None if not self.trainer.adaboost else self.trainer.checkpoints_folder
+            # mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
 
             self.epoch_idx += 1
             self.epoch_iteration_idx = 0
@@ -144,9 +166,9 @@ class TFTrainer(Trainer, abc.ABC):
                 normalized = self.weights_temp / (2*np.max(np.absolute(self.weights_temp))) # between -0.5 and +0.5
                 self.trainer.weights = normalized + 0.5 # between 0 and 1
                 # probability of zero is not wished for
-                self.trainer.weights[self.trainer.weights == 0] = np.min(self.trainer.weights[self.trainer.weights != 0])
+                self.trainer.weights[self.trainer.weights == 2] = np.min(self.trainer.weights[self.trainer.weights != 2])
                 # tf.keras.backend.set_value(self.model.weighted_metrics, self.trainer.weights)
-                # weights don't have to add up to 1 --> Done
+                # weights don't have to add up to 1
 
         def on_train_batch_begin(self, batch, logs=None):
             """
@@ -185,8 +207,21 @@ class TFTrainer(Trainer, abc.ABC):
                 if self.best_f1_score <= f1_weighted:
                     self.best_f1_score = f1_weighted
                     if self.trainer.do_checkpoint and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint:
-                        keras.models.save_model(model=self.model, filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_f1.ckpt"),save_traces=False,include_optimizer=False)
-                        mlflow_logger.log_checkpoints()
+                        checkpoint_path = f"{CHECKPOINTS_DIR}/cp_best_f1.ckpt"
+                        if self.trainer.adaboost and self.trainer.checkpoints_folder is None:
+                            self.trainer.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
+                            if not os.path.exists(self.trainer.checkpoints_folder):
+                                os.makedirs(self.trainer.checkpoints_folder)
+                        if self.trainer.adaboost and self.trainer.curr_best_checkpoint_path is None:
+                            self.trainer.curr_best_checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_f1.ckpt")
+                        if self.trainer.adaboost:
+                            checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_f1.ckpt")
+                        self.best_score = f1_weighted
+                        keras.models.save_model(model=self.model, filepath=checkpoint_path, save_traces=False,include_optimizer=False)
+
+                    remove_local_checkpoint = not self.trainer.adaboost
+                    other_checkpoint_name = None if not self.trainer.adaboost else self.trainer.checkpoints_folder
+                    mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
 
             if self.trainer.do_checkpoint \
                     and self.iteration_idx % self.trainer.checkpoint_interval == 0 \
@@ -197,6 +232,10 @@ class TFTrainer(Trainer, abc.ABC):
                                   f'_step-{self.iteration_idx}.ckpt'
                 keras.models.save_model(model=self.trainer.model, filepath=checkpoint_path,save_traces=False,include_optimizer=False)
                 mlflow_logger.log_checkpoints()
+
+                remove_local_checkpoint = not self.trainer.adaboost
+                other_checkpoint_name = None if not self.trainer.adaboost else self.trainer.checkpoints_folder
+                mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
 
             self.iteration_idx += 1
             self.epoch_iteration_idx += 1
@@ -342,8 +381,8 @@ class TFTrainer(Trainer, abc.ABC):
         callbacks = [self.callback_handler]
         # model checkpointing functionality moved into TFTrainer.Callback to allow for custom checkpoint names
         
-        if self.use_sample_weighting:
-            self.weights = [np.ones(shape=self.train_dataset_size)]
+        if self.use_sample_weighting and not self.adaboost:
+            self.weights = [np.ones(shape=self.train_dataset_size)*2]
             x, y = self.dataloader.get_training_data_for_one_epoch(split=self.split, batch_size=self.batch_size, preprocessing=self.preprocessing)
             self.model.fit(x, y, validation_data=self.test_loader.take(test_dataset_size), batch_size=self.batch_size, epochs=self.num_epochs,
                         sample_weight = self.weights, # weights are manipulated during callback after each epoch
@@ -355,9 +394,54 @@ class TFTrainer(Trainer, abc.ABC):
 
         if self.do_checkpoint:
             # save final checkpoint
+            checkpoint_path = f"{CHECKPOINTS_DIR}/cp_final.ckpt"
+            if self.adaboost and self.checkpoints_folder is None:
+                self.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
+                if not os.path.exists(self.checkpoints_folder):
+                    os.makedirs(self.checkpoints_folder)
+            if self.adaboost and self.curr_best_checkpoint_path is None:
+                self.curr_best_checkpoint_path = os.path.join(self.checkpoints_folder, "cp_final.ckpt")
+            if self.adaboost:
+                checkpoint_path = os.path.join(self.checkpoints_folder, "cp_final.ckpt")
             keras.models.save_model(model=self.model,
-                                    filepath=os.path.join(CHECKPOINTS_DIR, "cp_final.ckpt"),save_traces=False,include_optimizer=False)
-            mlflow_logger.log_checkpoints()
+                                    filepath=checkpoint_path,save_traces=False,include_optimizer=False)
+            
+            remove_local_checkpoint = not self.adaboost
+            other_checkpoint_name = None if not self.adaboost else self.checkpoints_folder
+            mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
+        
+    def get_F1_scores_training_no_shuffle(self):
+        """
+        Compute the F1 score on the training set without shuffling
+        used e.g. in adaboost to determine the next sample weight
+        """
+        train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=1,
+                                                                    preprocessing=self.preprocessing,
+                                                                    suppress_adaboost_weighting=True)
+        
+        f1_weighted_scores = []
+        threshold = self.segmentation_threshold
+        if self.hyper_seg_threshold:
+            threshold = self.get_best_segmentation_threshold()
+        train_dataset_size, _, _ = self.dataloader.get_dataset_sizes(split=self.split)
+        for x, y in train_loader.take(train_dataset_size):
+            output = self.model(x)
+
+            # More channels than needed - U^2-Net-style
+            if len(output.shape) == 5:
+                output = output[0]
+            preds = tf.cast(tf.squeeze(output) >= threshold, tf.dtypes.int8)
+            blb_input = preds.numpy()
+            preds = remove_blobs(blb_input, threshold=self.blobs_removal_threshold)
+            # print('tf preds 2', preds.shape)
+            
+            precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted,\
+            f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted = precision_recall_f1_score_tf(preds, y)
+
+            f1_weighted_scores.append(f1_weighted)
+
+        return (f1_weighted_scores)
+        
 
     def get_F1_score_validation(self):
         """

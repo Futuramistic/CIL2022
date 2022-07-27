@@ -50,3 +50,30 @@ Debugging:
         }
     ]
 }
+# Deeplabv3 adaboost
+`python main.py --model=deeplabv3 --dataset=original --batch_size=2 --split=0.03 --evaluation_interval=1 -E=DeepLabV3Adaboost --optimizer_or_lr=1e-4 --num_epochs=2 --checkpoint_interval=1 --hyper_seg_threshold=True --use_adaboost=True --adaboost_runs=2 --evaluate --apply_sigmoid=False --blob_threshold=0.0`
+
+# Debugging adaboost with launch.json
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Adaboost Debugging",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "args": ["--model=deeplabv3", "--dataset=original", "--batch_size=2", "--split=0.03", "--evaluation_interval=1", "-E=DeepLabV3Adaboost", "--optimizer_or_lr=1e-4", "num_epochs=2", "--checkpoint_interval=1", "--hyper_seg_threshold=True", "--use_adaboost=True", "--adaboost_runs=2"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}
+
+# Debugging tensorflow adaboost
+`python main.py --model=attunet --dataset=original --batch_size=2 --split=0.03 --evaluation_interval=1 -E=UnetPPAdaboost --optimizer_or_lr=1e-4 --num_epochs=1 --checkpoint_interval=1 --use_adaboost=True --adaboost_runs=2`
+
+# DeepLabV3 Run on Euler with Adaboost
+`bsub -n 1 -W 75:00 -R "rusage[ngpus_excl_p=1, mem=10000]" -R "select[gpu_model0==NVIDIAGeForceGTX1080]" "python main.py -m=deeplabv3 --use_adaboost=True --adaboost_runs=10 --dataset=original_split_1 -E DeepLabV3AdaboostFinal --split=0.827 --num_epochs=75 --checkpoint_interval=25 --hyper_seg_threshold=True --optimizer_or_lr=0.0002 --use_geometric_augmentation=True --use_color_augmentation=True"`
+
+# SegFormer Run on Euler with Adaboost
+`bsub -n 1 -W 75:00 -R "rusage[ngpus_excl_p=1, mem=25000]" -R "select[gpu_model0==NVIDIAGeForceGTX1080]" "python main.py -m=segformer --use_adaboost=True --adaboost_runs=10 --dataset=original_split_1 -E SegFormerAdaboost --split=0.827 --num_epochs=260 --checkpoint_interval=100000 --hyper_seg_threshold=True --optimizer_or_lr=0.0005 --batch_size=2 --use_geometric_augmentation=True --use_color_augmentation=True --blobs_removal_threshold=0 --hyper_seg_threshold=True"`

@@ -106,6 +106,9 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True, checkp
                     precision_recall_f1_score_tf(tf.squeeze(preds), tf.squeeze(y))
                 # change between f1_weighted and f1_patchified_weighted as appropriate
                 f1_scores.append(f1_weighted)
+                # preds = (output_ >= thresh).astype(np.int8)
+                # *_, f1_score = precision_recall_f1_score_tf(preds, y)
+                # f1_scores.append(f1_score.cpu().numpy())
                 del x_
                 del y
         f1_score = np.mean(f1_scores)

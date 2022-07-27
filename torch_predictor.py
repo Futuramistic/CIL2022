@@ -192,6 +192,15 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=True, float
                     pred = pred[None, :, :]
                 tf.keras.utils.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred,
                                         data_format="channels_first")
+            # pred = (output >= segmentation_threshold).cpu().detach().numpy().astype(int)
+            # while len(pred.shape) > 3:
+            #     pred = pred[0]
+            # pred = remove_blobs(pred, threshold=blob_threshold)
+            # pred *= 255
+            # while len(pred.shape) == 2:
+            #     pred = pred[None, :, :]
+            # K_utils.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred,
+            #                  data_format="channels_first")
             i += 1
             del x
 
