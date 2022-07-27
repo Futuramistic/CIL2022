@@ -117,28 +117,43 @@ class AdaBooster:
             print(data_f1_scores)
             print(self.dataloader.weights)
             # data_f1_scores[data_f1_scores == 2] = self.dataloader.weights[data_f1_scores == 2]
-            weights_groundtruth_term = (-data_f1_scores) + (1-data_f1_scores)
             
-            # calculate model error 
-            model_error = np.sum(self.dataloader.weights*weights_groundtruth_term) / np.sum(self.dataloader.weights)
-            log_term = (1-model_error)/model_error
+            
+
+            # the error of the samples (1-F1 of each sample)
+            # old:
+            # samples_error_term = (-data_f1_scores) + (1-data_f1_scores)
+
+            # instead of simulating the classical classifier-based AdaBoost (-1 for incorrect, 1 for correct),
+            # we renormalize each weight to be between 0 and 1 so that model_error stays between 0 and 1
+            samples_error_term = 1 - data_f1_scores
+            
+            # calculate model error (between 0 and 1)
+            model_error = np.sum(self.dataloader.weights * samples_error_term) / np.sum(self.dataloader.weights)
+            log_term = (1 - model_error) / model_error
             if log_term <= 0.0:
                 # infinity numerically unstable
                 log_term = np.float64(SMOL)
-            total_model_performance = 0.5 * np.log(log_term)
+            total_model_performance = 0.5 * np.log(log_term)  # the higher, the better
             self.model_weights.append(total_model_performance)
             
             # calculate new data weights
-            self.dataloader.weights = self.dataloader.weights*np.exp(total_model_performance*weights_groundtruth_term)
+            # weight samples based on error and performance of this model
+            self.dataloader.weights = self.dataloader.weights*np.exp(total_model_performance * samples_error_term)
             # normalize between 0 and 1 again (no negative values allowed)
-            normalized = self.dataloader.weights / (
-                    2 * np.max(np.absolute(self.dataloader.weights)))  # between -0.5 and +0.5
-            self.dataloader.weights = normalized + 0.5  # between 0 and 1
+            # normalized = self.dataloader.weights / (
+            #         2 * np.max(np.absolute(self.dataloader.weights)))  # between -0.5 and +0.5
+            # self.dataloader.weights = normalized + 0.5  # between 0 and 1
+            
             self.dataloader.weights[self.dataloader.weights <= 0] = SMOL # avoid 0
-            print(self.dataloader.weights)
+            print('self.dataloader.weights: ', self.dataloader.weights)
+            print('self.training_img_paths: ', self.dataloader.training_img_paths)
+            print('zip(self.dataloader.training_gt_paths, self.dataloader.weights): ',
+                  list(zip(self.dataloader.training_img_paths, self.dataloader.weights)))
+            
             # normalize so sum of weights is 1
-            self.dataloader.weights /= sum(self.dataloader.weights)
-            print(self.dataloader.weights)
+            #self.dataloader.weights /= sum(self.dataloader.weights)
+           
             # save
             self.update_files()
             

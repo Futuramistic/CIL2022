@@ -217,6 +217,8 @@ class DataLoader(abc.ABC):
         Returns:
             1 if completed successfully else returns an error code
         """
+        os.makedirs('dataset', exist_ok=True)
+
         destination_path = os.path.join(*[ROOT_DIR, "dataset", dataset_name.lower()])
         ts_path = os.path.join(destination_path, "download_timestamp.txt")
         zip_path = f"{destination_path}.zip"

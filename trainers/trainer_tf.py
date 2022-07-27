@@ -123,22 +123,26 @@ class TFTrainer(Trainer, abc.ABC):
             # checkpoint, we simply check at the end of each epoch whether there are any checkpoints to upload
             # and upload them if necessary
             
-            if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']:
-                self.best_val_loss = logs['val_loss']
-                checkpoint_path = f"{CHECKPOINTS_DIR}/cp_best_val_loss.ckpt"
-                if self.trainer.adaboost and self.trainer.checkpoints_folder is None:
-                    self.trainer.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
-                    if not os.path.exists(self.trainer.checkpoints_folder):
-                        os.makedirs(self.trainer.checkpoints_folder)
-                if self.trainer.adaboost:
-                    # we always want the best validation f1 score to be our currently best model
-                    self.trainer.curr_best_checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_val_loss.ckpt")
-                    checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_val_loss.ckpt")
-                keras.models.save_model(model=self.model,
-                                        filepath=checkpoint_path)
-            remove_local_checkpoint = not self.trainer.adaboost
-            other_checkpoint_name = None if not self.trainer.adaboost else self.trainer.checkpoints_folder
-            mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
+            # if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']:
+            #     self.best_val_loss = logs['val_loss']
+            #     checkpoint_path = f"{CHECKPOINTS_DIR}/cp_best_val_loss.ckpt"
+            #     if self.trainer.adaboost and self.trainer.checkpoints_folder is None:
+            #         self.trainer.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
+            #         if not os.path.exists(self.trainer.checkpoints_folder):
+            #             os.makedirs(self.trainer.checkpoints_folder)
+            #     if self.trainer.adaboost:
+            #         # we always want the best validation f1 score to be our currently best model
+            #         # not for validation loss, only for f1:
+            #         # self.trainer.curr_best_checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_val_loss.ckpt")
+            #         checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_val_loss.ckpt")
+            #     keras.models.save_model(model=self.model,
+            #                             filepath=checkpoint_path)
+            
+            # log checkpoints right away when created (consider this when merging)
+            
+            # remove_local_checkpoint = not self.trainer.adaboost
+            # other_checkpoint_name = None if not self.trainer.adaboost else self.trainer.checkpoints_folder
+            # mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
 
             self.epoch_idx += 1
             self.epoch_iteration_idx = 0
@@ -192,7 +196,8 @@ class TFTrainer(Trainer, abc.ABC):
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx, self.epoch_idx,
                                                          self.epoch_iteration_idx)
                 # save the best f1 score checkpoint
-                if self.trainer.do_checkpoint and self.best_score <= f1_weighted:
+                if self.trainer.do_checkpoint and self.best_score <= f1_weighted\
+                   and DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT < self.f1_score:
                     checkpoint_path = f"{CHECKPOINTS_DIR}/cp_best_f1.ckpt"
                     if self.trainer.adaboost and self.trainer.checkpoints_folder is None:
                         self.trainer.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
@@ -205,6 +210,10 @@ class TFTrainer(Trainer, abc.ABC):
                     self.best_score = f1_weighted
                     keras.models.save_model(model=self.model, filepath=checkpoint_path)
 
+                    remove_local_checkpoint = not self.trainer.adaboost
+                    other_checkpoint_name = None if not self.trainer.adaboost else self.trainer.checkpoints_folder
+                    mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
+
             if self.trainer.do_checkpoint \
                     and self.iteration_idx % self.trainer.checkpoint_interval == 0 \
                     and self.iteration_idx > 0:  # avoid creating checkpoints at iteration 0
@@ -212,6 +221,10 @@ class TFTrainer(Trainer, abc.ABC):
                                   f'_it-{"%05i" % self.epoch_iteration_idx}' + \
                                   f'_step-{self.iteration_idx}.ckpt'
                 keras.models.save_model(model=self.trainer.model, filepath=checkpoint_path)
+
+                remove_local_checkpoint = not self.trainer.adaboost
+                other_checkpoint_name = None if not self.trainer.adaboost else self.trainer.checkpoints_folder
+                mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
 
             self.iteration_idx += 1
             self.epoch_iteration_idx += 1
@@ -380,6 +393,10 @@ class TFTrainer(Trainer, abc.ABC):
                 checkpoint_path = os.path.join(self.checkpoints_folder, "cp_final.ckpt")
             keras.models.save_model(model=self.model,
                                     filepath=checkpoint_path)
+            
+            remove_local_checkpoint = not self.trainer.adaboost
+            other_checkpoint_name = None if not self.trainer.adaboost else self.trainer.checkpoints_folder
+            mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
         
     def get_F1_scores_training_no_shuffle(self):
         """

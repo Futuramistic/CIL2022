@@ -95,7 +95,9 @@ def log_checkpoints(remove_local=True, other_checkpoint_name=None):
         # check if there are checkpoints to log
         if os.path.isdir(checkpoint_dir) and len(os.listdir(checkpoint_dir)) > 0:
             print('\nLogging checkpoints to MLFlow...')
+            
             mlflow.log_artifacts(checkpoint_dir, 'checkpoints/')
+            
             print('Logging checkpoints successful')
             if remove_local:
                 shutil.rmtree(checkpoint_dir)  # Remove the directory and its contents

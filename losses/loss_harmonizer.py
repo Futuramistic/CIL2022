@@ -29,7 +29,8 @@ def collapse_channel_dim_torch(tensor, take_argmax, dim_layout=DEFAULT_TORCH_DIM
         # remove the channel dimension
         # assume last channel (may be the only channel) corresponds to road class
         selector = [-1 if dim_idx == channel_dim_idx else slice(0, shape[dim_idx]) for dim_idx in range(len(shape))]
-        if take_argmax:
+        # merge: please keep this
+        if take_argmax and torch.is_floating_point(tensor[selector]):
             return tensor[selector].round()
         else:
             return tensor[selector]
