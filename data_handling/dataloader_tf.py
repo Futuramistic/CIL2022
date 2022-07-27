@@ -268,7 +268,7 @@ class TFDataLoader(DataLoader):
             self.training_data = self.__get_image_data_with_weighting(self.training_img_paths, self.training_gt_paths,
                                                                       shuffle=shuffle, preprocessing=preprocessing, 
                                                                       offset=0, length=train_size)
-            self.testing_data = self.__get_image_data_with_weighting(self.training_img_paths, self.training_gt_paths,
+            self.testing_data = self.__get_image_data(self.training_img_paths, self.training_gt_paths,
                                                                      shuffle=shuffle, preprocessing=preprocessing, 
                                                                      offset=train_size, length=test_size)
         else:
