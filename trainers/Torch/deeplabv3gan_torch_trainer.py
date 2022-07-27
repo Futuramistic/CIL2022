@@ -134,7 +134,7 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
                 with torch.no_grad():
                     train_loss += loss.item()
 
-                loss.backward()
+                loss.backward(retain_graph=True)
                 opt.step()
 
                 if self.use_sample_weighting:
