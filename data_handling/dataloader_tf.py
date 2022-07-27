@@ -188,11 +188,11 @@ class TFDataLoader(DataLoader):
         
         if not self.weights_set:
             # init with equal weights
-            self.weights = np.ones((len(img_paths_tf)))*(1/len(img_paths_tf))
+            self.weights = np.ones(length)*(1/length)
             
         # create probability disribution from weights:
-        values = list(range(len(img_paths_tf)))
-        sampled_dist = np.squeeze(np.random.choice(a=values, size=len(img_paths_tf)))
+        values = list(range(length))
+        sampled_dist = np.squeeze(np.random.choice(a=values, size=length))
 
         if gt_paths is not None:
             gt_paths_tf = tf.convert_to_tensor(gt_paths[offset:offset + length])
