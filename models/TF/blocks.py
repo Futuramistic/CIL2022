@@ -11,7 +11,7 @@ This file contains many Blocks used in various models
 
 class ConvoRelu_Block(tf.keras.layers.Layer):
     def __init__(self,name="ConvoRelu-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,
-                 kernel_regularizer=K.regularizers.l2(),kernel_size=3,dilation_rate=1,activation='leaky_relu',**kwargs):
+                 kernel_regularizer=None,kernel_size=3,dilation_rate=1,activation='leaky_relu',**kwargs):
         super(ConvoRelu_Block, self).__init__(name=name,**kwargs)
         self.dropout = dropout
         self.filters = filters
@@ -53,7 +53,7 @@ class ConvoRelu_Block(tf.keras.layers.Layer):
 
 class Convo_Block(tf.keras.layers.Layer):
     def __init__(self, name="convo-block", dropout=0.5, filters=64, kernel_init='he_normal',
-                 kernel_regularizer=K.regularizers.l2(),
+                 kernel_regularizer=None,
                  normalize=False, kernel_size=3, dilation_rate=1, activation='leaky_relu', **kwargs):
         super(Convo_Block, self).__init__(name=name, **kwargs)
         self.dropout = dropout
@@ -94,7 +94,7 @@ class Convo_Block(tf.keras.layers.Layer):
 
 class Down_Block(tf.keras.layers.Layer):
     def __init__(self,name="down-block",dropout=0.5,filters=64,kernel_init='he_normal',
-                 kernel_regularizer=K.regularizers.l2(),
+                 kernel_regularizer=None,
                  normalize=False,kernel_size=3,dilation_rate=1,activation='leaky_relu',**kwargs):
         super(Down_Block,self).__init__(name=name,**kwargs)
         self.dropout = dropout
@@ -138,7 +138,7 @@ class Down_Block_LearnablePool(tf.keras.layers.Layer):
     learn which one is best.
     """
     def __init__(self, name="down-block-learnable-pool", dropout=0.5, filters=64, kernel_init='he_normal',
-                 kernel_regularizer=K.regularizers.l2(), normalize=False,
+                 kernel_regularizer=None, normalize=False,
                  kernel_size=3, dilation_rate=1, **kwargs):
         super(Down_Block_LearnablePool, self).__init__(name=name, **kwargs)
         self.convo_block = Convo_Block(name + "-convo-block", dropout=dropout, filters=filters, kernel_init=kernel_init,
@@ -158,7 +158,7 @@ class Down_Block_LearnablePool(tf.keras.layers.Layer):
 
 class Transpose_Block(tf.keras.layers.Layer):
     def __init__(self,name="up-convo",filters=64,dropout=0.5,kernel_init='he_normal',normalize=False,
-                 kernel_regularizer=K.regularizers.l2(),activation='leaky_relu',**kwargs):
+                 kernel_regularizer=None,activation='leaky_relu',**kwargs):
         super(Transpose_Block,self).__init__(name=name,**kwargs)
         self.dropout = dropout
         self.filters = filters
@@ -197,7 +197,7 @@ class Transpose_Block(tf.keras.layers.Layer):
 
 class UpSampleConvo_Block(tf.keras.layers.Layer):
     def __init__(self,name="attention-up-block",dropout=0.5,filters=64,kernel_init='he_normal',
-                 kernel_regularizer=K.regularizers.l2(),normalize=False,activation='leaky_relu',**kwargs):
+                 kernel_regularizer=None,normalize=False,activation='leaky_relu',**kwargs):
         super(UpSampleConvo_Block,self).__init__(name=name,**kwargs)
         self.dropout = dropout
         self.filters = filters
@@ -227,7 +227,7 @@ class UpSampleConvo_Block(tf.keras.layers.Layer):
 
 class Up_Block(tf.keras.layers.Layer):
     def __init__(self,name="up-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,
-                 up_convo = Transpose_Block, kernel_regularizer=K.regularizers.l2(),activation='leaky_relu',**kwargs):
+                 up_convo = Transpose_Block, kernel_regularizer=None,activation='leaky_relu',**kwargs):
         super(Up_Block,self).__init__(name=name,**kwargs) 
         self.dropout = dropout
         self.filters = filters
@@ -266,7 +266,7 @@ class Up_Block(tf.keras.layers.Layer):
 
 class Attention(tf.keras.layers.Layer):
     def __init__(self,name="attention",filters=64,normalize=False,kernel_init='he_normal',
-                 kernel_regularizer=K.regularizers.l2(),**kwargs):
+                 kernel_regularizer=None,**kwargs):
         super(Attention,self).__init__(name=name,**kwargs)
         self.normalize = normalize
         self.filters = filters
@@ -314,7 +314,7 @@ class Attention(tf.keras.layers.Layer):
 
 class Attention_Block_Concat(tf.keras.layers.Layer):
     def __init__(self,name="attention-up-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,
-                 up_convo=Transpose_Block,kernel_regularizer=K.regularizers.l2(),**kwargs):
+                 up_convo=Transpose_Block,kernel_regularizer=None,**kwargs):
         super(Attention_Block_Concat,self).__init__(name=name,**kwargs)
         self.dropout = dropout
         self.filters = filters
@@ -349,7 +349,7 @@ class Attention_Block_Concat(tf.keras.layers.Layer):
 
 class Attention_Block(tf.keras.layers.Layer):
     def __init__(self,name="attention-block", dropout=0.5, filters=64, kernel_init='he_normal', normalize=False,
-                 up_convo=Transpose_Block, kernel_regularizer=K.regularizers.l2(), **kwargs):
+                 up_convo=Transpose_Block, kernel_regularizer=None, **kwargs):
         super(Attention_Block, self).__init__(name=name, **kwargs)
         self.dropout = dropout
         self.filters = filters
@@ -383,7 +383,7 @@ class Attention_PlusPlus_Block(tf.keras.layers.Layer):
     Attention Block used in the Attention UNet++
     """
     def __init__(self,name="attention-plus-plus", dropout=0.5, filters=64, kernel_init='he_normal', normalize=False,
-                 up_convo=Transpose_Block,kernel_regularizer=K.regularizers.l2(), **kwargs):
+                 up_convo=Transpose_Block,kernel_regularizer=None, **kwargs):
         super(Attention_PlusPlus_Block, self).__init__(name=name, **kwargs)
         self.dropout = dropout
         self.filters = filters
