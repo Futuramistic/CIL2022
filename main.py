@@ -55,7 +55,7 @@ def main():
     parser.add_argument('-L', '--loss_function', type=str, required=False)
     # json.loads: substitute for dict
     parser.add_argument('-H', '--loss_function_hyperparams', type=json.loads, required=False, default=None)
-    parser.add_argument('-i', '--evaluation_interval', type=float, required=False)
+    parser.add_argument('-i', '--evaluation_interval', type=float, required=False, default=10)
     parser.add_argument('-v', '--num_samples_to_visualize', type=int, required=False)
     parser.add_argument('-c', '--checkpoint_interval', type=int, required=False)
     parser.add_argument('-C', '--load_checkpoint_path', '--from_checkpoint', type=str, required=False)
