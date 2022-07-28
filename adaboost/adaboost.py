@@ -22,7 +22,7 @@ def fix_gpu():
 SMOL = 2e-5
 
 class AdaBooster:
-    def __init__(self, factory, known_args_dict, unknown_args_dict,  model_spec_args, trainer_spec_args, dataloader_spec_args, is_debug):
+    def __init__(self, factory, known_args_dict, unknown_args_dict,  model_spec_args, trainer_spec_args, dataloader_spec_args, deep_adaboost, is_debug):
         """An Adaboost class for performing the classical adaboost algorithm. The evaluation parameter will create the submission files on
         the test data set.
         Note that it is necessary to call each new adaboost experiment by a separate experiment name, otherwise the previous experiment
@@ -119,7 +119,6 @@ class AdaBooster:
             # data_f1_scores[data_f1_scores == 2] = self.dataloader.weights[data_f1_scores == 2]
             
             
-
             # the error of the samples (1-F1 of each sample)
             # old:
             # samples_error_term = (-data_f1_scores) + (1-data_f1_scores)

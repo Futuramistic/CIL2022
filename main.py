@@ -117,7 +117,8 @@ def main():
     
     # call adaboost script if adaboost is used
     if known_args_dict["use_adaboost"]:
-        adabooster = AdaBooster(factory, known_args_dict, unknown_args_dict, model_spec_args, trainer_spec_args, dataloader_spec_args, IS_DEBUG)
+        adabooster = AdaBooster(factory, known_args_dict, unknown_args_dict, model_spec_args, trainer_spec_args,
+                                dataloader_spec_args, known_args.deep_adaboost, IS_DEBUG)
         adabooster.run()
         return
     
