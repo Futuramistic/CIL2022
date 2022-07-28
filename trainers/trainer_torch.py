@@ -97,13 +97,6 @@ class TorchTrainer(Trainer, abc.ABC):
                         mlflow_logger.log_visualizations(self.trainer, self.iteration_idx, self.epoch_idx,
                                                          self.epoch_iteration_idx)
 
-                # Save checkpoints
-                    
-                if self.best_f1_score < self.f1_score:
-                    self.best_f1_score = self.f1_score    
-                    if self.trainer.do_checkpoint and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint:
-                        self.trainer._save_checkpoint(self.trainer.model, None, None, None, best="f1")
-
             if self.trainer.do_checkpoint \
                     and self.iteration_idx % self.trainer.checkpoint_interval == 0 \
                     and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint \
