@@ -240,7 +240,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
               cgm=False,
               cgm_dropout=0.1,
               architecture="vgg",
-              freeze=True,
+              freeze="freeze",
               **kwargs):
     """
     Custom UNetExp Network:
@@ -307,14 +307,18 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             base_model = K.applications.ResNet101V2(include_top=False, weights='imagenet', input_shape=input_shape)
         
         if base_model is not None:
-            # Layers can be unfrozen for fine-tunning ALREADY TRAINED models
-            # BatchNorm should be trainable at all times to learn dataset specifics
-            if freeze:
+            # Full freeze of the base model - no data specific learned/only better gradient
+            if freeze == "full-freeze":
+                for layer in base_model.layers:
+                    layer.trainable=False
+            # BatchNorm can become trainable to learn data specifics
+            elif freeze == "freeze":
                 for layer in base_model.layers:
                     if isinstance(layer,K.layers.BatchNormalization):
                         layer.trainable = True
                     else:
                         layer.trainable = False
+            # All layers can be unfrozen for fine-tunning ALREADY TRAINED models
             else:
                 for layer in base_model.layers:
                     layer.trainable=True
