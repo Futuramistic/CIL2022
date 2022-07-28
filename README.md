@@ -78,8 +78,15 @@ conda install cmake
 
 To install the requirements, run:
 
+- Linux:
+
 ```setup
-pip install -r requirements.txt
+pip install -r requirements_unix.txt
+```
+
+- Windows:
+```setup
+pip install -r requirements_windows.txt
 ```
 
 ## Datasets
@@ -98,14 +105,8 @@ dataset names are:
 > * new_ext_original: "ext_original" dataset, with first 25 samples moved to end to form the validation split
 > * new_ext_original_oversampled: "ext_original" dataset, with second city class oversampled, and 
 first 25 sample moved to end to form the validation split
-> * original_gt: dataset used in the ETHZ CIL Road Segmentation 2022 Kaggle competition, 
-but with images replaced by ground truth
-> * original_128: "original" dataset, patchified into 128x128 patches and augmented using Preprocessor
-> * original_256: "original" dataset, patchified into 256x256 patches and augmented using Preprocessor
 > * additional_maps_1: dataset retrieved from http://efrosgans.eecs.berkeley.edu/pix2pix/datasets/
 > * massachusetts_400: Massachusetts Road dataset (400x400)
-> * massachusetts_256: Massachusetts Road dataset (256x256)
-> * massachusetts_128: Massachusetts Road dataset (128x128)
 > * original_aug_6: "original" dataset, 400x400 but with augmented training set using Preprocessor (x6)
 > * new_original_aug_6: Recreation of "original_aug_6" dataset, but with 25 samples from original dataset excluded from augmentation
 procedure to avoid data leakage
@@ -138,31 +139,31 @@ command-line below under the `model-name` argument):
 
 *Tensorflow models*
 ```
-* UNet (name: 'unettf')
-* UNet++ (name: 'unet++')
-* UNetExp (name: 'unetexp')
-* UNet3+ (name: 'unet3+')
-* Attention UNet ('attunet')
-* Attention UNet++ ('attunet++')
-* GL Dense UNet ('gldenseunet')
+- UNet (name: 'unettf')
+- UNet++ (name: 'unet++')
+- UNetExp (name: 'unetexp')
+- UNet3+ (name: 'unet3+')
+- Attention UNet ('attunet')
+- Attention UNet++ ('attunet++')
+- GL Dense UNet ('gldenseunet')
 ```
 
 *Torch models*
 ```
-* UNet (name: 'unet')
-* CRA-Net (name: 'cranet')
-* DeepLabV3 (name: 'deeplabv3')
-* DeepLabV3+GAN (name: 'deeplabv3plusgan')
-* SegFormer (name: 'segformer')
-* TwoShotNet (name: 'twoshotnet')
+- UNet (name: 'unet')
+- CRA-Net (name: 'cranet')
+- DeepLabV3 (name: 'deeplabv3')
+- DeepLabV3+GAN (name: 'deeplabv3plusgan')
+- SegFormer (name: 'segformer')
+- TwoShotNet (name: 'twoshotnet')
 ```
 
 >📋  TODO: Only keep the models that have been tested
 
 *Reinforcement Learning models (Torch)*
 ```
-* SimpleRLCNN (name: 'simplerlcnn')
-* SimpleRLCNNMinimal (name: 'simplerlcnnminimal')
+- SimpleRLCNN (name: 'simplerlcnn')
+- SimpleRLCNNMinimal (name: 'simplerlcnnminimal')
 ```
 
 ## Training
