@@ -150,7 +150,13 @@ DATASET_ZIP_URLS = {
     # hand-filtered dataset of 1597 satellite images screenshotted from Google Maps
     # same 25 validation samples as in "new_original", "new_ext_original" and
     # "new_original_aug_6" datasets; use split of 0.9846 to use exactly these 25 samples as the validation set
-    "maps_filtered": "https://polybox.ethz.ch/index.php/s/MfCcVyZRJ6TRDWb/download"
+    "maps_filtered": "https://polybox.ethz.ch/index.php/s/MfCcVyZRJ6TRDWb/download",
+    
+    # maps_filtered, without any original samples in training set,
+    # 400x400 but with augmented training set using Preprocessor (x6)
+    # same 25 validation samples as in "new_original", "maps_filtered", etc.
+    # use split of 0.9977 to use exactly these 25 samples as the validation set
+    "maps_filtered_no_original_aug_6": "https://polybox.ethz.ch/index.php/s/o0sJxeuujwPWbxH/download"
 }
 DATASET_STATS = {
 'original': {
@@ -197,7 +203,9 @@ DATASET_STATS = {
     'pixel_std_0': 95.788, 'pixel_std_1': 95.909, 'pixel_std_2': 95.496},
 'maps_filtered': {
     'pixel_mean_0': 128.833, 'pixel_mean_1': 128.790, 'pixel_mean_2': 128.829, 'pixel_std_0': 54.380,
-    'pixel_std_1': 54.207, 'pixel_std_2': 54.045}
+    'pixel_std_1': 54.207, 'pixel_std_2': 54.045},
+'maps_filtered_no_original_aug_6': {
+    'pixel_mean_0': 95.398, 'pixel_mean_1': 102.010, 'pixel_mean_2': 108.387, 'pixel_std_0': 94.464, 'pixel_std_1': 94.473, 'pixel_std_2': 94.066}
 }
 
 # in case multiple jobs are running in the same directory, SESSION_ID will prevent name conflicts
