@@ -5,7 +5,9 @@ This repository contains the implementation of our solution for the Road Segment
 Please refer to the accompanying [<insert_link_to_pdf>](https://arxiv.org/abs/2030.12345) for an in-depth description of our 
 research process and results.
 
->📋  Optional: include a graphic explaining your approach/main result, bibtex entry, link to demos, blog posts and tutorials
+
+<p align="center"><img src="http://kamui-interactive.com/wp-content/uploads/2022/07/unetexp.png" alt="Our UNet Exp architecture" width="600"></p>
+<p align="center">Our UNet Exp architecture</p>
 
 ## Authors
 * Alexey Gavryushin
