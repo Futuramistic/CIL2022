@@ -106,7 +106,12 @@ class TorchDataLoader(DataLoader):
 
         # self.dataset is not yet set in these cases:
         if weights is None or len(weights) == 0:
-            ret = torchDL(self.training_data, batch_size, shuffle=True, **kwargs)
+            del_shuffle = 'shuffle' not in kwargs
+            if del_shuffle:
+                kwargs['shuffle'] = True
+            ret = torchDL(self.training_data, batch_size, **kwargs)
+            if del_shuffle:
+                del kwargs['shuffle']
             
         elif not self.use_adaboost:
             # sample weighting (which adapts the sample weights after each epoch of the current model) is mutually exclusive with adaboost

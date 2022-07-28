@@ -90,16 +90,16 @@ class AdaBooster:
         if self.deep_adaboost:
             # calculate the val sample -- train sample similarities once
 
+            dataset_name = self.dataloader.dataset
             val_sample_train_sample_dist_path =\
                 os.path.join('dataset', dataset_name, f'precached_sample_distances__{dataset_name}__{dataset_name}.pkl')
 
             if os.path.isfile(val_sample_train_sample_dist_path):
-                with open(val_sample_train_sample_dist_path, 'wb') as f:
+                with open(val_sample_train_sample_dist_path, 'rb') as f:
                     training_sample_weights_for_validation_samples = pickle.load(f)
             else:
                 print('Precaching val sample -- train sample distances...')
 
-                dataset_name = self.dataloader.dataset
                 # iterate through, calculate
                 sample_dist_path = os.path.join('dataset', dataset_name,
                                                 f'sample_distances__{dataset_name}__{dataset_name}.pkl')
@@ -121,16 +121,18 @@ class AdaBooster:
                                         **self.trainer_args)
                 
                 train_dl = self.dataloader.get_training_dataloader(trainer.split, batch_size=1, weights=None,
-                                                                preprocessing=trainer.preprocessing,
-                                                                suppress_adaboost_weighting=True)
+                                                                   preprocessing=trainer.preprocessing,
+                                                                   suppress_adaboost_weighting=True, shuffle=False)
                 test_dl = self.dataloader.get_testing_dataloader(batch_size=1,
                                                                 preprocessing=trainer.preprocessing)
 
                 training_sample_weights_for_validation_samples = np.zeros((len(test_dl), len(train_dl)))
-                for _, _, test_idx_with_offset in test_dl:
-                    test_idx = test_idx_with_offset - len(train_dl)
+
+
+                for test_idx in range(len(test_dl)):
+                    # test_idx = test_idx_with_offset - len(train_dl)
                     test_x_filename = os.path.basename(self.dataloader.training_img_paths[test_idx])  # no need to add offset
-                    for _, _, train_idx in train_dl:
+                    for train_idx in range(len(train_dl)):
                         train_x_filename = os.path.basename(self.dataloader.training_img_paths[train_idx])
                         training_sample_weights_for_validation_samples[test_idx][train_idx] =\
                             sample_distances[train_x_filename][test_x_filename]
