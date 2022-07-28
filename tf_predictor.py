@@ -81,7 +81,7 @@ def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True, checkp
     for thresh in np.linspace(0, 1, 41):
         f1_scores = []
         with torch.no_grad():
-            for x_, y in tqdm(loader):
+            for x_, y, *_ in tqdm(loader):
                 if with_augmentation:
                     x_ = _augment(tf.squeeze(x_))
 

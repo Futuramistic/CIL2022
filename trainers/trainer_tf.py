@@ -393,7 +393,7 @@ class TFTrainer(Trainer, abc.ABC):
     def get_F1_scores_training_no_shuffle(self):
         """
         Compute the F1 score on the training set without shuffling
-        used e.g. in adaboost to determine the next sample weight
+        used e.g. in AdaBoost to determine the next sample weight
         """
         train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=1,
                                                                     preprocessing=self.preprocessing,
@@ -404,7 +404,7 @@ class TFTrainer(Trainer, abc.ABC):
         if self.hyper_seg_threshold:
             threshold = self.get_best_segmentation_threshold()
         train_dataset_size, _, _ = self.dataloader.get_dataset_sizes(split=self.split)
-        for x, y in train_loader.take(train_dataset_size):
+        for x, y, *_ in train_loader.take(train_dataset_size):
             output = self.model(x)
 
             # More channels than needed - U^2-Net-style
@@ -422,6 +422,36 @@ class TFTrainer(Trainer, abc.ABC):
 
         return (f1_weighted_scores)
         
+    def get_F1_scores_validation(self):
+        """
+        Compute the F1 score on the validation set
+        used e.g. in Deep AdaBoost to determine the next sample weight
+        """
+        test_loader = self.dataloader.get_testing_dataloader(batch_size=1,
+                                                              preprocessing=self.preprocessing)
+        
+        f1_weighted_scores = []
+        threshold = self.segmentation_threshold
+        if self.hyper_seg_threshold:
+            threshold = self.get_best_segmentation_threshold()
+        _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
+        for x, y, *_ in test_loader.take(test_dataset_size):
+            output = self.model(x)
+
+            # More channels than needed - U^2-Net-style
+            if len(output.shape) == 5:
+                output = output[0]
+            preds = tf.cast(tf.squeeze(output) >= threshold, tf.dtypes.int8)
+            blb_input = preds.numpy()
+            preds = remove_blobs(blb_input, threshold=self.blobs_removal_threshold)
+            # print('tf preds 2', preds.shape)
+            
+            precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted,\
+            f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted = precision_recall_f1_score_tf(preds, y)
+
+            f1_weighted_scores.append(f1_weighted)
+
+        return (f1_weighted_scores)
 
     def get_F1_score_validation(self):
         """
@@ -446,7 +476,7 @@ class TFTrainer(Trainer, abc.ABC):
         if self.hyper_seg_threshold:
             threshold = self.get_best_segmentation_threshold()
         _, test_dataset_size, _ = self.dataloader.get_dataset_sizes(split=self.split)
-        for x, y in self.test_loader.take(test_dataset_size):
+        for x, y, *_ in self.test_loader.take(test_dataset_size):
             output = self.model(x)
 
             # More channels than needed - U^2-Net-style
@@ -508,7 +538,7 @@ class TFTrainer(Trainer, abc.ABC):
         targets = []
         threshold_optimizer = ThresholdOptimizer()
         dataloader_len, _, _ = self.dataloader.get_dataset_sizes(split=0.2)
-        for (x, y) in self.seg_thresh_dataloader.take(dataloader_len):
+        for x, y, *_ in self.seg_thresh_dataloader.take(dataloader_len):
             output = self.model(x)
             # More channels than needed - U^2-Net-style
             if len(output.shape) == 5:

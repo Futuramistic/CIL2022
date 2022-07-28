@@ -75,50 +75,51 @@ def main(dataset_1, dataset_2):
         model = to_cuda(model)
     model.eval()
 
-    for filename_1 in tqdm(os.listdir(ds_1_images_dir)):
-        if filename_1.lower().endswith('.png'):
-            # load the image from disk
-            img_path_1 = os.path.join(ds_1_images_dir, filename_1)
-            image_1_np = cv2.imread(img_path_1, cv2.IMREAD_UNCHANGED)
-            image_1 = torch.from_numpy(image_1_np)
-            if len(image_1.shape) == 2:
-                image_1 = image_1.unsqueeze(-1).repeat((1, 1, 3))
-            image_1 = torch.permute(image_1, (2, 0, 1))  # channel dim first
-            image_1 = image_1[
-                [2, 1, 0, 3] if image_1.shape[0] == 4 else [2, 1, 0] if image_1.shape[0] == 3 else [0]]  # BGR to RGB
-            image_1 = image_1[:3, ...].float() / 255.0
-            if torch.cuda.is_available():
-                image_1 = to_cuda(image_1)
+    with torch.no_grad():
+        for filename_1 in tqdm(os.listdir(ds_1_images_dir)):
+            if filename_1.lower().endswith('.png'):
+                # load the image from disk
+                img_path_1 = os.path.join(ds_1_images_dir, filename_1)
+                image_1_np = cv2.imread(img_path_1, cv2.IMREAD_UNCHANGED)
+                image_1 = torch.from_numpy(image_1_np)
+                if len(image_1.shape) == 2:
+                    image_1 = image_1.unsqueeze(-1).repeat((1, 1, 3))
+                image_1 = torch.permute(image_1, (2, 0, 1))  # channel dim first
+                image_1 = image_1[
+                    [2, 1, 0, 3] if image_1.shape[0] == 4 else [2, 1, 0] if image_1.shape[0] == 3 else [0]]  # BGR to RGB
+                image_1 = image_1[:3, ...].float() / 255.0
+                if torch.cuda.is_available():
+                    image_1 = to_cuda(image_1)
 
-            features_1 = model(image_1.unsqueeze(0))
+                features_1 = model(image_1.unsqueeze(0))
 
-            for filename_2 in os.listdir(ds_2_images_dir):
-                if filename_2.lower().endswith('.png'):
-                    # load the image from disk
-                    img_path_2 = os.path.join(ds_2_images_dir, filename_2)
-                    image_2_np = cv2.imread(img_path_2, cv2.IMREAD_UNCHANGED)
-                    image_2 = torch.from_numpy(image_2_np)
-                    if len(image_2.shape) == 2:
-                        image_2 = image_2.unsqueeze(-1).repeat((1, 1, 3))
-                    image_2 = torch.permute(image_2, (2, 0, 1))  # channel dim first
-                    image_2 = image_2[
-                        [2, 1, 0, 3] if image_2.shape[0] == 4 else [2, 1, 0] if image_2.shape[0] == 3 else [
-                            0]]  # BGR to RGB
-                    image_2 = image_2[:3, ...].float() / 255.0
-                    if torch.cuda.is_available():
-                        image_2 = to_cuda(image_2)
+                for filename_2 in os.listdir(ds_2_images_dir):
+                    if filename_2.lower().endswith('.png'):
+                        # load the image from disk
+                        img_path_2 = os.path.join(ds_2_images_dir, filename_2)
+                        image_2_np = cv2.imread(img_path_2, cv2.IMREAD_UNCHANGED)
+                        image_2 = torch.from_numpy(image_2_np)
+                        if len(image_2.shape) == 2:
+                            image_2 = image_2.unsqueeze(-1).repeat((1, 1, 3))
+                        image_2 = torch.permute(image_2, (2, 0, 1))  # channel dim first
+                        image_2 = image_2[
+                            [2, 1, 0, 3] if image_2.shape[0] == 4 else [2, 1, 0] if image_2.shape[0] == 3 else [
+                                0]]  # BGR to RGB
+                        image_2 = image_2[:3, ...].float() / 255.0
+                        if torch.cuda.is_available():
+                            image_2 = to_cuda(image_2)
 
-                    features_2 = model(image_2.unsqueeze(0))
+                        features_2 = model(image_2.unsqueeze(0))
 
-                    # use MSE as distance
-                    dist = ((features_1 - features_2) ** 2.0).sum() / torch.numel(features_1)
-                    if filename_1 not in dist_dict_1_2:
-                        dist_dict_1_2[filename_1] = {}
-                    dist_dict_1_2[filename_1][filename_2] = dist
+                        # use MSE as distance
+                        dist = ((features_1 - features_2) ** 2.0).sum() / torch.numel(features_1)
+                        if filename_1 not in dist_dict_1_2:
+                            dist_dict_1_2[filename_1] = {}
+                        dist_dict_1_2[filename_1][filename_2] = dist
 
-                    if filename_2 not in dist_dict_2_1:
-                        dist_dict_2_1[filename_2] = {}
-                    dist_dict_2_1[filename_2][filename_1] = dist
+                        if filename_2 not in dist_dict_2_1:
+                            dist_dict_2_1[filename_2] = {}
+                        dist_dict_2_1[filename_2][filename_1] = dist
 
     with open(os.path.join('dataset', dataset_1, f'sample_distances__{dataset_1}__{dataset_2}.pkl'), 'wb') as f:
         pickle.dump(dist_dict_1_2, f)
