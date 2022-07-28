@@ -2,18 +2,17 @@ from trainers.trainer_torch import TorchTrainer
 from utils.logging import pushbullet_logger
 from utils import ROOT_DIR, OUTPUT_PRED_DIR, create_or_clean_directory
 from torch_predictor import compute_best_threshold
-import mask_to_submission
 
 import os
 import pickle
 import numpy as np
 from tqdm import tqdm
-from datetime import datetime
-import subprocess
+import time
 
 # in order to fix some tensorflow issue for the dataloader weighting
 from tensorflow.compat.v1 import ConfigProto
 from tensorflow.compat.v1 import InteractiveSession
+from utils.utils import CHECKPOINTS_DIR, SESSION_ID
 def fix_gpu():
     config = ConfigProto()
     config.gpu_options.allow_growth = True
@@ -85,8 +84,11 @@ class AdaBooster:
         curr_run_idx = len(self.experiment_names)
         if curr_run_idx > 0:
             self.dataloader.weights_set = True
+        
+        global CHECKPOINTS_DIR 
         while curr_run_idx < self.known_args_dict["adaboost_runs"]:
-            
+            # snapshot zip name and session ID don't have to be set, as code doesn't change
+            CHECKPOINTS_DIR = os.path.join("checkpoints", str(int(time.time() * 1000)))
             # Create the model using the commandline arguments
             model = self.factory.get_model_class()(**self.model_args)
             

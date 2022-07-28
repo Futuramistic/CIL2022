@@ -129,28 +129,6 @@ class TFTrainer(Trainer, abc.ABC):
             #    keras.models.save_model(model=self.model,
             #                            filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"),save_traces=False,include_optimizer=True)
             #    mlflow_logger.log_checkpoints()
-            
-            
-            # if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']:
-            #     self.best_val_loss = logs['val_loss']
-            #     checkpoint_path = f"{CHECKPOINTS_DIR}/cp_best_val_loss.ckpt"
-            #     if self.trainer.adaboost and self.trainer.checkpoints_folder is None:
-            #         self.trainer.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
-            #         if not os.path.exists(self.trainer.checkpoints_folder):
-            #             os.makedirs(self.trainer.checkpoints_folder)
-            #     if self.trainer.adaboost:
-            #         # we always want the best validation f1 score to be our currently best model
-            #         # not for validation loss, only for f1:
-            #         # self.trainer.curr_best_checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_val_loss.ckpt")
-            #         checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_val_loss.ckpt")
-            #     keras.models.save_model(model=self.model,
-            #                             filepath=checkpoint_path)
-            
-            # log checkpoints right away when created (consider this when merging)
-            
-            # remove_local_checkpoint = not self.trainer.adaboost
-            # other_checkpoint_name = None if not self.trainer.adaboost else self.trainer.checkpoints_folder
-            # mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
 
             self.epoch_idx += 1
             self.epoch_iteration_idx = 0
@@ -195,20 +173,13 @@ class TFTrainer(Trainer, abc.ABC):
                     self.best_f1_score = f1_weighted
                     if self.trainer.do_checkpoint and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint:
                         checkpoint_path = f"{CHECKPOINTS_DIR}/cp_best_f1.ckpt"
-                        if self.trainer.adaboost and self.trainer.checkpoints_folder is None:
-                            self.trainer.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
-                            if not os.path.exists(self.trainer.checkpoints_folder):
-                                os.makedirs(self.trainer.checkpoints_folder)
                         if self.trainer.adaboost and self.trainer.curr_best_checkpoint_path is None:
-                            self.trainer.curr_best_checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_f1.ckpt")
-                        if self.trainer.adaboost:
-                            checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_f1.ckpt")
+                            self.trainer.curr_best_checkpoint_path = checkpoint_path
                         self.best_score = f1_weighted
                         keras.models.save_model(model=self.model, filepath=checkpoint_path, save_traces=False,include_optimizer=True)
 
                     remove_local_checkpoint = not self.trainer.adaboost
-                    other_checkpoint_name = None if not self.trainer.adaboost else self.trainer.checkpoints_folder
-                    mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
+                    mlflow_logger.log_checkpoints(remove_local_checkpoint)
 
             if self.trainer.do_checkpoint \
                     and self.iteration_idx % self.trainer.checkpoint_interval == 0 \
@@ -221,8 +192,7 @@ class TFTrainer(Trainer, abc.ABC):
                 mlflow_logger.log_checkpoints()
 
                 remove_local_checkpoint = not self.trainer.adaboost
-                other_checkpoint_name = None if not self.trainer.adaboost else self.trainer.checkpoints_folder
-                mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
+                mlflow_logger.log_checkpoints(remove_local_checkpoint)
 
             self.iteration_idx += 1
             self.epoch_iteration_idx += 1
@@ -372,23 +342,16 @@ class TFTrainer(Trainer, abc.ABC):
                         epochs=self.num_epochs,
                         steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks, verbose=1 if IS_DEBUG else 2)
 
-        if self.do_checkpoint:
-            # save final checkpoint
+        if self.do_checkpoint or self.adaboost:
+            # save final checkpoint; save in any case when adaboost is used and the best checkpoint path has not been set
             checkpoint_path = f"{CHECKPOINTS_DIR}/cp_final.ckpt"
-            if self.adaboost and self.checkpoints_folder is None:
-                self.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
-                if not os.path.exists(self.checkpoints_folder):
-                    os.makedirs(self.checkpoints_folder)
             if self.adaboost and self.curr_best_checkpoint_path is None:
-                self.curr_best_checkpoint_path = os.path.join(self.checkpoints_folder, "cp_final.ckpt")
-            if self.adaboost:
-                checkpoint_path = os.path.join(self.checkpoints_folder, "cp_final.ckpt")
+                self.curr_best_checkpoint_path = checkpoint_path
             keras.models.save_model(model=self.model,
                                     filepath=checkpoint_path,save_traces=False,include_optimizer=True)
             
             remove_local_checkpoint = not self.adaboost
-            other_checkpoint_name = None if not self.adaboost else self.checkpoints_folder
-            mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
+            mlflow_logger.log_checkpoints(remove_local_checkpoint)
         return self.callback_handler.best_val_loss
         
     def get_F1_scores_training_no_shuffle(self):

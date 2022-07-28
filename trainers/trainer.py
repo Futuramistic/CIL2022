@@ -113,7 +113,6 @@ class Trainer(abc.ABC):
         self.deep_adaboost = deep_adaboost
         if self.adaboost:
             self.curr_best_checkpoint_path = None
-            self.checkpoints_folder = None
 
     def _init_mlflow(self):
         """
@@ -296,8 +295,7 @@ class Trainer(abc.ABC):
                     last_test_loss = self._fit_model(mlflow_run=run)
                     if self.do_checkpoint:
                         remove_local_checkpoint = not self.adaboost
-                        other_checkpoint_name = None if not self.adaboost else self.checkpoints_folder
-                        mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
+                        mlflow_logger.log_checkpoints(remove_local_checkpoint)
                     mlflow_logger.log_logfiles()
                 except Exception as e:
                     err_msg = f'*** Exception encountered: ***\n{e}'

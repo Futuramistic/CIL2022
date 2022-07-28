@@ -197,24 +197,12 @@ class TorchTrainer(Trainer, abc.ABC):
                               f'_step-{total_iteration}.pt'
         elif best is not None:
             checkpoint_path = f'{CHECKPOINTS_DIR}/cp_best_{best}.pt'
-            if self.adaboost and best == "test_loss":
-                if self.checkpoints_folder is None:
-                    self.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
-                    if not os.path.exists(self.checkpoints_folder):
-                        os.makedirs(self.checkpoints_folder)
-                if self.curr_best_checkpoint_path is None:
-                    self.curr_best_checkpoint_path = os.path.join(self.checkpoints_folder, f"cp_best_{best}.pt")
-                checkpoint_path = os.path.join(self.checkpoints_folder, f"cp_best_{best}.pt")
+            if self.adaboost and best == "test_loss" and self.curr_best_checkpoint_path is None:
+                self.curr_best_checkpoint_path = checkpoint_path
         else:
             checkpoint_path = f'{CHECKPOINTS_DIR}/cp_final.pt'
             if self.adaboost and self.curr_best_checkpoint_path is None:
-                if self.checkpoints_folder is None:
-                    self.checkpoints_folder = os.path.join("checkpoints", str(int(time.time() * 1000)))
-                    if not os.path.exists(self.checkpoints_folder):
-                        os.makedirs(self.checkpoints_folder)
-                if self.curr_best_checkpoint_path is None:
-                    self.curr_best_checkpoint_path = os.path.join(self.checkpoints_folder, "cp_final.pt")
-                checkpoint_path = self.curr_best_checkpoint_path
+                self.curr_best_checkpoint_path = checkpoint_path
         torch.save({
             'epoch': epoch,
             'model': model.state_dict(),
@@ -226,8 +214,7 @@ class TorchTrainer(Trainer, abc.ABC):
         # stopped/crashes *without* reaching the final "mlflow_logger.log_checkpoints()" call in trainer.py,
         # prior checkpoints have already been persisted
         remove_local_checkpoint = not self.adaboost
-        other_checkpoint_name = None if not self.adaboost else self.checkpoints_folder
-        mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
+        mlflow_logger.log_checkpoints(remove_local_checkpoint)
 
     def _load_checkpoint(self, checkpoint_path):
         """
@@ -300,7 +287,6 @@ class TorchTrainer(Trainer, abc.ABC):
         if self.use_sample_weighting:
             # init all samples with the same weight, is overwritten in _train_step()
             self.weights = np.ones((len(self.train_loader.dataset)), dtype=np.float16)*2 # start with 2 as 1 - f1 score cannot reach this value
-            print("start_weights: ", self.weights)
         for epoch in range(self.num_epochs):
             if self.use_sample_weighting and epoch != 0:
                 self.train_loader = self.dataloader.get_training_dataloader(split=self.split,
