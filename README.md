@@ -297,3 +297,5 @@ This repository uses substantial code adapted from other repositories:
 * [Fast SCNN](https://github.com/Tramac/Fast-SCNN-pytorch/blob/master/models/fast_scnn.py)
 * [SegFormer](https://github.com/NVlabs/SegFormer/)
 * [UNet Torch](https://github.com/milesial/Pytorch-UNet)
+* [Lawin](https://github.com/yan-hao-tian/lawin/blob/main/lawin_head.py)
+* [U2Net](https://github.com/xuebinqin/U-2-Net/tree/master/model)
