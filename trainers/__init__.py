@@ -17,3 +17,4 @@ from .Torch.segformer_torch_trainer import SegFormerTrainer
 from .Torch.lawin_torch_trainer import LawinTrainer
 
 from .reinforcement.rl_trainer_torch import TorchRLTrainer
+from .reinforcement.rl_trainer_torch_minimal import TorchRLTrainerMinimal
