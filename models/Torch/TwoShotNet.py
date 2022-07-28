@@ -18,7 +18,7 @@ class TwoShotNet(nn.Module):
         self.net = UNet(3+1, 1)
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-    def forward(self, x):
+    def forward(self, x, apply_activation):
         B, C, H, W = x.shape
         zero = torch.zeros((B, 1, H, W), device=self.device)
         x1 = torch.cat((zero, x), 1)
