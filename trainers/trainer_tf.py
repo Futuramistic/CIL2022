@@ -389,6 +389,7 @@ class TFTrainer(Trainer, abc.ABC):
             remove_local_checkpoint = not self.adaboost
             other_checkpoint_name = None if not self.adaboost else self.checkpoints_folder
             mlflow_logger.log_checkpoints(remove_local_checkpoint, other_checkpoint_name)
+        return self.callback_handler.best_val_loss
         
     def get_F1_scores_training_no_shuffle(self):
         """
