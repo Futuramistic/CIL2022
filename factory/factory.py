@@ -1,8 +1,6 @@
 from data_handling import *
-from models.reinforcement.first_try import SimpleRLCNNMinimal
 from trainers import *
 from models import *
-from trainers.reinforcement.rl_trainer_torch_minimal import TorchRLTrainerMinimal
 
 
 class Factory(abc.ABC):
@@ -238,6 +236,7 @@ class LawinFactory(Factory):
 
     def get_dataloader_class(self):
         return TorchDataLoader
+    
 
 
 def get_torch_scheduler(optimizer, scheduler_name, kwargs):
