@@ -59,8 +59,6 @@ class Factory(abc.ABC):
             return SegFormerFactory()
         elif model_name_lower_no_sep == "lawin":
             return LawinFactory()
-        elif model_name_lower_no_sep == "vitadapter":
-            return ViTAdapterFactory()
         else:
             print(f"The factory for the model {model_name} doesn't exist. Check if you wrote the model name "
                   f"correctly and implemented a corresponding factory in factory.py.")
@@ -237,17 +235,6 @@ class LawinFactory(Factory):
 
     def get_model_class(self):
         return Lawin
-
-    def get_dataloader_class(self):
-        return TorchDataLoader
-
-
-class ViTAdapterFactory(Factory):
-    def get_trainer_class(self):
-        return ViTAdapterTrainer
-
-    def get_model_class(self):
-        return ViTAdapter
 
     def get_dataloader_class(self):
         return TorchDataLoader

@@ -13,4 +13,3 @@ from .Torch.segformer import SegFormer
 from .TF import blocks as tf_blocks
 from .TF.UNetExpTF import UNet3PlusTF, UNetExpTF
 from .Torch.lawin import Lawin
-from .Torch.vit_adapter.vit_adapter_model import ViTAdapter
