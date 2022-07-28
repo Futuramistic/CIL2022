@@ -269,72 +269,113 @@ class Attention(tf.keras.layers.Layer):
                  kernel_regularizer=K.regularizers.l2(),**kwargs):
         super(Attention,self).__init__(name=name,**kwargs)
         self.normalize = normalize
-        self.theta_x = Conv2D(filters=filters, kernel_size=1,kernel_initializer=kernel_init,
-                              strides=(1,1), padding='same',kernel_regularizer=kernel_regularizer,name=name+"-conv2D-1")
-        self.norm1 = BatchNormalization(name=name+"-batchNorm-1")
-        self.phi_g = Conv2D(filters=filters, kernel_size=1,kernel_initializer=kernel_init,
-                            strides=(1,1), padding='same',kernel_regularizer=kernel_regularizer,name=name+"-conv2D-2")
-        self.norm2 = BatchNormalization(name=name+"-batchNorm-2")
-        self.add = Add(name=name+"-add")
-        self.f = Activation(activation='relu',name=name+"-relu")
-        self.psi_f = Conv2D(filters=1,kernel_size=1,kernel_initializer=kernel_init,strides=(1,1),
-                            padding='same',kernel_regularizer=kernel_regularizer,name=name+"-conv2D-3")
-        self.norm3 = BatchNormalization(name=name+"-batchNorm-3")
-        self.activ = Activation(activation='sigmoid',name=name+"-sigmoid")
-        self.att_x = Multiply(name=name+"-multiply")
+        self.filters = filters
+        self.kernel_init = kernel_init
+        self.kernel_regularizer = kernel_regularizer
+        self.theta_x = Conv2D(filters=self.filters, kernel_size=1,kernel_initializer=self.kernel_init,
+                              strides=(1,1), padding='same',kernel_regularizer=self.kernel_regularizer,name=self.name+"-conv2D-1")
+        self.norm1 = BatchNormalization(name=self.name+"-batchNorm-1",axis=3)
+        self.phi_g = Conv2D(filters=self.filters, kernel_size=1,kernel_initializer=self.kernel_init,
+                            strides=(1,1), padding='same',kernel_regularizer=self.kernel_regularizer,name=self.name+"-conv2D-2")
+        self.norm2 = BatchNormalization(name=self.name+"-batchNorm-2",axis=3)
+        self.add = Add(name=self.name+"-add")
+        self.f = Activation(activation='relu',name=self.name+"-relu")
+        self.psi_f = Conv2D(filters=1,kernel_size=1,kernel_initializer=self.kernel_init,strides=(1,1),
+                            padding='same',kernel_regularizer=self.kernel_regularizer,name=self.name+"-conv2D-3")
+        self.norm3 = BatchNormalization(name=self.name+"-batchNorm-3",axis=3)
+        self.activ = Activation(activation='sigmoid',name=self.name+"-sigmoid")
+        self.att_x = Multiply(name=self.name+"-multiply")
 
     # Expose training:
     # - BatchNorm -> performs differently when predicting
     # NO DROPOUT (!)
-    def call(self,x,g, **kwargs):
+    def call(self,x,g,training=None, **kwargs):
         theta_x = self.theta_x(x,**kwargs)
         if self.normalize:
-            theta_x = self.norm1(theta_x,**kwargs)
+            theta_x = self.norm1(theta_x,training,**kwargs)
         phi_g = self.phi_g(g,**kwargs)
         if self.normalize:
-            phi_g = self.norm2(phi_g,**kwargs)
+            phi_g = self.norm2(phi_g,training,**kwargs)
         add = self.add([phi_g,theta_x],**kwargs)
         f = self.f(add,**kwargs)
         psi_f = self.psi_f(f,**kwargs)
         if self.normalize:
-            psi_f = self.norm3(psi_f,**kwargs)
+            psi_f = self.norm3(psi_f,training,**kwargs)
         rate = self.activ(psi_f,**kwargs)
         return self.att_x([x,rate],**kwargs)
-
+    
+    def get_config(self):
+        base_config = super(Attention, self).get_config()
+        base_config['filters'] = self.filters
+        base_config['normalize'] = self.normalize
+        base_config['kernel_init'] = self.kernel_init
+        base_config['kernel_regularizer'] = self.kernel_regularizer
+        return base_config
 
 class Attention_Block_Concat(tf.keras.layers.Layer):
     def __init__(self,name="attention-up-block",dropout=0.5,filters=64,kernel_init='he_normal',normalize=False,
-                 up_convo=None,kernel_regularizer=K.regularizers.l2(),**kwargs):
+                 up_convo=Transpose_Block,kernel_regularizer=K.regularizers.l2(),**kwargs):
         super(Attention_Block_Concat,self).__init__(name=name,**kwargs)
-        self.up = up_convo(name=name+"-up-convo",filters=filters,dropout=dropout,kernel_init=kernel_init,
-                           normalize=normalize,kernel_regularizer=kernel_regularizer)
-        self.att = Attention(name=name+"-attention",filters=filters,normalize=normalize,kernel_init=kernel_init,
-                             kernel_regularizer=kernel_regularizer)
-        self.concat = Concatenate(axis=3,name=name+"-concat")
-        self.convo = ConvoRelu_Block(name=name+"-convoRelu-block",dropout=dropout,filters=filters,
-                                     kernel_init=kernel_init,normalize=normalize,kernel_regularizer=kernel_regularizer)
+        self.dropout = dropout
+        self.filters = filters
+        self.normalize = normalize
+        self.kernel_init = kernel_init
+        self.kernel_regularizer = kernel_regularizer
+        self.up_convo_block = up_convo
+        self.up = self.up_convo_block(name=self.name+"-up-convo",filters=self.filters,dropout=self.dropout,kernel_init=self.kernel_init,
+                           normalize=self.normalize,kernel_regularizer=self.kernel_regularizer)
+        self.att = Attention(name=self.name+"-attention",filters=self.filters,normalize=self.normalize,kernel_init=self.kernel_init,
+                             kernel_regularizer=self.kernel_regularizer)
+        self.concat = Concatenate(axis=3,name=self.name+"-concat")
+        self.convo = ConvoRelu_Block(name=self.name+"-convoRelu-block",dropout=self.dropout,filters=self.filters,
+                                     kernel_init=self.kernel_init,normalize=self.normalize,kernel_regularizer=self.kernel_regularizer)
 
     # Expose training
     def call(self, x, g, training=None, **kwargs):
         up_g = self.up(inputs=g,**kwargs)
-        att_x = self.att(x=x,g=up_g,**kwargs)
+        att_x = self.att(x=x,g=up_g,training=training,**kwargs)
         concat = self.concat([up_g,att_x],**kwargs)
         return self.convo(inputs=concat,**kwargs)
-
+    
+    def get_config(self):
+        base_config = super(Attention_Block_Concat, self).get_config()
+        base_config['dropout'] = self.dropout
+        base_config['filters'] = self.filters
+        base_config['normalize'] = self.normalize
+        base_config['kernel_init'] = self.kernel_init
+        base_config['kernel_regularizer'] = self.kernel_regularizer
+        base_config['up_convo'] = self.up_convo_block 
+        return base_config
 
 class Attention_Block(tf.keras.layers.Layer):
     def __init__(self,name="attention-block", dropout=0.5, filters=64, kernel_init='he_normal', normalize=False,
-                 up_convo=None, kernel_regularizer=K.regularizers.l2(), **kwargs):
+                 up_convo=Transpose_Block, kernel_regularizer=K.regularizers.l2(), **kwargs):
         super(Attention_Block, self).__init__(name=name, **kwargs)
-        self.up = up_convo(name=name+"-up-convo",dropout=dropout, filters=filters, kernel_init=kernel_init,
-                           normalize=normalize, kernel_regularizer=kernel_regularizer)
-        self.att = Attention(name=name+"-attention", filters=filters, normalize=normalize,
-                             kernel_regularizer=kernel_regularizer)
+        self.dropout = dropout
+        self.filters = filters
+        self.normalize = normalize
+        self.kernel_init = kernel_init
+        self.kernel_regularizer = kernel_regularizer
+        self.up_convo_block = up_convo
+        self.up = self.up_convo_block(name=self.name+"-up-convo",dropout=self.dropout, filters=self.filters, kernel_init=self.kernel_init,
+                           normalize=self.normalize, kernel_regularizer=self.kernel_regularizer)
+        self.att = Attention(name=name+"-attention", filters=self.filters, normalize=self.normalize,kernel_init=self.kernel_init,
+                             kernel_regularizer=self.kernel_regularizer)
 
     # Expose training
     def call(self, x, g, training=None, **kwargs):
         up_g = self.up(inputs=g, **kwargs)
-        return self.att(x=x, g=up_g, **kwargs)
+        return self.att(x=x, g=up_g, training=training,**kwargs)
+
+    def get_config(self):
+        base_config = super(Attention_Block, self).get_config()
+        base_config['dropout'] = self.dropout
+        base_config['filters'] = self.filters
+        base_config['normalize'] = self.normalize
+        base_config['kernel_init'] = self.kernel_init
+        base_config['kernel_regularizer'] = self.kernel_regularizer
+        base_config['up_convo'] = self.up_convo_block 
+        return base_config
 
 
 class Attention_PlusPlus_Block(tf.keras.layers.Layer):
@@ -342,21 +383,25 @@ class Attention_PlusPlus_Block(tf.keras.layers.Layer):
     Attention Block used in the Attention UNet++
     """
     def __init__(self,name="attention-plus-plus", dropout=0.5, filters=64, kernel_init='he_normal', normalize=False,
-                 up_convo=None,kernel_regularizer=K.regularizers.l2(), **kwargs):
+                 up_convo=Transpose_Block,kernel_regularizer=K.regularizers.l2(), **kwargs):
         super(Attention_PlusPlus_Block, self).__init__(name=name, **kwargs)
-
-        self.att = Attention_Block(name=name+"-att-block", filters=filters, kernel_init=kernel_init,
-                                   normalize=normalize,
-                                   dropout=dropout, up_convo=up_convo, kernel_regularizer=kernel_regularizer)
-        self.up = up_convo(name=name+"-up-convo-block", filters=filters, kernel_init=kernel_init, normalize=normalize,
-                           kernel_regularizer=kernel_regularizer)
-        self.concat = Concatenate(name=name+"-concat", axis=3)
-        self.maxpool = MaxPool2D(name=name+"-max")
-        self.convo = Convo_Block(name=name+"-convo-block", dropout=dropout, filters=filters, kernel_init=kernel_init,
-                                 normalize=normalize, kernel_regularizer=kernel_regularizer)
+        self.dropout = dropout
+        self.filters = filters
+        self.normalize = normalize
+        self.kernel_init = kernel_init
+        self.kernel_regularizer = kernel_regularizer
+        self.up_convo_block = up_convo
+        self.att = Attention_Block(name=self.name+"-att-block", filters=self.filters, kernel_init=self.kernel_init,
+                                   normalize=self.normalize,dropout=self.dropout, up_convo=self.up_convo_block, kernel_regularizer=self.kernel_regularizer)
+        self.up = up_convo(name=self.name+"-up-convo-block", filters=self.filters, kernel_init=self.kernel_init, normalize=self.normalize,
+                           kernel_regularizer=self.kernel_regularizer)
+        self.concat = Concatenate(name=self.name+"-concat", axis=3)
+        self.maxpool = MaxPool2D(name=self.name+"-max")
+        self.convo = Convo_Block(name=self.name+"-convo-block", dropout=self.dropout, filters=self.filters, kernel_init=self.kernel_init,
+                                 normalize=self.normalize, kernel_regularizer=self.kernel_regularizer)
 
     def call(self,x,g,down=None,to_concat=[], training=None, **kwargs):
-        att_x = self.att(x=x, g=g, **kwargs)
+        att_x = self.att(x=x, g=g, training=training,**kwargs)
         # original line was "to_concat.append(att_x)"
         # changed due to a bug with the modification of input variables to the "call" function of
         # tf.keras.layer.Layer subclasses causing crashes when saving model checkpoints
@@ -370,3 +415,13 @@ class Attention_PlusPlus_Block(tf.keras.layers.Layer):
         conv = self.concat(to_concat, **kwargs)
         conv = self.convo(conv, **kwargs)
         return att_x, conv
+
+    def get_config(self):
+        base_config = super(Attention_PlusPlus_Block, self).get_config()
+        base_config['dropout'] = self.dropout
+        base_config['filters'] = self.filters
+        base_config['normalize'] = self.normalize
+        base_config['kernel_init'] = self.kernel_init
+        base_config['kernel_regularizer'] = self.kernel_regularizer
+        base_config['up_convo'] = self.up_convo_block 
+        return base_config
