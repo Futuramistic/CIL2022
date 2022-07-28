@@ -10,7 +10,6 @@ from .Torch.DeepLabV3PlusGAN import DeepLabV3PlusGAN
 from .reinforcement.first_try import SimpleRLCNN
 from .reinforcement.first_try import SimpleRLCNNMinimal
 from .Torch.segformer import SegFormer
-from .TF import blocks as tf_blocks
 from .TF.UNetExpTF import UNet3PlusTF, UNetExpTF
 from .Torch.lawin import Lawin
 from .Torch.TwoShotNet import TwoShotNet
