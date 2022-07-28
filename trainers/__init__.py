@@ -15,5 +15,6 @@ from .Torch.deeplabv3_torch_trainer import DeepLabV3Trainer
 from .Torch.deeplabv3gan_torch_trainer import DeepLabV3PlusGANTrainer
 from .Torch.segformer_torch_trainer import SegFormerTrainer
 from .Torch.lawin_torch_trainer import LawinTrainer
+from .Torch.vit_adapter_trainer import ViTAdapterTrainer
 
 from .reinforcement.rl_trainer_torch import TorchRLTrainer
