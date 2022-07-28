@@ -1,5 +1,8 @@
+import hashlib
+import os
 import torch.nn as nn
 import torch.nn.functional as F
+import urllib
 
 from .beit_adapter import BEiTAdapter
 from .msdeformattn_pixel_decoder import MSDeformAttnPixelDecoder
@@ -11,9 +14,20 @@ from .decode_head import resize
 
 
 class ViTAdapter(nn.Module):
-    def __init__(self):
+    def __init__(self,
+                 pretrained_backbone_path='./checkpt.pt'):
         super(ViTAdapter, self).__init__()
-        self.backbone = BEiTAdapter(img_size=512, patch_size=16, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4, qkv_bias=True, use_abs_pos_emb=False, use_rel_pos_bias=True, init_values=1e-6, drop_path_rate=0.3, conv_inplane=64, n_points=4, deform_num_heads=16, cffn_ratio=0.25, deform_ratio=0.5, interaction_indexes=[[0, 5], [6, 11], [12, 17], [18, 23]])
+
+        if pretrained_backbone_path is not None and pretrained_backbone_path.lower().startswith('http'):
+            os.makedirs('pretrained', exist_ok=True)
+            url_hash = hashlib.md5(str.encode(pretrained_backbone_path)).hexdigest()
+            target_path = os.path.join('pretrained', f'vit_adapter_{url_hash}.pth')
+            if not os.path.isfile(target_path):
+                urllib.request.urlretrieve(pretrained_backbone_path, target_path)
+            pretrained_backbone_path = target_path
+
+        self.backbone = BEiTAdapter(img_size=224, patch_size=16, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4, qkv_bias=True, use_abs_pos_emb=False, use_rel_pos_bias=True, init_values=1e-6, drop_path_rate=0.3, conv_inplane=64, n_points=4, deform_num_heads=16, cffn_ratio=0.25, deform_ratio=0.5, interaction_indexes=[[0, 5], [6, 11], [12, 17], [18, 23]],
+                                    pretrained=pretrained_backbone_path)
 
         self.head = Mask2FormerHead(in_channels=[1024, 1024, 1024, 1024],
                                     feat_channels=1024, out_channels=1024,
@@ -122,8 +136,9 @@ class ViTAdapter(nn.Module):
         B, C, H, W = x.shape
         # upscale 
         
-        if H < 512 or W < 512:
-            x = resize(x, (512, 512), mode='bilinear', align_corners=False)
+        #if H < 512 or W < 512:
+        
+        x = resize(x, (224, 224), mode='bilinear', align_corners=False)
 
         # x = resize(x, (256, 256), mode='bilinear', align_corners=False)
 

@@ -126,9 +126,7 @@ class Attention(nn.Module):
         q = q * self.scale
         attn = (q @ k.transpose(-2, -1))
         
-
-        # !!!!!!!!!!
-        if False and self.relative_position_bias_table is not None:
+        if self.relative_position_bias_table is not None:
             relative_position_bias = \
                 self.relative_position_bias_table[self.relative_position_index.view(-1)].view(
                     self.window_size[0] * self.window_size[1] + 1,
