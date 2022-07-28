@@ -47,7 +47,7 @@ def main():
     parser = argparse.ArgumentParser(description='Implementation of ETHZ CIL Road Segmentation 2022 project')
     parser.add_argument('-m', '--model', type=str, required=True)
     parser.add_argument('-S', '--seed', type=int, default=1, required=False)
-    parser.add_argument('-E', '--experiment_name', type=str, required=True)
+    parser.add_argument('-E', '--experiment_name', type=str, required=False)
     parser.add_argument('-R', '--run_name', type=str, required=False)
     parser.add_argument('-s', '--split', type=float, default=DEFAULT_TRAIN_FRACTION, required=False)
     parser.add_argument('-e', '--num_epochs', type=int, required=False)
@@ -80,6 +80,7 @@ def main():
     parser.add_argument('-A', '--adaboost_runs', type=int, required=False, default=20,
                         help="Only if adaboost is used, specify the number of models to ensemble")
     known_args, unknown_args = parser.parse_known_args()
+    
 
     # Process the commandline arguments
     remove_leading_dashes = lambda s: ''.join(itertools.dropwhile(lambda c: c == '-', s))
@@ -93,6 +94,10 @@ def main():
                              s.startswith('[') and s.endswith(']'),
                              s.startswith('{') and s.endswith('}')]) \
         else s
+    
+    # check if experiment name is set, otherwise create automatically
+    if known_args.experiment_name is None:
+        known_args.experiment_name = f"{known_args.model}_{SESSION_ID}"
 
     known_args_dict = dict(map(lambda arg: (arg, getattr(known_args, arg)), vars(known_args)))
     unknown_args_dict = dict(map(lambda arg: (remove_leading_dashes(arg.split('=')[0]),
@@ -101,7 +106,6 @@ def main():
     arg_dict = {**known_args_dict, **unknown_args_dict}
 
     # seed everything
-
     random.seed(known_args.seed)
     torch.manual_seed(known_args.seed)
     np.random.seed(known_args.seed)
