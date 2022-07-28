@@ -84,7 +84,7 @@ class LawinTrainer(TorchTrainer):
                          num_epochs, batch_size, optimizer_or_lr, scheduler, loss_function, loss_function_hyperparams,
                          evaluation_interval, num_samples_to_visualize, checkpoint_interval, load_checkpoint_path,
                          segmentation_threshold, use_channelwise_norm, blobs_removal_threshold, False,  # last: hyper_seg_threshold
-                         use_sample_weighting, f1_threshold_to_log_checkpoint, use_adaboost)
+                         use_sample_weighting, use_adaboost, f1_threshold_to_log_checkpoint)
         
     def _train_step(self, model, device, train_loader, callback_handler):
         """
