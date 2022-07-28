@@ -300,7 +300,7 @@ class TorchTrainer(Trainer, abc.ABC):
         if self.use_sample_weighting:
             # init all samples with the same weight, is overwritten in _train_step()
             self.weights = np.ones((len(self.train_loader.dataset)), dtype=np.float16)*2 # start with 2 as 1 - f1 score cannot reach this value
-                
+            print("start_weights: ", self.weights)
         for epoch in range(self.num_epochs):
             if self.use_sample_weighting and epoch != 0:
                 self.train_loader = self.dataloader.get_training_dataloader(split=self.split,
@@ -311,6 +311,7 @@ class TorchTrainer(Trainer, abc.ABC):
             if self.use_sample_weighting:  # update sample weight
                 # normalize
                 weights_set_during_training = self.weights[self.weights != 2]
+                print("weights_set_during_training: ", self.weights)
                 normalized = weights_set_during_training / (
                         2 * np.max(np.absolute(weights_set_during_training)))  # between -0.5 and +0.5
                 self.weights[self.weights != 2] = normalized + 0.5  # between 0 and 1

@@ -109,8 +109,10 @@ class DeepLabV3Trainer(TorchTrainer):
             if self.use_sample_weighting:
                 threshold = getattr(self, 'last_hyper_threshold', self.segmentation_threshold)
                 # weight based on F1 score of batch
+                print("sample_idx: ", sample_idx)
                 self.weights[sample_idx] =\
                     1.0 - precision_recall_f1_score_torch((preds.squeeze() >= threshold).float(), y)[-1].mean().item()
+                print("weights :", self.weights)
             del x
             del y
         train_loss /= len(train_loader.dataset)

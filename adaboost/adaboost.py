@@ -95,11 +95,6 @@ class AdaBooster:
             trainer = trainer_class(dataloader=self.dataloader, model=model,
                                                 **self.trainer_args)
             
-            # adapt the mlflow experiment name for each new model
-            old_run_name = trainer.mlflow_experiment_name
-            new_run_name = f"{str(old_run_name)}_run_{curr_run_idx}" if old_run_name is not None else f"Run_{curr_run_idx}"
-            trainer.mlflow_experiment_name = new_run_name
-            
             trainer.train()
             f1_eval = trainer.eval()['f1_road_scores']
             best_model_checkpoint = trainer.curr_best_checkpoint_path
@@ -108,7 +103,7 @@ class AdaBooster:
                 print("No checkpoint was saved. Omitting this run")
                 continue
             self.checkpoint_paths.append(best_model_checkpoint)
-            self.experiment_names.append(new_run_name)
+            self.experiment_names.append(f"{trainer.mlflow_experiment_name}_{curr_run_idx}")
             self.model_weights.append(f1_eval)
             
             data_f1_scores = np.asarray(trainer.get_F1_scores_training_no_shuffle(), dtype=float)
