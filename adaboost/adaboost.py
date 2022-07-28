@@ -38,6 +38,7 @@ class AdaBooster:
         self.model_args = model_spec_args
         self.trainer_args = trainer_spec_args
         self.dataloader_args = dataloader_spec_args
+        self.deep_adaboost = deep_adaboost
         self.is_debug = is_debug
 
         fix_gpu()
@@ -85,23 +86,85 @@ class AdaBooster:
         curr_run_idx = len(self.experiment_names)
         if curr_run_idx > 0:
             self.dataloader.weights_set = True
+
+        if self.deep_adaboost:
+            # calculate the val sample -- train sample similarities once
+
+            val_sample_train_sample_dist_path =\
+                os.path.join('dataset', dataset_name, f'precached_sample_distances__{dataset_name}__{dataset_name}.pkl')
+
+            if os.path.isfile(val_sample_train_sample_dist_path):
+                with open(val_sample_train_sample_dist_path, 'wb') as f:
+                    training_sample_weights_for_validation_samples = pickle.load(f)
+            else:
+                print('Precaching val sample -- train sample distances...')
+
+                dataset_name = self.dataloader.dataset
+                # iterate through, calculate
+                sample_dist_path = os.path.join('dataset', dataset_name,
+                                                f'sample_distances__{dataset_name}__{dataset_name}.pkl')
+
+                if not os.path.isfile(sample_dist_path):
+                    print(f'Sample distance file ({sample_dist_path}) not found; creating file. This could take some time.')
+                    os.system(f'python -m processing.sample_feature_dist_calculator'
+                            f' --dataset_1={dataset_name} --dataset_2={dataset_name}')
+                
+                with open(sample_dist_path, 'rb') as f:
+                    sample_distances = pickle.load(f)
+
+                # Create the model using the commandline arguments
+                model = self.factory.get_model_class()(**self.model_args)
+
+                # Create the trainer using the commandline arguments
+                trainer_class = self.factory.get_trainer_class()
+                trainer = trainer_class(dataloader=self.dataloader, model=model,
+                                        **self.trainer_args)
+                
+                train_dl = self.dataloader.get_training_dataloader(trainer.split, batch_size=1, weights=None,
+                                                                preprocessing=trainer.preprocessing,
+                                                                suppress_adaboost_weighting=True)
+                test_dl = self.dataloader.get_testing_dataloader(batch_size=1,
+                                                                preprocessing=trainer.preprocessing)
+
+                training_sample_weights_for_validation_samples = np.zeros((len(test_dl), len(train_dl)))
+                for _, _, test_idx_with_offset in test_dl:
+                    test_idx = test_idx_with_offset - len(train_dl)
+                    test_x_filename = os.path.basename(self.dataloader.training_img_paths[test_idx])  # no need to add offset
+                    for _, _, train_idx in train_dl:
+                        train_x_filename = os.path.basename(self.dataloader.training_img_paths[train_idx])
+                        training_sample_weights_for_validation_samples[test_idx][train_idx] =\
+                            sample_distances[train_x_filename][test_x_filename]
+                    
+                    # TODO: introduce temperature parameter?
+                    training_sample_weights_for_validation_samples[test_idx] = (
+                        np.exp(-training_sample_weights_for_validation_samples[test_idx]) /
+                        np.sum(np.exp(-training_sample_weights_for_validation_samples[test_idx])))
+                
+                print('Val sample -- train sample distances calculated')
+                with open(val_sample_train_sample_dist_path, 'wb') as f:
+                    pickle.dump(training_sample_weights_for_validation_samples, f)
+
         while curr_run_idx < self.known_args_dict["adaboost_runs"]:
+            if not self.deep_adaboost:
+                # Create the model using the commandline arguments
+                model = self.factory.get_model_class()(**self.model_args)
+                
+                # Create the trainer using the commandline arguments
+                trainer_class = self.factory.get_trainer_class()
+                trainer = trainer_class(dataloader=self.dataloader, model=model,
+                                        **self.trainer_args)
             
-            # Create the model using the commandline arguments
-            model = self.factory.get_model_class()(**self.model_args)
-            
-            # Create the trainer using the commandline arguments
-            trainer_class = self.factory.get_trainer_class()
-            trainer = trainer_class(dataloader=self.dataloader, model=model,
-                                                **self.trainer_args)
-            
+            # simply keep using old model if we're using deep adaboost
+
+            trainer.best_f1_score = -1.0
+
             # adapt the mlflow experiment name for each new model
             old_run_name = trainer.mlflow_experiment_name
-            new_run_name = f"{str(old_run_name)}_run_{curr_run_idx}" if old_run_name is not None else f"Run_{curr_run_idx}"
+            new_run_name = ("AdaBoost_" if not self.deep_adaboost else "Deep_AdaBoost_") + f"{str(old_run_name)}_Run_{curr_run_idx}" if old_run_name is not None else f"Run_{curr_run_idx}"
             trainer.mlflow_experiment_name = new_run_name
             
             trainer.train()
-            f1_eval = trainer.eval()['f1_road_scores']
+            f1_eval = trainer.eval()['f1_weighted_scores']  #['f1_road_scores']
             best_model_checkpoint = trainer.curr_best_checkpoint_path
             if best_model_checkpoint is None:
                 curr_run_idx += 1
@@ -111,40 +174,62 @@ class AdaBooster:
             self.experiment_names.append(new_run_name)
             self.model_weights.append(f1_eval)
             
-            data_f1_scores = np.asarray(trainer.get_F1_scores_training_no_shuffle(), dtype=float)
-            
-            # values that have not been set in the training process just receive the old sampling probability
-            print(data_f1_scores)
-            print(self.dataloader.weights)
-            # data_f1_scores[data_f1_scores == 2] = self.dataloader.weights[data_f1_scores == 2]
-            
-            
-            # the error of the samples (1-F1 of each sample)
-            # old:
-            # samples_error_term = (-data_f1_scores) + (1-data_f1_scores)
+                
+            if self.deep_adaboost:
+                dataset_name = self.dataloader.dataset
+                
+                # loop through all train samples for one epoch; shuffling will not affect us as long as we know the sample indices
+                train_dl = self.dataloader.get_training_dataloader(trainer.split, trainer.batch_size, weights=None, preprocessing=trainer.preprocessing, suppress_adaboost_weighting=True)
+                
+                f1_weighted_scores = trainer.get_F1_scores_validation()
+                val_f1_errors = 1.0 - np.asarray(f1_weighted_scores, dtype=float)
+                
+                transp = np.transpose(training_sample_weights_for_validation_samples)
+                self.dataloader.weights = transp @ val_f1_errors
 
-            # instead of simulating the classical classifier-based AdaBoost (-1 for incorrect, 1 for correct),
-            # we renormalize each weight to be between 0 and 1 so that model_error stays between 0 and 1
-            samples_error_term = 1 - data_f1_scores
+                # calculate model error (between 0 and 1)
+                model_error = np.mean(val_f1_errors)
+                log_term = (1 - model_error) / model_error
+                if log_term <= 0.0:
+                    # infinity numerically unstable
+                    log_term = np.float64(SMOL)
+                total_model_performance = 0.5 * np.log(log_term)  # the higher, the better
+                self.model_weights.append(total_model_performance)
+            else:
+                data_f1_scores = np.asarray(trainer.get_F1_scores_training_no_shuffle(), dtype=float)
+                
+                # values that have not been set in the training process just receive the old sampling probability
+                print(data_f1_scores)
+                print(self.dataloader.weights)
+                # data_f1_scores[data_f1_scores == 2] = self.dataloader.weights[data_f1_scores == 2]
+                
+                # the error of the samples (1-F1 of each sample)
+                # old:
+                # samples_error_term = (-data_f1_scores) + (1-data_f1_scores)
+
+                # instead of simulating the classical classifier-based AdaBoost (-1 for incorrect, 1 for correct),
+                # we renormalize each weight to be between 0 and 1 so that model_error stays between 0 and 1
+                samples_error_term = 1 - data_f1_scores
+                
+                # calculate model error (between 0 and 1)
+                model_error = np.sum(self.dataloader.weights * samples_error_term) / np.sum(self.dataloader.weights)
+                log_term = (1 - model_error) / model_error
+                if log_term <= 0.0:
+                    # infinity numerically unstable
+                    log_term = np.float64(SMOL)
+                total_model_performance = 0.5 * np.log(log_term)  # the higher, the better
+                self.model_weights.append(total_model_performance)
+                
+                # calculate new data weights
+                # weight samples based on error and performance of this model
+                self.dataloader.weights = self.dataloader.weights*np.exp(total_model_performance * samples_error_term)
+                # normalize between 0 and 1 again (no negative values allowed)
+                # normalized = self.dataloader.weights / (
+                #         2 * np.max(np.absolute(self.dataloader.weights)))  # between -0.5 and +0.5
+                # self.dataloader.weights = normalized + 0.5  # between 0 and 1
+                
+            self.dataloader.weights[self.dataloader.weights <= 0] = SMOL  # avoid 0
             
-            # calculate model error (between 0 and 1)
-            model_error = np.sum(self.dataloader.weights * samples_error_term) / np.sum(self.dataloader.weights)
-            log_term = (1 - model_error) / model_error
-            if log_term <= 0.0:
-                # infinity numerically unstable
-                log_term = np.float64(SMOL)
-            total_model_performance = 0.5 * np.log(log_term)  # the higher, the better
-            self.model_weights.append(total_model_performance)
-            
-            # calculate new data weights
-            # weight samples based on error and performance of this model
-            self.dataloader.weights = self.dataloader.weights*np.exp(total_model_performance * samples_error_term)
-            # normalize between 0 and 1 again (no negative values allowed)
-            # normalized = self.dataloader.weights / (
-            #         2 * np.max(np.absolute(self.dataloader.weights)))  # between -0.5 and +0.5
-            # self.dataloader.weights = normalized + 0.5  # between 0 and 1
-            
-            self.dataloader.weights[self.dataloader.weights <= 0] = SMOL # avoid 0
             print('self.dataloader.weights: ', self.dataloader.weights)
             print('self.training_img_paths: ', self.dataloader.training_img_paths)
             print('zip(self.dataloader.training_gt_paths, self.dataloader.weights): ',
