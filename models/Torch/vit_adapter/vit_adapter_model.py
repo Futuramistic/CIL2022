@@ -15,7 +15,7 @@ from .decode_head import resize
 
 class ViTAdapter(nn.Module):
     def __init__(self,
-                 pretrained_backbone_path='./checkpt.pt'):
+                 pretrained_backbone_path='https://polybox.ethz.ch/index.php/s/g1D5MXB8oEvS1Zx/download'):
         super(ViTAdapter, self).__init__()
 
         if pretrained_backbone_path is not None and pretrained_backbone_path.lower().startswith('http'):
@@ -134,10 +134,8 @@ class ViTAdapter(nn.Module):
 
     def forward(self, x, apply_activation=True):
         B, C, H, W = x.shape
-        # upscale 
         
         #if H < 512 or W < 512:
-        
         x = resize(x, (224, 224), mode='bilinear', align_corners=False)
 
         # x = resize(x, (256, 256), mode='bilinear', align_corners=False)
