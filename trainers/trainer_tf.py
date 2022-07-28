@@ -278,7 +278,7 @@ class TFTrainer(Trainer, abc.ABC):
                 output = np.argmax(output, axis=channel_dim_idx)
                 output = np.expand_dims(output, axis=channel_dim_idx)
 
-            preds = (output >= self.segmentation_threshold).astype(np.float)
+            preds = (output >= self.segmentation_threshold).astype(float)
             batch_ys = np.moveaxis(batch_ys, -1, 1)
             preds = np.moveaxis(preds, -1, 1)
 
