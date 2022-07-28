@@ -115,7 +115,8 @@ class DeepLabV3Trainer(TorchTrainer):
             del y
         train_loss /= len(train_loader.dataset)
         f1_score = callback_handler.on_epoch_end()
-        self.scheduler.step(f1_score)
+        if f1_score is not None: # if None, we are in the first train step of a run with only a single batch
+            self.scheduler.step(f1_score)
         return train_loss
 
     def _eval_step(self, model, device, test_loader):

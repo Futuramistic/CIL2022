@@ -1,5 +1,5 @@
 import torch
-
+from losses.precision_recall_f1 import precision_recall_f1_score_torch
 from trainers.trainer_torch import TorchTrainer
 from utils import *
 from torch import optim
@@ -118,7 +118,10 @@ class SegFormerTrainer(TorchTrainer):
             opt_backbone.step()
             opt_head.step()
             if self.use_sample_weighting:
-                self.weights[sample_idx] = loss.item()
+                threshold = getattr(self, 'last_hyper_threshold', self.segmentation_threshold)
+                # weight based on F1 score of batch
+                self.weights[sample_idx] =\
+                    1.0 - precision_recall_f1_score_torch((preds.squeeze() >= threshold).float(), y)[-1].mean().item()
             callback_handler.on_train_batch_end()
             del x
             del y

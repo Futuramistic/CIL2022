@@ -9,6 +9,7 @@ import pathlib
 import random
 import sys
 import time
+import torch
 
 from stat import S_ISDIR, S_ISREG
 
@@ -293,3 +294,6 @@ def flatten(xss):
     Flatten a list of lists of lists
     """
     return [x for xs in xss for x in xs]
+
+def to_cuda(x):
+    return x.cuda() if torch.cuda.is_available() else x

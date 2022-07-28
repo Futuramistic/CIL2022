@@ -40,7 +40,7 @@ class TFTrainer(Trainer, abc.ABC):
         super().__init__(dataloader, model, experiment_name, run_name, split, num_epochs, batch_size, optimizer_or_lr,
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
-                         blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting,
+                         blobs_removal_threshold, hyper_seg_threshold, False, # use_sample_weighting deactivated for tf
                          use_adaboost, f1_threshold_to_log_checkpoint)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
@@ -127,7 +127,7 @@ class TFTrainer(Trainer, abc.ABC):
             #   and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint:
             #    self.best_val_loss = logs['val_loss']
             #    keras.models.save_model(model=self.model,
-            #                            filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"),save_traces=False,include_optimizer=False)
+            #                            filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"),save_traces=False,include_optimizer=True)
             #    mlflow_logger.log_checkpoints()
             
             
@@ -160,15 +160,6 @@ class TFTrainer(Trainer, abc.ABC):
             # if self.original_checkpoint_hash is not None and os.path.isdir(f'original_checkpoint_{self.original_checkpoint_hash}.ckpt'):
             #     shutil.rmtree(f'original_checkpoint_{self.original_checkpoint_hash}.ckpt')
             
-            if self.trainer.use_sample_weighting:
-                # normalize and update weights
-                self.weights_temp = np.asarray(self.weights_temp)[len(self.trainer.train_dataset_size)] # cut off if too many were saved due to the last batch
-                normalized = self.weights_temp / (2*np.max(np.absolute(self.weights_temp))) # between -0.5 and +0.5
-                self.trainer.weights = normalized + 0.5 # between 0 and 1
-                # probability of zero is not wished for
-                self.trainer.weights[self.trainer.weights == 2] = np.min(self.trainer.weights[self.trainer.weights != 2])
-                # tf.keras.backend.set_value(self.model.weighted_metrics, self.trainer.weights)
-                # weights don't have to add up to 1
 
         def on_train_batch_begin(self, batch, logs=None):
             """
@@ -181,10 +172,6 @@ class TFTrainer(Trainer, abc.ABC):
             Called each time a train batch ends
             Here we compute scores, save models, and log to MLFlow
             """
-            if self.trainer.use_sample_weighting and logs is not None:
-                # log losses to later use as new training weights
-                loss = logs['loss']
-                self.weights_temp += [loss]*self.trainer.batch_siz
             if self.do_evaluate and self.iteration_idx % self.trainer.evaluation_interval == 0:
                 precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted,\
                 f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted, self.segmentation_threshold =\
@@ -217,7 +204,7 @@ class TFTrainer(Trainer, abc.ABC):
                         if self.trainer.adaboost:
                             checkpoint_path = os.path.join(self.trainer.checkpoints_folder, "cp_best_f1.ckpt")
                         self.best_score = f1_weighted
-                        keras.models.save_model(model=self.model, filepath=checkpoint_path, save_traces=False,include_optimizer=False)
+                        keras.models.save_model(model=self.model, filepath=checkpoint_path, save_traces=False,include_optimizer=True)
 
                     remove_local_checkpoint = not self.trainer.adaboost
                     other_checkpoint_name = None if not self.trainer.adaboost else self.trainer.checkpoints_folder
@@ -230,7 +217,7 @@ class TFTrainer(Trainer, abc.ABC):
                 checkpoint_path = f'{CHECKPOINTS_DIR}/cp_ep-{"%05i" % self.epoch_idx}' + \
                                   f'_it-{"%05i" % self.epoch_iteration_idx}' + \
                                   f'_step-{self.iteration_idx}.ckpt'
-                keras.models.save_model(model=self.trainer.model, filepath=checkpoint_path,save_traces=False,include_optimizer=False)
+                keras.models.save_model(model=self.trainer.model, filepath=checkpoint_path,save_traces=False,include_optimizer=True)
                 mlflow_logger.log_checkpoints()
 
                 remove_local_checkpoint = not self.trainer.adaboost
@@ -381,14 +368,7 @@ class TFTrainer(Trainer, abc.ABC):
         callbacks = [self.callback_handler]
         # model checkpointing functionality moved into TFTrainer.Callback to allow for custom checkpoint names
         
-        if self.use_sample_weighting and not self.adaboost:
-            self.weights = [np.ones(shape=self.train_dataset_size)*2]
-            x, y = self.dataloader.get_training_data_for_one_epoch(split=self.split, batch_size=self.batch_size, preprocessing=self.preprocessing)
-            self.model.fit(x, y, validation_data=self.test_loader.take(test_dataset_size), batch_size=self.batch_size, epochs=self.num_epochs,
-                        sample_weight = self.weights, # weights are manipulated during callback after each epoch
-                        steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks, verbose=1 if IS_DEBUG else 2)
-        else:
-            self.model.fit(self.train_loader, validation_data=self.test_loader.take(test_dataset_size),
+        self.model.fit(self.train_loader, validation_data=self.test_loader.take(test_dataset_size),
                         epochs=self.num_epochs,
                         steps_per_epoch=self.steps_per_training_epoch, callbacks=callbacks, verbose=1 if IS_DEBUG else 2)
 
@@ -404,7 +384,7 @@ class TFTrainer(Trainer, abc.ABC):
             if self.adaboost:
                 checkpoint_path = os.path.join(self.checkpoints_folder, "cp_final.ckpt")
             keras.models.save_model(model=self.model,
-                                    filepath=checkpoint_path,save_traces=False,include_optimizer=False)
+                                    filepath=checkpoint_path,save_traces=False,include_optimizer=True)
             
             remove_local_checkpoint = not self.adaboost
             other_checkpoint_name = None if not self.adaboost else self.checkpoints_folder

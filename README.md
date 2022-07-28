@@ -24,6 +24,7 @@ research process and results.
 8. [Reproducibility](#reproducibility)
 9. [Pre-trained Models](#pre-trained-models)
 10. [Results](#results)
+11. [References](#references)
 
 ## Our Image Segmentation Framework
 We conceived our framework to be able to handle both tensorflow-based models and torch-based models, as both are ubiquitous in the literature. To track our experiments, we used the MLFlow framework. Although it makes the code base a bit more complex, it allowed us to have a centralized space where we could log and **share** our experiments, model checkpoints, hyperparameters and so on. For hyperparameter tuning, we use [HyperOpt](http://hyperopt.github.io/hyperopt/), a framework conceived to optimize hyper parameter searches.
@@ -282,3 +283,19 @@ Our models achieve the following performance on the 'original' dataset:
 
 >📋  Our model '<insert-name>' Achieved an F1-Score of <insert-score> on the Kaggle competition, granting us 
 >the `x'th` position on the Leaderboard. 
+
+## References
+
+This repository uses substantial code adapted from other repositories:
+
+* [Attention UNet TF](https://github.com/ozan-oktay/Attention-Gated-Networks)
+* [GL Dense UNet](https://github.com/cugxyy/GL-Dense-U-Net/blob/master/Model/GL_Dense_U_Net.py)
+* [UNet TF](https://github.com/zhixuhao/unet)
+* [UNet++ TF](https://github.com/MrGiovanni/UNetPlusPlus)
+* [CRA Net](https://github.com/liaochengcsu/Cascade_Residual_Attention_Enhanced_for_Refinement_Road_Extraction)
+* [DeepLabV3](https://github.com/pytorch/vision/blob/main/torchvision/models/segmentation/deeplabv3.py)
+* [Fast SCNN](https://github.com/Tramac/Fast-SCNN-pytorch/blob/master/models/fast_scnn.py)
+* [SegFormer](https://github.com/NVlabs/SegFormer/)
+* [UNet Torch](https://github.com/milesial/Pytorch-UNet)
+* [Lawin](https://github.com/yan-hao-tian/lawin/blob/main/lawin_head.py)
+* [U2Net](https://github.com/xuebinqin/U-2-Net/tree/master/model)

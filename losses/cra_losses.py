@@ -9,6 +9,7 @@ https://github.com/bermanmaxim/LovaszSoftmax/blob/master/pytorch/lovasz_losses.p
 import torch.nn.functional as F
 import torch
 import torch.nn as nn
+from utils import to_cuda
 
 from losses.vgg_loss import VGGPerceptualLoss
 
@@ -17,7 +18,6 @@ try:
 except ImportError:  # py3k
     from itertools import filterfalse as ifilterfalse
 
-
 class cra_loss(nn.Module):
     """
     Loss used by the CRA Net model
@@ -25,8 +25,8 @@ class cra_loss(nn.Module):
 
     def __init__(self):
         super(cra_loss, self).__init__()
-        self.criterion1 = dice_bce_loss_with_logits1().cuda() if torch.cuda.is_available() else dice_bce_loss_with_logits1()
-        self.criterion2 = dice_bce_loss_with_logits().cuda()if torch.cuda.is_available() else dice_bce_loss_with_logits()
+        self.criterion1 = to_cuda(dice_bce_loss_with_logits1())
+        self.criterion2 = to_cuda(dice_bce_loss_with_logits())
 
     def __call__(self, labels, lower, outputs):
         lossr = self.criterion1(labels, lower)
@@ -42,9 +42,9 @@ class cra_loss_with_vgg(nn.Module):
 
     def __init__(self):
         super(cra_loss_with_vgg, self).__init__()
-        self.criterion1 = dice_bce_loss_with_logits1().cuda()
-        self.criterion2 = dice_bce_loss_with_logits().cuda()
-        self.criterion3 = VGGPerceptualLoss().cuda()
+        self.criterion1 = to_cuda(dice_bce_loss_with_logits1())
+        self.criterion2 = to_cuda(dice_bce_loss_with_logits())
+        self.criterion3 = to_cuda(VGGPerceptualLoss())
 
     def __call__(self, labels, refined, outputs):
         lossr = self.criterion1(labels, refined)
@@ -82,7 +82,7 @@ class dice_bce_loss_with_logits(nn.Module):
         return loss
 
     def __call__(self, y_true, y_pred):
-        return F.binary_cross_entropy_with_logits(y_pred, y_true, pos_weight=torch.Tensor([5.5]).cuda())
+        return F.binary_cross_entropy_with_logits(y_pred, y_true, pos_weight=to_cuda(torch.Tensor([5.5])))
 
 
 class dice_bce_loss_with_logits1(nn.Module):
@@ -113,7 +113,7 @@ class dice_bce_loss_with_logits1(nn.Module):
         return loss
 
     def __call__(self, y_true, y_pred):
-        a = F.binary_cross_entropy_with_logits(y_pred, y_true, weight=torch.Tensor([2.5]).cuda())
+        a = F.binary_cross_entropy_with_logits(y_pred, y_true, weight=to_cuda(torch.Tensor([2.5])))
         b = self.soft_dice_loss(y_true, y_pred)
         return a + b
 

@@ -187,7 +187,7 @@ class ChannelAttentionModule(nn.Module):
 
 
 class OurDinkNet50(nn.Module):
-    def __init__(self, num_classes=1, num_channels=3):
+    def __init__(self, num_classes=1):
         super(OurDinkNet50, self).__init__()
 
         filters = [256, 512, 1024, 128]

@@ -1,6 +1,7 @@
 import torch
 
 from losses import MixedLoss
+from losses.precision_recall_f1 import precision_recall_f1_score_torch
 from trainers.trainer_torch import TorchTrainer
 from utils import *
 from torch import optim
@@ -129,6 +130,12 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
             opt.zero_grad()
             loss.backward()
             opt.step()
+            
+            if self.use_sample_weighting:
+                threshold = getattr(self, 'last_hyper_threshold', self.segmentation_threshold)
+                # weight based on F1 score of batch
+                self.weights[sample_idx] =\
+                    1.0 - precision_recall_f1_score_torch((gen_imgs.squeeze() >= threshold).float(), y)[-1].mean().item()
 
             # ====================
             # Train Discriminator
@@ -146,13 +153,11 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
             callback_handler.on_train_batch_end()
             del x
             del y
-            
-            if self.use_sample_weighting:
-                self.weights[sample_idx] = loss.item()
 
         train_loss /= len(train_loader.dataset)
         f1_score = callback_handler.on_epoch_end()
-        self.scheduler.step(f1_score)
+        if f1_score is not None: # if None, we are in the first train step of a run with only a single batch
+            self.scheduler.step(f1_score)
         return train_loss
 
     def _eval_step(self, model, device, test_loader):
