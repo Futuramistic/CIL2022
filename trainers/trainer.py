@@ -25,8 +25,8 @@ class Trainer(abc.ABC):
                  batch_size=None, optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None,
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
-                 blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False,
-                 use_adaboost=False, f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
+                 blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False, use_adaboost=False,
+                 deep_adaboost=False, f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
         """
         Args:
             dataloader: the DataLoader to use when training the model
@@ -58,7 +58,8 @@ class Trainer(abc.ABC):
                                  (measured by F1 score)
             use_sample_weighting: whether to use sample weighting to train more on samples with worse losses; weights 
                                  are recalculated after each epoch (currently only for torch)
-            use_adaboost: If True, the trainer is part of the adaboost algorithm
+            use_adaboost: if True, the trainer is part of the adaboost or deep adaboost algorithm
+            deep_adaboost: if True and use_adaboost is True, the trainer is part of the deep adaboost algorithm
         """
         self.dataloader = dataloader
         self.model = model
@@ -109,6 +110,7 @@ class Trainer(abc.ABC):
                   '(in iterations) to Trainer in order to create checkpoints. ***\n')
         
         self.adaboost = use_adaboost
+        self.deep_adaboost = deep_adaboost
         if self.adaboost:
             self.curr_best_checkpoint_path = None
             self.checkpoints_folder = None

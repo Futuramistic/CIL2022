@@ -37,7 +37,7 @@ def main():
                     'max_rollout_len', 'std', 'reward_discount_factor', 'num_policy_epochs', 'policy_batch_size',
                     'sample_from_action_distributions', 'visualization_interval', 'min_steps', 'rollout_len',
                     'blobs_removal_threshold', 'T', 'hyper_seg_threshold', 'w', 'use_sample_weighting',
-                    'use_adaboost', 'a', 'f1_threshold_to_log_checkpoint']
+                    'use_adaboost', 'a', 'f1_threshold_to_log_checkpoint', 'deep_adaboost', 'D']
     dataloader_args = ['dataset', 'd', 'use_geometric_augmentation', 'use_color_augmentation',
                        'aug_brightness', 'aug_contrast', 'aug_saturation', 'use_adaboost', 'a']
 
@@ -74,7 +74,9 @@ def main():
                         help="If True, use sample weighting during training to train more on samples with big errors.\
                             Currently only working with torch")
     parser.add_argument('-a', '--use_adaboost', type=bool, required=False, default=False,
-                        help="If True, apply the Adaboost algorithm to the training")
+                        help="If True, apply the Adaboost algorithm to the training (original or deep version)")
+    parser.add_argument('-D', '--deep_adaboost', type=bool, required=False, default=False,
+                        help="If True, apply the Deep Adaboost algorithm to the training (use_adaboost must be True)")
     parser.add_argument('-A', '--adaboost_runs', type=int, required=False, default=20,
                         help="Only if adaboost is used, specify the number of models to ensemble")
     known_args, unknown_args = parser.parse_known_args()
@@ -115,7 +117,8 @@ def main():
     
     # call adaboost script if adaboost is used
     if known_args_dict["use_adaboost"]:
-        adabooster = AdaBooster(factory, known_args_dict, unknown_args_dict, model_spec_args, trainer_spec_args, dataloader_spec_args, IS_DEBUG)
+        adabooster = AdaBooster(factory, known_args_dict, unknown_args_dict, model_spec_args, trainer_spec_args,
+                                dataloader_spec_args, known_args.deep_adaboost, IS_DEBUG)
         adabooster.run()
         return
     
