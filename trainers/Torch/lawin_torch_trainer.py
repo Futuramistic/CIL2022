@@ -1,7 +1,7 @@
 import torch
 from torch import optim
 from utils import *
-
+from losses.precision_recall_f1 import precision_recall_f1_score_torch
 from trainers.trainer_torch import TorchTrainer
 
 class LawinTrainer(TorchTrainer):
@@ -117,6 +117,11 @@ class LawinTrainer(TorchTrainer):
             opt_backbone.step()
             opt_head.step()
             callback_handler.on_train_batch_end()
+            if self.use_sample_weighting:
+                threshold = getattr(self, 'last_hyper_threshold', self.segmentation_threshold)
+                # weight based on F1 score of batch
+                self.weights[sample_idx] =\
+                    1.0 - precision_recall_f1_score_torch((preds.squeeze() >= threshold).float(), y)[-1].mean().item()
             del x
             del y
         train_loss /= len(train_loader.dataset)

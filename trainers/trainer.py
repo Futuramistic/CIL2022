@@ -57,7 +57,7 @@ class Trainer(abc.ABC):
             hyper_seg_threshold: whether to use hyperopt to calculate the optimal threshold on the evaluation data 
                                  (measured by F1 score)
             use_sample_weighting: whether to use sample weighting to train more on samples with worse losses; weights 
-                                 are recalculated after each epoch
+                                 are recalculated after each epoch (currently only for torch)
             use_adaboost: If True, the trainer is part of the adaboost algorithm
         """
         self.dataloader = dataloader
