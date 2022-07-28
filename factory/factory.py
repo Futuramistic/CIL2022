@@ -157,7 +157,7 @@ class TwoShotNetFactory(Factory):
         return UNetTrainer
 
     def get_model_class(self):
-        return torch.TwoShotNet
+        return TwoShotNet
         
     def get_dataloader_class(self):
         return TorchDataLoader
