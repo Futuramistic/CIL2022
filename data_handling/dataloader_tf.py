@@ -37,8 +37,8 @@ class TFDataLoader(DataLoader):
         self.use_geometric_augmentation = use_geometric_augmentation
         self.use_color_augmentation = use_color_augmentation
         
-        # if adaboost is used, the dataloader is used to store the current sample weights as the same dataloader is used for all
-        # trainers and models
+        # if adaboost is used, the dataloader is used to store the current sample weights as the same dataloader is used
+        # for all trainers and models
         self.use_adaboost = use_adaboost
         if self.use_adaboost:
             self.weights_set = False
@@ -108,7 +108,8 @@ class TFDataLoader(DataLoader):
         """
         return tf.ones_like(self.__parse_data(image_path, channels))
 
-    def __get_image_data(self, img_paths, gt_paths=None, shuffle=True, preprocessing=None, offset=0, length=int(1e12), return_dataloader=True):
+    def __get_image_data(self, img_paths, gt_paths=None, shuffle=True, preprocessing=None, offset=0, length=int(1e12),
+                         return_dataloader=True):
         """
         Get images and masks
         Args:
@@ -138,16 +139,20 @@ class TFDataLoader(DataLoader):
             if not return_dataloader:
                 # don't shuffle and do return data
                 return [parse_img(img_path) for _ in itertools.count() for img_path in img_paths_tf], \
-                    [parse_gt(gt_path) for _ in itertools.count() for gt_path in gt_paths_tf]
+                    [parse_gt(gt_path) for _ in itertools.count() for gt_path in gt_paths_tf],\
+                    [idx for _ in itertools.count() for idx in range(len(img_paths_tf))],
             elif shuffle:
                 return tf.data.Dataset.from_generator(
-                    lambda: ((parse_img(img_path), parse_gt(gt_path)) for _ in itertools.count()
-                             for img_path, gt_path in zip(*utils.consistent_shuffling(img_paths_tf, gt_paths_tf))),
+                    lambda: ((parse_img(img_path), parse_gt(gt_path), sample_idx) for _ in itertools.count()
+                             for img_path, gt_path, sample_idx
+                             in zip(*utils.consistent_shuffling(img_paths_tf, gt_paths_tf,
+                                                                list(range(len(img_paths_tf)))))),
                     output_types=output_types)
             else:
                 return tf.data.Dataset.from_generator(
-                    lambda: ((parse_img(img_path), parse_gt(gt_path)) for _ in itertools.count()
-                             for img_path, gt_path in zip(img_paths_tf, gt_paths_tf)),
+                    lambda: ((parse_img(img_path), parse_gt(gt_path), sample_idx) for _ in itertools.count()
+                             for img_path, gt_path, sample_idx in zip(img_paths_tf, gt_paths_tf,
+                                                                      list(range(len(img_paths_tf))))),
                     output_types=output_types)
         else:
             output_types = parse_img(img_paths_tf[0]).dtype
@@ -164,7 +169,8 @@ class TFDataLoader(DataLoader):
                     lambda: (parse_img(img_path) for _ in itertools.count() for img_path in img_paths_tf),
                     output_types=output_types)
     
-    def __get_image_data_with_weighting(self, img_paths, gt_paths=None, shuffle=True, preprocessing=None, offset=0, length=int(1e12)):
+    def __get_image_data_with_weighting(self, img_paths, gt_paths=None, shuffle=True, preprocessing=None, offset=0,
+                                        length=int(1e12)):
         """
         Get images and masks with weights specified in self.weights (used in adaboost)
         Args:
@@ -192,22 +198,28 @@ class TFDataLoader(DataLoader):
             self.weights = np.ones(length)*(1/length)
             
         # create probability disribution from weights:
-        values = list(range(length))
-        sampled_dist = np.squeeze(np.random.choice(a=values, size=length))
+        indices = list(range(length))
 
         if gt_paths is not None:
             gt_paths_tf = tf.convert_to_tensor(gt_paths[offset:offset + length])
             output_types = (parse_img(img_paths_tf[0]).dtype, parse_gt(gt_paths_tf[0]).dtype)
             def get_data_from_idx(sample_idx):
                 img_path, gt_path = img_paths_tf[sample_idx], gt_paths_tf[sample_idx]
-                return (parse_img(img_path), parse_gt(gt_path))
+                return (parse_img(img_path), parse_gt(gt_path), sample_idx)
             
             if shuffle:
                 return tf.data.Dataset.from_generator(
-                    lambda: ((get_data_from_idx(sample_idx[0])) for _ in itertools.count() for sample_idx in  utils.consistent_shuffling(sampled_dist)), output_types=output_types)
+                    lambda: ((get_data_from_idx(sample_idx[0])) for _ in itertools.count()
+                              for sample_idx
+                              in utils.consistent_shuffling(np.squeeze(np.random.choice(a=indices, size=length)))),
+                    output_types=output_types)
             else:
+                # note that we cannot use sample weighting without shuffling
                 return tf.data.Dataset.from_generator(
-                    lambda: ((get_data_from_idx(sample_idx[0])) for _ in itertools.count() for sample_idx in sampled_dist), output_types=output_types)
+                    lambda: ((get_data_from_idx(sample_idx))
+                              for _ in itertools.count()
+                              for sample_idx in indices),
+                    output_types=output_types)
         else:
             # no weighting needed for data without groundtruth
             def get_data_from_idx(sample_idx):
@@ -215,10 +227,16 @@ class TFDataLoader(DataLoader):
                 return parse_img(img_path)
             if shuffle:
                 return tf.data.Dataset.from_generator(
-                    lambda: ((get_data_from_idx(sample_idx[0])) for _ in itertools.count() for sample_idx in utils.consistent_shuffling(sampled_dist)), output_types=output_types)
+                    lambda: (get_data_from_idx(sample_idx[0])
+                             for _ in itertools.count()
+                             for sample_idx in utils.consistent_shuffling(indices)),
+                    output_types=output_types)
             else:
                 return tf.data.Dataset.from_generator(
-                    lambda: ((get_data_from_idx(sample_idx[0])) for _ in itertools.count() for sample_idx in sampled_dist), output_types=output_types)
+                    lambda: (get_data_from_idx(sample_idx)
+                              for _ in itertools.count()
+                              for sample_idx in indices),
+                    output_types=output_types)
                 
     def get_training_data_for_one_epoch(self, split, preprocessing=None, **args):
         """
@@ -235,7 +253,8 @@ class TFDataLoader(DataLoader):
         test_size = dataset_size - train_size
         
         training_data_x, training_data_y = self.__get_image_data(self.training_img_paths, self.training_gt_paths,
-                                                    preprocessing=preprocessing, offset=0, length=train_size, return_dataloader=False)
+                                                                 preprocessing=preprocessing, offset=0,
+                                                                 length=train_size, return_dataloader=False)
 
         if self.use_geometric_augmentation:
             return (training_data_x,training_data_y).map(self.augmentation, tf.data.AUTOTUNE).prefetch(tf.data.AUTOTUNE)
@@ -274,10 +293,10 @@ class TFDataLoader(DataLoader):
                                                                      offset=train_size, length=test_size)
         else:
             self.training_data = self.__get_image_data(self.training_img_paths, self.training_gt_paths, 
-                                                       shuffle=shuffle,
-                                                    preprocessing=preprocessing, offset=0, length=train_size)
+                                                       shuffle=shuffle, preprocessing=preprocessing, offset=0,
+                                                       length=train_size)
             self.testing_data = self.__get_image_data(self.training_img_paths, self.training_gt_paths, shuffle=False,
-                                                  preprocessing=preprocessing, offset=train_size, length=test_size)
+                                                      preprocessing=preprocessing, offset=train_size, length=test_size)
         print(f'Train data consists of ({train_size}) samples')
         print(f'Test data consists of ({test_size}) samples')
 

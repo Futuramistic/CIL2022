@@ -428,8 +428,9 @@ class TorchTrainer(Trainer, abc.ABC):
             threshold = self.get_best_segmentation_threshold()
         # in adaboost, the train loader doesn't use shuffling by default
         train_loader = self.dataloader.get_training_dataloader(split=self.split,
-                        batch_size=1, preprocessing=self.preprocessing)
-        for (x, y, _) in train_loader:
+                                                               batch_size=1,
+                                                               preprocessing=self.preprocessing)
+        for x, y, *_ in train_loader:
             x = x.to(self.device, dtype=torch.float32)
             y = y.to(self.device, dtype=torch.float32)
             output = self.model(x)
@@ -507,7 +508,7 @@ class TorchTrainer(Trainer, abc.ABC):
         predictions = []
         targets = []
         with torch.no_grad():
-            for (sample_x, sample_y, _) in self.seg_thresh_dataloader:  # batch size is 1
+            for sample_x, sample_y, *_ in self.seg_thresh_dataloader:  # batch size is 1
                 x, y = sample_x.to(self.device, dtype=torch.float32), sample_y.to(self.device, dtype=torch.long)
                 y = torch.squeeze(y, dim=1)  # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
                 output = self.model(x, apply_activation=True)

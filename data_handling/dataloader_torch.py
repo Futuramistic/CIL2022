@@ -72,7 +72,7 @@ class TorchDataLoader(DataLoader):
         max_img_val = preprocessing(max_img, is_gt=False).max()
         return min_img_val.detach().cpu().numpy().item(), max_img_val.detach().cpu().numpy().item()
 
-    def get_training_dataloader(self, split, batch_size, weights=None, preprocessing=None, **args):
+    def get_training_dataloader(self, split, batch_size, weights=None, preprocessing=None, **kwargs):
         """
         Args:
             split (float): training/test splitting ratio, e.g. 0.8 for 80"%" training and 20"%" test data
@@ -83,10 +83,13 @@ class TorchDataLoader(DataLoader):
                 if not empty: list of weights for each data sample
             preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
                                       constructing the native dataloader
-            **args: parameters for torch dataloader, e.g. shuffle (boolean)
+            **kwargs: parameters for torch dataloader, e.g. shuffle (boolean)
         Returns:
             Torch Dataloader
         """
+
+        if 'suppress_adaboost_weighting' in kwargs:
+            del kwargs['suppress_adaboost_weighting']
         
         # WARNING: the train/test splitting behavior must be consistent across TFDataLoader and TorchDataLoader,
         # and may not be stochastic, so as to ensure comparability across models/runs
@@ -103,29 +106,29 @@ class TorchDataLoader(DataLoader):
 
         # self.dataset is not yet set in these cases:
         if weights is None or len(weights) == 0:
-            ret = torchDL(self.training_data, batch_size, shuffle=True, **args)
+            ret = torchDL(self.training_data, batch_size, shuffle=True, **kwargs)
             
         elif not self.use_adaboost:
             # sample weighting (which adapts the sample weights after each epoch of the current model) is mutually exclusive with adaboost
             sampler = WeightedRandomSampler(weights[:training_data_len], training_data_len, replacement=True)
-            ret = torchDL(self.training_data, batch_size, sampler = sampler, **args) # shuffling is mutually exclusive with sampler
+            ret = torchDL(self.training_data, batch_size, sampler = sampler, **kwargs) # shuffling is mutually exclusive with sampler
         
         if self.use_adaboost:
             if not self.weights_set:
                 # init with equal weights
                 self.weights = np.ones(training_data_len, dtype=np.float16)*(1/training_data_len)
             sampler = WeightedRandomSampler(weights=self.weights[:training_data_len], num_samples=training_data_len, replacement=True)
-            ret = torchDL(self.training_data, batch_size, sampler = sampler, **args) # shuffling is mutually exclusive with sampler
+            ret = torchDL(self.training_data, batch_size, sampler = sampler, **kwargs) # shuffling is mutually exclusive with sampler
         ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)
         return ret
 
-    def get_testing_dataloader(self, batch_size, preprocessing=None, **args):
+    def get_testing_dataloader(self, batch_size, preprocessing=None, **kwargs):
         """
         Args:
             batch_size (int): training batch size
             preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
                                       constructing the native dataloader
-            **args: parameters for torch dataloader, e.g. shuffle (boolean)
+            **kwargs: parameters for torch dataloader, e.g. shuffle (boolean)
 
         Returns:
             Torch Dataloader
@@ -148,11 +151,11 @@ class TorchDataLoader(DataLoader):
                 self.testing_data = SegmentationDataset(self.training_img_paths, self.training_gt_paths, preprocessing,
                                                         use_color_augmentation=False, use_geometric_augmentation=False)
         
-        ret = torchDL(self.testing_data, batch_size, shuffle=False, **args)
+        ret = torchDL(self.testing_data, batch_size, shuffle=False, **kwargs)
         ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)
         return ret
             
-    def get_unlabeled_testing_dataloader(self, batch_size, preprocessing=None, **args):
+    def get_unlabeled_testing_dataloader(self, batch_size, preprocessing=None, **kwargs):
         """
         Args:
             batch_size (int): training batch size
@@ -170,7 +173,7 @@ class TorchDataLoader(DataLoader):
             self.unlabeled_testing_data = SegmentationDataset(self.test_img_paths, None, preprocessing,
                                                               use_color_augmentation=False,
                                                               use_geometric_augmentation=False)
-        ret = torchDL(self.unlabeled_testing_data, batch_size, shuffle=False, **args)
+        ret = torchDL(self.unlabeled_testing_data, batch_size, shuffle=False, **kwargs)
         ret.img_val_min, ret.img_val_max = self.get_img_val_min_max(preprocessing)
         return ret
 
