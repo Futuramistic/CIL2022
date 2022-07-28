@@ -105,9 +105,9 @@ class CRANetTrainer(TorchTrainer):
         for (inputs, labels, sample_idx) in train_loader:
             labels = torch.squeeze(labels, dim=1)
             if torch.cuda.is_available():
-                inputs = Variable(inputs.cuda())
-                labels = Variable(labels.cuda())
-                labels = labels.float().cuda()
+                inputs = Variable(to_cuda(inputs))
+                labels = Variable(to_cuda(labels))
+                labels = to_cuda(labels.float())
             else:
                 inputs = Variable(inputs)
                 labels = Variable(labels)
@@ -156,9 +156,9 @@ class CRANetTrainer(TorchTrainer):
                 labels = torch.squeeze(labels, dim=0)
 
                 if torch.cuda.is_available():
-                    inputs = Variable(inputs.cuda())
-                    labels = Variable(labels.cuda())
-                    labels = labels.float().cuda()
+                    inputs = Variable(to_cuda(inputs))
+                    labels = Variable(to_cuda(labels))
+                    labels = to_cuda(labels.float())
                 else:
                     inputs = Variable(inputs)
                     labels = Variable(labels)

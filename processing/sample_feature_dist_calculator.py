@@ -9,9 +9,8 @@ from torch import nn
 import torch.nn.functional as F
 from torchvision.models import inception_v3
 import pickle
-
-from PIL import Image
 from tqdm import tqdm
+from utils import to_cuda
 
 """
 Compute and pickle the pairwise distances between samples of two datasets
@@ -73,7 +72,7 @@ def main(dataset_1, dataset_2):
 
     model = PartialInceptionNetwork()
     if torch.cuda.is_available():
-        model = model.cuda()
+        model = to_cuda(model)
     model.eval()
 
     for filename_1 in tqdm(os.listdir(ds_1_images_dir)):
@@ -89,7 +88,7 @@ def main(dataset_1, dataset_2):
                 [2, 1, 0, 3] if image_1.shape[0] == 4 else [2, 1, 0] if image_1.shape[0] == 3 else [0]]  # BGR to RGB
             image_1 = image_1[:3, ...].float() / 255.0
             if torch.cuda.is_available():
-                image_1 = image_1.cuda()
+                image_1 = to_cuda(image_1)
 
             features_1 = model(image_1.unsqueeze(0))
 
@@ -107,7 +106,7 @@ def main(dataset_1, dataset_2):
                             0]]  # BGR to RGB
                     image_2 = image_2[:3, ...].float() / 255.0
                     if torch.cuda.is_available():
-                        image_2 = image_2.cuda()
+                        image_2 = to_cuda(image_2)
 
                     features_2 = model(image_2.unsqueeze(0))
 
