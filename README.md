@@ -2,7 +2,7 @@
 
 This repository contains the implementation of our solution for the Road Segmentation task of the Computational Intelligence Lab.
 
-Please refer to the accompanying [<insert_link_to_pdf>](https://arxiv.org/abs/2030.12345) for an in-depth description of our 
+Please refer to the accompanying [temp report](./report.pdf) for an in-depth description of our 
 research process and results.
 
 
@@ -167,15 +167,13 @@ command-line below under the `model-name` argument):
 To train the available models, run this command:
 
 ```train
-python main.py -d <dataset-name> -m <model-name> -E <experiment-name> 
---batch_size <batch-size> --num_epochs <num-epochs>
+python main.py -d <dataset-name> -m <model-name> --batch_size <batch-size> --num_epochs <num-epochs> -E <experiment-name>
 ```
 
 For example:
 
 ```train
-python main.py -d original -m deeplabv3 -E training_run 
---batch_size 4 --num_epochs 30
+python main.py -d original -m deeplabv3 -E training_run --batch_size 4 --num_epochs 30
 ```
 
 >📋  TODO put commands for our final models/RL models
@@ -274,14 +272,12 @@ You can download pretrained models here:
 
 Our models achieve the following performance on the 'original' dataset:
 
-| Model name         | F1-Score  |
-| ------------------ |---------------- |
-| Our RL model name  |     0.999         |
-| Our ensemble  |     0.998         |
-| Other?  |     0.997         |
+| Model name         | F1-Score  | Weighted F1-Score |
+| ------------------ |---------------- |------------------|
+| UNet Exp  |     0.999         |          1         |
+| Submission ensemble  |     0.998         |           1        |
 
->📋  Our model '<insert-name>' Achieved an F1-Score of <insert-score> on the Kaggle competition, granting us 
->the `x'th` position on the Leaderboard. 
+Our model '<insert-name>' Achieved an F1-Score of <insert-score> on the Kaggle competition, granting us the `x'th` position on the Leaderboard. 
 
 ## References
 
