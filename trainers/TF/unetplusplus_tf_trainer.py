@@ -48,7 +48,7 @@ class UNetPlusPlusTrainer(TFTrainer):
         # According to the paper
         # Try DiceBCELoss2 
         if loss_function is None:
-            loss_function = DiceBCELoss2()
+            loss_function = DiceBCELoss2
 
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)
