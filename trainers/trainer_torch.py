@@ -307,8 +307,8 @@ class TorchTrainer(Trainer, abc.ABC):
             mlflow_logger.log_metrics(metrics, aggregate_iteration_idx=self.callback_handler.iteration_idx)
             mlflow_logger.log_logfiles()
         
-        if self.do_checkpoint:
-            # save final checkpoint
+        if self.do_checkpoint or self.adaboost:
+            # save final checkpoint, in any case for adaboost
             self._save_checkpoint(self.model, None, None, None)
 
         print('\nTraining finished at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
