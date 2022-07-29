@@ -105,8 +105,6 @@ dataset names are:
 > * new_ext_original: "ext_original" dataset, with first 25 samples moved to end to form the validation split
 > * new_ext_original_oversampled: "ext_original" dataset, with second city class oversampled, and 
 first 25 sample moved to end to form the validation split
-> * additional_maps_1: dataset retrieved from http://efrosgans.eecs.berkeley.edu/pix2pix/datasets/
-> * massachusetts_400: Massachusetts Road dataset (400x400)
 > * original_aug_6: "original" dataset, 400x400 but with augmented training set using Preprocessor (x6)
 > * new_original_aug_6: Recreation of "original_aug_6" dataset, but with 25 samples from original dataset excluded from augmentation
 procedure to avoid data leakage
@@ -157,8 +155,6 @@ command-line below under the `model-name` argument):
 - SegFormer (name: 'segformer')
 - TwoShotNet (name: 'twoshotnet')
 ```
-
->📋  TODO: Only keep the models that have been tested
 
 *Reinforcement Learning models (Torch)*
 ```
@@ -297,7 +293,6 @@ This repository uses substantial code adapted from other repositories:
 * [UNet++ TF](https://github.com/MrGiovanni/UNetPlusPlus)
 * [CRA Net](https://github.com/liaochengcsu/Cascade_Residual_Attention_Enhanced_for_Refinement_Road_Extraction)
 * [DeepLabV3](https://github.com/pytorch/vision/blob/main/torchvision/models/segmentation/deeplabv3.py)
-* [Fast SCNN](https://github.com/Tramac/Fast-SCNN-pytorch/blob/master/models/fast_scnn.py)
 * [SegFormer](https://github.com/NVlabs/SegFormer/)
 * [UNet Torch](https://github.com/milesial/Pytorch-UNet)
 * [Lawin](https://github.com/yan-hao-tian/lawin/blob/main/lawin_head.py)
