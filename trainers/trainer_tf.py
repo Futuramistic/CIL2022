@@ -446,7 +446,10 @@ class TFTrainer(Trainer, abc.ABC):
             # More channels than needed - U^2-Net-style
             if len(output.shape) == 5:
                 output = output[0]
-            preds = tf.cast(tf.squeeze(output) >= threshold, tf.dtypes.int8)
+
+            
+            preds = tf.cast(tf.squeeze(collapse_channel_dim_tf(output, take_argmax=False)) >= threshold,
+                                                               tf.dtypes.int8)
             blb_input = preds.numpy()
             preds = remove_blobs(blb_input, threshold=self.blobs_removal_threshold)
             # print('tf preds 2', preds.shape)$
