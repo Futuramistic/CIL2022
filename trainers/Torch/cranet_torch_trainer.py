@@ -52,7 +52,7 @@ class CRANetTrainer(TorchTrainer):
             scheduler = torch.optim.lr_scheduler.StepLR(optimizer_or_lr, step_size=180, gamma=0.1)
 
         if loss_function is None:
-            loss_function = cra_loss()
+            loss_function = cra_loss
 
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)

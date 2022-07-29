@@ -42,8 +42,10 @@ class GLDenseUNetTrainer(TFTrainer):
             optimizer_or_lr = GLDenseUNetTrainer.get_default_optimizer_with_lr(optimizer_or_lr, model)
 
         if loss_function is None:
-            cat_xent = K.losses.SparseCategoricalCrossentropy(from_logits=False)
-            loss_function = lambda targets, inputs, cat_xent=cat_xent: cat_xent(tf.squeeze(targets, axis=-1), inputs)
+            def get_cat_xent_loss():
+                cat_xent = K.losses.SparseCategoricalCrossentropy(from_logits=False)
+                return lambda targets, inputs: cat_xent(tf.squeeze(targets, axis=-1), inputs)
+            loss_function = get_cat_xent_loss
             #loss_function = DiceLoss()
             #self.loss_function_name = 'DiceLoss'
             self.loss_function_name = 'SparseCatXEnt'

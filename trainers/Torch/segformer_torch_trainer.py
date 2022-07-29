@@ -59,7 +59,9 @@ class SegFormerTrainer(TorchTrainer):
 
         if loss_function is None:
             self.ce_loss = torch.nn.CrossEntropyLoss()
-            loss_function = lambda input, target: self.ce_loss(input, target.long())
+            def get_ce_loss():
+                return lambda input, target: self.ce_loss(input, target.long())
+            loss_function = get_ce_loss
 
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)

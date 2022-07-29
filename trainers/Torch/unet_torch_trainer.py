@@ -43,7 +43,7 @@ class UNetTrainer(TorchTrainer):
             scheduler = torch.optim.lr_scheduler.StepLR(optimizer_or_lr, step_size=1, gamma=1)
 
         if loss_function is None:
-            loss_function = torch.nn.BCELoss()
+            loss_function = torch.nn.BCELoss
 
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)

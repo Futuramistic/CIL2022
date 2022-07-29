@@ -47,7 +47,9 @@ class DeepLabV3Trainer(TorchTrainer):
             # scheduler = torch.optim.lr_scheduler.StepLR(optimizer_or_lr, step_size=1, gamma=1)
 
         if loss_function is None:
-            loss_function = MixedLoss(10.0, 2.0)
+            def get_mixed_loss():
+                return lambda x,y: MixedLoss(10.0, 2.0)(x,y)
+            loss_function = get_mixed_loss
 
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)
