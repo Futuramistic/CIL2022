@@ -1,8 +1,8 @@
 import tensorflow as tf
-import keras.backend as K
+import tensorflow.keras.backend as K
 
 
-def FocalTverskyLoss(alpha=.5, beta=.5, gamma=1, smooth=1e-6):
+def FocalTverskyLoss(alpha=.3, beta=.7, gamma=.75, smooth=1e-6):
     """
     Focal Tversky Loss implentation. Refer to Paper: https://arxiv.org/pdf/1706.05721.pdf for more information
     Args:
