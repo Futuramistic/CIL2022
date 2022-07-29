@@ -192,8 +192,15 @@ class RSU6(keras.layers.Layer):
         self.x2d = ConvoRelu_Block(**mid_args)
         self.x4up = UpSampling2D(**up_args)
         self.x1d = ConvoRelu_Block(**out_args)
+        
+        self.resize_layer = keras.layers.Resizing(416, 416, interpolation='bilinear')
 
     def call(self, inputs, **kwargs):
+        B, H, W, C = inputs.shape
+        
+        if H != 416 or W != 416:
+            inputs = self.resize_layer(inputs)
+
         hx = inputs
         hxin = self.convo_in(hx, **kwargs)
 
