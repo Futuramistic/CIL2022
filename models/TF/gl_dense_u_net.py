@@ -9,7 +9,7 @@ import tensorflow.keras as K
 from utils import DEFAULT_TF_INPUT_SHAPE
 
 
-def GLDenseUNet(input_shape=DEFAULT_TF_INPUT_SHAPE,
+def GLDenseUNet(input_shape=(None, 1, 3),
                 growth_rate=16,
                 layers_per_block=(4, 5, 7, 10, 12),
                 conv2d_activation='relu',
