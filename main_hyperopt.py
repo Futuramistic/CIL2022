@@ -10,18 +10,7 @@ from hyperopt_ import *
 from utils import *
 
 
-def main_hyperopt():
-    warnings.filterwarnings("ignore", category=UserWarning)
-
-    parser = argparse.ArgumentParser(description='Implementation of Hyperparameter Optimizer '
-                                                 'that searches through the parameter space')
-    parser.add_argument('-s', '--search_space', type=str, required=True,
-                        help="Give the name of the search space, which has to be defined in "
-                             "'hyperopt\\param_space_...' and imported in main_hyperopt")
-    parser.add_argument('-n', '--num_runs', type=int, required=True,
-                        help="The number of Hyperopt runs, aka models trained with different parameters "
-                             "from the search space")
-    params, _ = parser.parse_known_args()
+def main_hyperopt(params):
 
     try:
         optimizer = HyperParamOptimizer(eval(params.search_space), params.search_space)
@@ -41,9 +30,20 @@ if __name__ == '__main__':
         if os.path.isfile(path):
             os.unlink(path)
     
+    # parse command line argument (no redirections into log files in case somebody wants to use '--help')
+    parser = argparse.ArgumentParser(description='Implementation of Hyperparameter Optimizer '
+                                                 'that searches through the parameter space')
+    parser.add_argument('-s', '--search_space', type=str, required=True,
+                        help="Give the name of the search space, which has to be defined in "
+                             "'hyperopt\\param_space_...'")
+    parser.add_argument('-n', '--num_runs', type=int, required=True,
+                        help="The number of Hyperopt runs, aka models trained with different parameters "
+                             "from the search space")
+    params, _ = parser.parse_known_args()
+    
     # don't use log files in debug mode, print everything to console
     if IS_DEBUG:
-        main_hyperopt()
+        main_hyperopt(params)
     
     # If not running in debug mode, redirect the stdout and stderr to log files
     else:
@@ -54,7 +54,7 @@ if __name__ == '__main__':
             # buffering=1: use line-by-line buffering
             with open(stderr_path, 'w', buffering=1) as stderr_f, open(stdout_path, 'w', buffering=1) as stdout_f:
                 with redirect_stderr(stderr_f), redirect_stdout(stdout_f):
-                    main_hyperopt()
+                    main_hyperopt(params)
         except Exception as e:
             err_msg = f'*** Exception encountered: ***\n{e}'
             pushbullet_logger.send_pushbullet_message(err_msg)
