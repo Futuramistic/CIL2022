@@ -155,7 +155,7 @@ DATASET_ZIP_URLS = {
     # maps_filtered, with 119 samples from the training set,
     # 400x400 but with augmented training set using Preprocessor (x6)
     # same 25 validation samples as in "new_original", "maps_filtered", etc.
-    # use split of 0.9977 to use exactly these 25 samples as the validation set
+    # use split of 0.9978 to use exactly these 25 samples as the validation set
     "maps_filtered_aug_6": "https://polybox.ethz.ch/index.php/s/0m6ZC866JNqcrU5/download"
 }
 DATASET_STATS = {
