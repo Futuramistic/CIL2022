@@ -221,7 +221,8 @@ class TFDataLoader(DataLoader):
                 
     def get_training_dataloader(self, split, batch_size, preprocessing=None, suppress_adaboost_weighting=False, **args):
         """
-        Create training/validation dataset split
+        Creates the training dataloader and also defines the testing data from the split. Therefore, call this function before
+        calling "get_testing_dataloader".
         Args:
            split (float): training/test splitting ratio, e.g. 0.8 for 80"%" training and 20"%" test data
            batch_size (int): training batch size
@@ -266,7 +267,9 @@ class TFDataLoader(DataLoader):
 
     def get_testing_dataloader(self, batch_size, preprocessing=None, **args):
         """
-        Get labeled dataset for validation
+        Creates the testing dataloader with groundtruth data. Call get_training_dataloader before calling this function in order to use
+        the split consistently to determine the training and testing data. If no groundtruth data exists for the test dataset, the 
+        training data is returned
         Args:
            batch_size (int): training batch size
            preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
@@ -297,7 +300,8 @@ class TFDataLoader(DataLoader):
 
     def get_unlabeled_testing_dataloader(self, batch_size, preprocessing=None, **args):
         """
-        Get unlabeled dataset for test
+        Creates the testing dataloader for testing data where either groundtruth data doesn't exist, or when groundtruth
+        data is not needed.
         Args:
            batch_size (int): training batch size
            preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
