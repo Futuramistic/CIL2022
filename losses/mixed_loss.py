@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 
-def dice_loss(input, target):
+def _dice_loss(input, target):
     input = torch.sigmoid(input)
     smooth = 1.0
     iflat = input.view(-1)
@@ -36,5 +36,5 @@ class MixedLoss(nn.Module):
         self.focal = FocalLoss(gamma)
 
     def forward(self, input, target):
-        loss = self.alpha * self.focal(input, target) - torch.log(dice_loss(input, target))
+        loss = self.alpha * self.focal(input, target) - torch.log(_dice_loss(input, target))
         return loss.mean()

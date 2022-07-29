@@ -45,7 +45,7 @@ class AttUNetTrainer(TFTrainer):
 
         # According to the paper
         if loss_function is None:
-            loss_function = DiceLoss()
+            loss_function = DiceLoss
 
         if evaluation_interval is None:
             evaluation_interval = dataloader.get_default_evaluation_interval(batch_size)

@@ -89,8 +89,7 @@ class Trainer(abc.ABC):
             self.loss_function = self.loss_function(**self.loss_function_hyperparams)
         elif inspect.isfunction(self.loss_function):
             self.orig_loss_function = self.loss_function
-            self.loss_function = lambda *args, **kwargs: self.orig_loss_function(*args, **kwargs,
-                                                                                 **self.loss_function_hyperparams)
+            self.loss_function = lambda *args, **kwargs: self.orig_loss_function(**self.loss_function_hyperparams)(*args, **kwargs)
 
         self.evaluation_interval = evaluation_interval
         self.num_samples_to_visualize =\
