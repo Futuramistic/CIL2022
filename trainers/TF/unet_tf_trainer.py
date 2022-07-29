@@ -48,7 +48,9 @@ class UNetTFTrainer(TFTrainer):
 
         # According to the online github repo
         if loss_function is None:
-            loss_function = FocalTverskyLoss(alpha=0.3,beta=0.7,gamma=0.75)
+            def get_focal_tversky_loss():
+                return lambda x,y: FocalTverskyLoss(alpha=0.3,beta=0.7,gamma=0.75)(x, y)
+            loss_function = get_focal_tversky_loss
             # loss_function = K.losses.BinaryCrossentropy(from_logits=False,
             #                                            reduction=K.losses.Reduction.SUM_OVER_BATCH_SIZE)
 
