@@ -57,9 +57,49 @@ class Factory(abc.ABC):
             return SegFormerFactory()
         elif model_name_lower_no_sep == "lawin":
             return LawinFactory()
+        elif model_name_lower_no_sep in ["u2net", "utwonet", "u2nettf"]:
+            return U2NetFactory()
+        elif model_name_lower_no_sep in ["u2netsmall", "utwonetsmall", "u2netsmalltf"]:
+            return U2NetSmallFactory()
+        elif model_name_lower_no_sep in ["u2netexp", "utwonetexp", "u2netexptf"]:
+            return U2NetExpTFFactory()
+            
         else:
             print(f"The factory for the model {model_name} doesn't exist. Check if you wrote the model name "
                   f"correctly and implemented a corresponding factory in factory.py.")
+
+
+class U2NetFactory(Factory):
+    def get_trainer_class(self):
+        return U2NetTFTrainer
+
+    def get_model_class(self):
+        return U2NetTF
+
+    def get_dataloader_class(self):
+        return TFDataLoader
+
+
+class U2NetSmallFactory(Factory):
+    def get_trainer_class(self):
+        return U2NetTFTrainer
+
+    def get_model_class(self):
+        return U2NetSmallTF
+
+    def get_dataloader_class(self):
+        return TFDataLoader
+
+
+class U2NetExpTFFactory(Factory):
+    def get_trainer_class(self):
+        return U2NetTFTrainer
+
+    def get_model_class(self):
+        return U2NetExpTF
+
+    def get_dataloader_class(self):
+        return TFDataLoader
 
 
 class UNetFactory(Factory):

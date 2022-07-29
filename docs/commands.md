@@ -62,12 +62,29 @@ Debugging:
             "type": "python",
             "request": "launch",
             "program": "main.py",
-            "args": ["--model=deeplabv3", "--dataset=original", "--batch_size=2", "--split=0.03", "--evaluation_interval=1", "-E=DeepLabV3Adaboost", "--optimizer_or_lr=1e-4", "num_epochs=2", "--checkpoint_interval=1", "--hyper_seg_threshold=True", "--use_adaboost=True", "--adaboost_runs=2"],
+            "args": ["--model=unet", "--dataset=original", "--batch_size=2", "--split=0.02", "--evaluation_interval=1", "-E=AdaTestingUnet", "--use_adaboost=True", "--adaboost_runs=2", "--evaluate"],
             "console": "integratedTerminal",
             "justMyCode": true
         }
     ]
 }
+
+# Debugging torch predictor via launch.json
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Adaboost Debugging",
+            "type": "python",
+            "request": "launch",
+            "program": "main.py",
+            "args": ["--model=unet", "--dataset=original", "--batch_size=2", "--split=0.02", "--evaluation_interval=1", "-E=AdaTestingUnet", "--use_adaboost=True", "--adaboost_runs=2", "--evaluate"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}
+
 
 # Debugging tensorflow adaboost
 `python main.py --model=attunet --dataset=original --batch_size=2 --split=0.03 --evaluation_interval=1 -E=UnetPPAdaboost --optimizer_or_lr=1e-4 --num_epochs=1 --checkpoint_interval=1 --use_adaboost=True --adaboost_runs=2`
@@ -79,4 +96,11 @@ Debugging:
 `bsub -n 1 -W 75:00 -R "rusage[ngpus_excl_p=1, mem=25000]" -R "select[gpu_model0==NVIDIAGeForceGTX1080]" "python main.py -m=segformer --use_adaboost=True --adaboost_runs=10 --dataset=original_split_1 -E SegFormerAdaboost12345 --split=0.827 --num_epochs=260 --checkpoint_interval=100000 --hyper_seg_threshold=True --optimizer_or_lr=0.0005 --batch_size=2 --use_geometric_augmentation=True --use_color_augmentation=True --blobs_removal_threshold=0 --hyper_seg_threshold=True"`
 
 # UnetExp on Euler with Adaboost (sadly only bs=1 possible)
-`bsub -n 1 -W 75:00 -R "rusage[ngpus_excl_p=1, mem=28000]" -R "select[gpu_model0==NVIDIAGeForceGTX1080]" "python main.py --model=unetexp --dataset=new_original_aug_6 --split=0.971 --batch_size=2 --blobs_removal_threshold=0 --use_geometric_augmentation=True --use_color_augmentation=False --dropout=0.0 --num_epochs=100 --optimizer_or_lr=0.001 --hyper_seg_threshold=False --input_shape=[400,400,3] --architecture='vgg' --experiment_name=12345 --normalize=True --dropout=0.0 --kernel_regularizer=\(None\) --load_checkpoint_path=sftp://mlflow_user:waiMohu749@algvrithm.com:22/mlruns/169/37ab12b7fd784ab2931a9010e082027d/artifacts/checkpoints/cp_best_f1.ckpt --use_adaboost=True --adaboost_runs=10"`
+`bsub -n 1 -W 75:00 -R "rusage[ngpus_excl_p=1, mem=28000]" -R "select[gpu_model0==NVIDIAGeForceGTX1080]" "python main.py --model=unetexp --dataset=new_original_aug_6 --split=0.971 --batch_size=2 --blobs_removal_threshold=0 --use_geometric_augmentation=True --use_color_augmentation=False --dropout=0.0 --num_epochs=100 --optimizer_or_lr=0.001 --hyper_seg_threshold=False --input_shape=[400,400,3] --architecture='vgg' --experiment_name=UnetExpAdaboost --normalize=True --dropout=0.0 --kernel_regularizer=\(None\) --load_checkpoint_path=sftp://mlflow_user:waiMohu749@algvrithm.com:22/mlruns/169/37ab12b7fd784ab2931a9010e082027d/artifacts/checkpoints/cp_best_f1.ckpt --use_adaboost=True --adaboost_runs=10"`
+
+# print Adaboost checkpoints
+go to checkpoint dir
+python:
+import pickle
+checkpoint_paths = pickle.load(open("checkpoints.pkl", "rb"))
+print(checkpoint_paths)

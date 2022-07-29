@@ -13,3 +13,4 @@ from .Torch.segformer import SegFormer
 from .TF.UNetExpTF import UNet3PlusTF, UNetExpTF
 from .Torch.lawin import Lawin
 from .Torch.TwoShotNet import TwoShotNet
+from .TF.U2NetTF import *
