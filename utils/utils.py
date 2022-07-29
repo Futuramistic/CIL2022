@@ -123,12 +123,6 @@ DATASET_ZIP_URLS = {
     # use split of 0.9825 to use exactly these 25 samples as the validation set
     "ext_original_aug_6": "https://polybox.ethz.ch/index.php/s/9hDXLlX7mB5Xljq/download",
 
-    # Recreation of "original_aug_6" dataset, but with 80 additional samples scraped from Google Maps added before
-    # augmentation procedure, the second city class oversampled, and with 25 samples from original dataset excluded from
-    # augmentation procedure to avoid data leakage; same 25 samples as in "new_original", "new_ext_original" and
-    # "new_original_aug_6" datasets; use split of 0.9875 to use exactly these 25 samples as the validation set
-    "ext_original_aug_6_oversampled": "https://polybox.ethz.ch/index.php/s/9hDXLlX7mB5Xljq/download",
-
     # validation split 1 of original dataset (samples "satimage_0.png" to "satimage_24.png" from "original" dataset
     # used as validation set)
     "original_split_1": "https://polybox.ethz.ch/index.php/s/EhNndrS2fIWfWZF/download",
@@ -152,11 +146,17 @@ DATASET_ZIP_URLS = {
     # "new_original_aug_6" datasets; use split of 0.9846 to use exactly these 25 samples as the validation set
     "maps_filtered": "https://polybox.ethz.ch/index.php/s/MfCcVyZRJ6TRDWb/download",
     
-    # maps_filtered, without any original samples in training set,
+    # maps_filtered, without any original samples from the training set,
     # 400x400 but with augmented training set using Preprocessor (x6)
     # same 25 validation samples as in "new_original", "maps_filtered", etc.
     # use split of 0.9977 to use exactly these 25 samples as the validation set
-    "maps_filtered_no_original_aug_6": "https://polybox.ethz.ch/index.php/s/o0sJxeuujwPWbxH/download"
+    "maps_filtered_no_original_aug_6": "https:,//polybox.ethz.ch/index.php/s/o0sJxeuujwPWbxH/download",
+    
+    # maps_filtered, with 119 samples from the training set,
+    # 400x400 but with augmented training set using Preprocessor (x6)
+    # same 25 validation samples as in "new_original", "maps_filtered", etc.
+    # use split of 0.9977 to use exactly these 25 samples as the validation set
+    "maps_filtered_aug_6": "https://polybox.ethz.ch/index.php/s/0m6ZC866JNqcrU5/download"
 }
 DATASET_STATS = {
 'original': {
@@ -180,9 +180,6 @@ DATASET_STATS = {
 'new_ext_original_oversampled': {
     'pixel_mean_0': 161.241, 'pixel_mean_1': 161.431, 'pixel_mean_2': 161.521,
     'pixel_std_0': 72.192, 'pixel_std_1': 72.179, 'pixel_std_2': 71.944},
-'ext_original_aug_6_oversampled': {
-    'pixel_mean_0': 97.640, 'pixel_mean_1': 103.620, 'pixel_mean_2': 109.856,
-    'pixel_std_0': 95.424, 'pixel_std_1': 95.355, 'pixel_std_2': 94.905},
 'original_gt': {
     'pixel_mean_0': 0.120, 'pixel_mean_1': 0.120, 'pixel_mean_2': 0.120,
     'pixel_std_0': 5.551, 'pixel_std_1': 5.545, 'pixel_std_2': 5.536},
@@ -205,7 +202,10 @@ DATASET_STATS = {
     'pixel_mean_0': 128.833, 'pixel_mean_1': 128.790, 'pixel_mean_2': 128.829, 'pixel_std_0': 54.380,
     'pixel_std_1': 54.207, 'pixel_std_2': 54.045},
 'maps_filtered_no_original_aug_6': {
-    'pixel_mean_0': 95.398, 'pixel_mean_1': 102.010, 'pixel_mean_2': 108.387, 'pixel_std_0': 94.464, 'pixel_std_1': 94.473, 'pixel_std_2': 94.066}
+    'pixel_mean_0': 95.398, 'pixel_mean_1': 102.010, 'pixel_mean_2': 108.387, 'pixel_std_0': 94.464, 'pixel_std_1': 94.473, 'pixel_std_2': 94.066},
+'maps_filtered_aug_6': {
+    'pixel_mean_0': 135.113, 'pixel_mean_1': 140.659, 'pixel_mean_2': 145.981, 'pixel_std_0': 87.435,
+    'pixel_std_1': 84.976, 'pixel_std_2': 82.163}
 }
 
 # in case multiple jobs are running in the same directory, SESSION_ID will prevent name conflicts
