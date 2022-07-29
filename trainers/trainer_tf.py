@@ -127,7 +127,7 @@ class TFTrainer(Trainer, abc.ABC):
             #   and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint:
             #    self.best_val_loss = logs['val_loss']
             #    keras.models.save_model(model=self.model,
-            #                            filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"),save_traces=False,include_optimizer=True)
+            #                            filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"),save_traces=True,include_optimizer=True)
             #    mlflow_logger.log_checkpoints()
 
             self.epoch_idx += 1
@@ -176,7 +176,7 @@ class TFTrainer(Trainer, abc.ABC):
                         if self.trainer.adaboost and self.trainer.curr_best_checkpoint_path is None:
                             self.trainer.curr_best_checkpoint_path = checkpoint_path
                         self.best_score = f1_weighted
-                        keras.models.save_model(model=self.model, filepath=checkpoint_path, save_traces=False,include_optimizer=True)
+                        keras.models.save_model(model=self.model, filepath=checkpoint_path, save_traces=True,include_optimizer=True)
 
                     remove_local_checkpoint = not self.trainer.adaboost
                     mlflow_logger.log_checkpoints(remove_local_checkpoint)
@@ -188,7 +188,7 @@ class TFTrainer(Trainer, abc.ABC):
                 checkpoint_path = f'{CHECKPOINTS_DIR}/cp_ep-{"%05i" % self.epoch_idx}' + \
                                   f'_it-{"%05i" % self.epoch_iteration_idx}' + \
                                   f'_step-{self.iteration_idx}.ckpt'
-                keras.models.save_model(model=self.trainer.model, filepath=checkpoint_path,save_traces=False,include_optimizer=True)
+                keras.models.save_model(model=self.trainer.model, filepath=checkpoint_path,save_traces=True,include_optimizer=True)
                 mlflow_logger.log_checkpoints()
 
                 remove_local_checkpoint = not self.trainer.adaboost
@@ -306,7 +306,7 @@ class TFTrainer(Trainer, abc.ABC):
             final_checkpoint_path = checkpoint_path
 
         print(f'Loading checkpoint "{checkpoint_path}"...')  # log the supplied checkpoint_path here
-        self.model.load_weights(final_checkpoint_path)
+        self.model = K.models.load_model(final_checkpoint_path)
         print('Checkpoint loaded\n')
 
         # Note that the final_checkpoint_path directory cannot be deleted right away! This leads to errors.
@@ -348,7 +348,7 @@ class TFTrainer(Trainer, abc.ABC):
             if self.adaboost and self.curr_best_checkpoint_path is None:
                 self.curr_best_checkpoint_path = checkpoint_path
             keras.models.save_model(model=self.model,
-                                    filepath=checkpoint_path,save_traces=False,include_optimizer=True)
+                                    filepath=checkpoint_path,save_traces=True,include_optimizer=True)
             
             remove_local_checkpoint = not self.adaboost
             mlflow_logger.log_checkpoints(remove_local_checkpoint)
