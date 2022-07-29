@@ -40,7 +40,7 @@ class Trainer(abc.ABC):
             batch_size: number of samples to use per training iteration (None to use default)
             optimizer_or_lr: optimizer to use, or learning rate to use with this method's default optimizer
                              (None to use default)
-            loss_function: (name of) loss function to use (None to use default)
+            loss_function: (name of) loss function or loss function class to use (None to use default of subclass)
             loss_function_hyperparams: hyperparameters of loss function to use
                                        (will be bound to the loss function automatically; None to skip)
             evaluation_interval: interval, in iterations, in which to perform an evaluation on the test set
