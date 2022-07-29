@@ -17,9 +17,7 @@ space_for_tf = {
         'dataloader_params': { ... }
     },
     'training': {
-        'minimize_loss': True,  # always specify, as hyperopt can only minimize losses and therefore adapts the sign
         'trainer_params': {
-            # 'preprocessing': ...,  <-- currently not needed I guess
             'experiment_name': ...,  # optional
             'split': ...,
             'num_epochs': ...,
@@ -49,9 +47,7 @@ space_for_torch = {
         'dataloader_params': { ... }
     },
     'training': {
-        'minimize_loss': True,  # always specify, as hyperopt can only minimize losses and therefore adapts the sign
         'trainer_params': {
-            # 'preprocessing': ...,  <-- currently not needed I guess
             'experiment_name': ...,  # optional
             'split': ...,
             'num_epochs': ...,
