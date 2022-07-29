@@ -306,7 +306,7 @@ class TFTrainer(Trainer, abc.ABC):
             final_checkpoint_path = checkpoint_path
 
         print(f'Loading checkpoint "{checkpoint_path}"...')  # log the supplied checkpoint_path here
-        self.model.load_weights(final_checkpoint_path)
+        self.model = K.models.load_model(final_checkpoint_path)
         print('Checkpoint loaded\n')
 
         # Note that the final_checkpoint_path directory cannot be deleted right away! This leads to errors.
