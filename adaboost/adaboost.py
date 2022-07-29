@@ -86,6 +86,8 @@ class AdaBooster:
         if curr_run_idx > 0:
             self.dataloader.weights_set = True
 
+        DEEP_ADABOOST_TEMPERATURE = 0.2  # quicker decay
+
         if self.deep_adaboost:
             # calculate the val sample -- train sample similarities once
 
@@ -93,10 +95,19 @@ class AdaBooster:
             val_sample_train_sample_dist_path =\
                 os.path.join('dataset', dataset_name, f'precached_sample_distances__{dataset_name}__{dataset_name}.pkl')
 
-            if os.path.isfile(val_sample_train_sample_dist_path):
-                with open(val_sample_train_sample_dist_path, 'rb') as f:
-                    training_sample_weights_for_validation_samples = pickle.load(f)
-            else:
+            # Create the model using the commandline arguments
+            model = self.factory.get_model_class()(**self.model_args)
+
+            # Create the trainer using the commandline arguments
+            trainer_class = self.factory.get_trainer_class()
+            trainer = trainer_class(dataloader=self.dataloader, model=model,
+                                    **self.trainer_args)
+
+            #if os.path.isfile(val_sample_train_sample_dist_path):
+            #    with open(val_sample_train_sample_dist_path, 'rb') as f:
+            #        training_sample_weights_for_validation_samples = pickle.load(f)
+            #else:
+            if True:
                 print('Precaching val sample -- train sample distances...')
 
                 # iterate through, calculate
@@ -110,14 +121,6 @@ class AdaBooster:
                 
                 with open(sample_dist_path, 'rb') as f:
                     sample_distances = pickle.load(f)
-
-                # Create the model using the commandline arguments
-                model = self.factory.get_model_class()(**self.model_args)
-
-                # Create the trainer using the commandline arguments
-                trainer_class = self.factory.get_trainer_class()
-                trainer = trainer_class(dataloader=self.dataloader, model=model,
-                                        **self.trainer_args)
                 
                 train_dl = self.dataloader.get_training_dataloader(trainer.split, batch_size=1, weights=None,
                                                                    preprocessing=trainer.preprocessing,
@@ -130,16 +133,16 @@ class AdaBooster:
 
                 for test_idx in range(len(test_dl)):
                     # test_idx = test_idx_with_offset - len(train_dl)
-                    test_x_filename = os.path.basename(self.dataloader.training_img_paths[test_idx])  # no need to add offset
+                    test_x_filename = os.path.basename(self.dataloader.training_img_paths[len(train_dl) + test_idx])
                     for train_idx in range(len(train_dl)):
                         train_x_filename = os.path.basename(self.dataloader.training_img_paths[train_idx])
                         training_sample_weights_for_validation_samples[test_idx][train_idx] =\
                             sample_distances[train_x_filename][test_x_filename]
                     
-                    # TODO: introduce temperature parameter?
                     training_sample_weights_for_validation_samples[test_idx] = (
-                        np.exp(-training_sample_weights_for_validation_samples[test_idx]) /
-                        np.sum(np.exp(-training_sample_weights_for_validation_samples[test_idx])))
+                        np.exp(-training_sample_weights_for_validation_samples[test_idx] / DEEP_ADABOOST_TEMPERATURE) /
+                        np.sum(np.exp(-training_sample_weights_for_validation_samples[test_idx]))
+                               / DEEP_ADABOOST_TEMPERATURE)
                 
                 print('Val sample -- train sample distances calculated')
                 with open(val_sample_train_sample_dist_path, 'wb') as f:
@@ -191,7 +194,7 @@ class AdaBooster:
                 
                 transp = np.transpose(training_sample_weights_for_validation_samples)
                 self.dataloader.weights = transp @ val_f1_errors
-
+                
                 # calculate model error (between 0 and 1)
                 model_error = np.mean(val_f1_errors)
                 log_term = (1 - model_error) / model_error
@@ -235,8 +238,6 @@ class AdaBooster:
                 
             self.dataloader.weights[self.dataloader.weights <= 0] = SMOL  # avoid 0
             
-            print('self.dataloader.weights: ', self.dataloader.weights)
-            print('self.training_img_paths: ', self.dataloader.training_img_paths)
             print('zip(self.dataloader.training_gt_paths, self.dataloader.weights): ',
                   list(zip(self.dataloader.training_img_paths, self.dataloader.weights)))
             
