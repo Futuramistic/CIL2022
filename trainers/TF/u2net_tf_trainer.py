@@ -46,7 +46,7 @@ class U2NetTFTrainer(TFTrainer):
 
         # According to the online github repo
         if loss_function is None:
-            loss_function = U2NET_loss
+            loss_function = U2NET_loss()
 
 
         if evaluation_interval is None:
