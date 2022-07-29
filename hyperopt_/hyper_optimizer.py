@@ -160,6 +160,10 @@ class HyperParamOptimizer:
     def get_best_model(trials_path):
         """
         Returns the optimal model trained in previous trials under the trials_path (use ROOT_DIR)
+        Args:
+            trials_path (string or path) the absolute path to the trials pickle file
+        Returns:
+            the best model of all trials, measured by its validation f1 score
         """
         with open(trials_path, 'rb') as file:
             trials = cloudpickle.load(file)
@@ -171,6 +175,10 @@ class HyperParamOptimizer:
     def get_best_trial(trials):
         """
         Returns the experiment with the minimum f1 score
+        Args:
+            trial (hyperopt.Trials): Trials Object
+        Returns:
+            The trial with the best validation f1 score
         """
         # code adapted from
         # stackoverflow.com/questions/54273199/how-to-save-the-best-hyperopt-optimized-keras-models-and-its-weights

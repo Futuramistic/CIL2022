@@ -34,8 +34,6 @@ unet_2 = {
         'saving_directory': f"{ROOT_DIR}/archive/trials/UNetTF_07_06_2022_0",
         # use kwargs for class-specific parameters, as hyperopt is written generically
         'kwargs': {
-            'n_channels': 3,
-            'n_classes': 1,
             'dropout': 0,
             'kernel_init': None,
             'kernel_regularizer': None,
@@ -87,7 +85,7 @@ unet_test = {
             'experiment_name': 'CodeTesting',  # optional
             'split': 0.02,
             'num_epochs': 2,
-            'batch_size': scope.int(hp.quniform('batch_size', low=2, high=8, q=2)),
+            'batch_size': 2,
             'loss_function': 'FocalLossTF',
             'num_samples_to_visualize': 16,
             'checkpoint_interval': 500,
