@@ -139,20 +139,17 @@ class TFDataLoader(DataLoader):
             if not return_dataloader:
                 # don't shuffle and do return data
                 return [parse_img(img_path) for _ in itertools.count() for img_path in img_paths_tf], \
-                    [parse_gt(gt_path) for _ in itertools.count() for gt_path in gt_paths_tf],\
-                    [idx for _ in itertools.count() for idx in range(len(img_paths_tf))],
+                    [parse_gt(gt_path) for _ in itertools.count() for gt_path in gt_paths_tf]
             elif shuffle:
                 return tf.data.Dataset.from_generator(
-                    lambda: ((parse_img(img_path), parse_gt(gt_path), sample_idx) for _ in itertools.count()
-                             for img_path, gt_path, sample_idx
-                             in zip(*utils.consistent_shuffling(img_paths_tf, gt_paths_tf,
-                                                                list(range(len(img_paths_tf)))))),
+                    lambda: ((parse_img(img_path), parse_gt(gt_path)) for _ in itertools.count()
+                             for img_path, gt_path
+                             in zip(*utils.consistent_shuffling(img_paths_tf, gt_paths_tf))),
                     output_types=output_types)
             else:
                 return tf.data.Dataset.from_generator(
-                    lambda: ((parse_img(img_path), parse_gt(gt_path), sample_idx) for _ in itertools.count()
-                             for img_path, gt_path, sample_idx in zip(img_paths_tf, gt_paths_tf,
-                                                                      list(range(len(img_paths_tf))))),
+                    lambda: ((parse_img(img_path), parse_gt(gt_path)) for _ in itertools.count()
+                             for img_path, gt_path in zip(img_paths_tf, gt_paths_tf)),
                     output_types=output_types)
         else:
             output_types = parse_img(img_paths_tf[0]).dtype
@@ -205,7 +202,7 @@ class TFDataLoader(DataLoader):
             output_types = (parse_img(img_paths_tf[0]).dtype, parse_gt(gt_paths_tf[0]).dtype)
             def get_data_from_idx(sample_idx):
                 img_path, gt_path = img_paths_tf[sample_idx], gt_paths_tf[sample_idx]
-                return (parse_img(img_path), parse_gt(gt_path), sample_idx)
+                return (parse_img(img_path), parse_gt(gt_path))
             
             if shuffle:
                 return tf.data.Dataset.from_generator(

@@ -392,7 +392,7 @@ class TFTrainer(Trainer, abc.ABC):
         used e.g. in Deep AdaBoost to determine the next sample weight
         """
         test_loader = self.dataloader.get_testing_dataloader(batch_size=1,
-                                                              preprocessing=self.preprocessing)
+                                                             preprocessing=self.preprocessing)
         
         f1_weighted_scores = []
         threshold = self.segmentation_threshold

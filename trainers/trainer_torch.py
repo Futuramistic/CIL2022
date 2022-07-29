@@ -394,7 +394,7 @@ class TorchTrainer(Trainer, abc.ABC):
     def get_F1_scores_training_no_shuffle(self):
         """
         Compute the F1 score on the training set without shuffling
-        used in adaboost to determine the next sample weight
+        used in AdaBoost to determine the next sample weight
         Returns
             f1 weighted scores for each sample (List[float])
         """
@@ -409,6 +409,40 @@ class TorchTrainer(Trainer, abc.ABC):
                                                                batch_size=1,
                                                                preprocessing=self.preprocessing)
         for x, y, *_ in train_loader:
+            x = x.to(self.device, dtype=torch.float32)
+            y = y.to(self.device, dtype=torch.float32)
+            output = self.model(x)
+            if type(output) is tuple:
+                output = output[0]
+            preds = collapse_channel_dim_torch((output >= threshold).float(), take_argmax=True)
+            preds = remove_blobs(preds, threshold=self.blobs_removal_threshold)
+
+            precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted,\
+            f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted = precision_recall_f1_score_torch(preds, y)
+
+            f1_weighted_scores.append(f1_weighted.cpu())
+            
+            del x
+            del y
+        return (f1_weighted_scores)
+
+    def get_F1_scores_validation(self):
+        """
+        Compute the F1 score on the validation set
+        used e.g. in Deep AdaBoost to determine the next sample weight
+        Returns
+            f1 weighted scores for each sample (List[float])
+        """
+        self.model.eval()
+        f1_weighted_scores = []
+        threshold = self.segmentation_threshold
+        if self.hyper_seg_threshold:
+            self.last_hyper_threshold = threshold
+            threshold = self.get_best_segmentation_threshold()
+        # in adaboost, the train loader doesn't use shuffling by default
+        test_loader = self.dataloader.get_testing_dataloader(batch_size=1,
+                                                             preprocessing=self.preprocessing)
+        for x, y, *_ in test_loader:
             x = x.to(self.device, dtype=torch.float32)
             y = y.to(self.device, dtype=torch.float32)
             output = self.model(x)
