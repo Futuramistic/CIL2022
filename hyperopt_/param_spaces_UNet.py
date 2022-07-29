@@ -52,7 +52,7 @@ unet_2 = {
             'split': 0.9,
             'num_epochs': 80,
             'batch_size': scope.int(hp.quniform('batch_size', low=2, high=8, q=2)),
-            'loss_function': 'FocalLoss',
+            'loss_function': 'FocalLossTF',
             'num_samples_to_visualize': 16,
             'checkpoint_interval': 500,
             'loss_function_hyperparams': {
@@ -88,7 +88,7 @@ unet_test = {
             'split': 0.02,
             'num_epochs': 2,
             'batch_size': scope.int(hp.quniform('batch_size', low=2, high=8, q=2)),
-            'loss_function': 'FocalLoss',
+            'loss_function': 'FocalLossTF',
             'num_samples_to_visualize': 16,
             'checkpoint_interval': 500,
             'loss_function_hyperparams': {
