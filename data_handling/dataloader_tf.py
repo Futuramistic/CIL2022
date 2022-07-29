@@ -15,7 +15,7 @@ class TFDataLoader(DataLoader):
     """
 
     def __init__(self, dataset="original", pad32=False, use_geometric_augmentation=False, use_color_augmentation=False,
-                 aug_contrast=[0.8, 1.2], aug_brightness=0.2, aug_saturation=[0.8, 1.2], use_adaboost=None):
+                 aug_contrast=[0.8, 1.2], aug_brightness=0.2, aug_saturation=[0.8, 1.2], use_adaboost=False):
         """
         Args:
             dataset (string): type of Dataset ("original" [from CIL2022 Competition], "Massachusets", ...)
@@ -26,7 +26,7 @@ class TFDataLoader(DataLoader):
             aug_contrast (list): range of values for the contrast augmentation
             aug_brightness (list): range of values for the brightness augmentation
             aug_saturation (list): range of values for the saturation augmentation
-            use_adaboost (bool): whether adaboost is used
+            use_adaboost (bool): whether adaboost is used, therefore if data weighting is needed
         """
         super().__init__(dataset)
         self.pad32 = pad32
@@ -97,19 +97,7 @@ class TFDataLoader(DataLoader):
             image = tf.image.pad_to_bounding_box(image, height_offset, width_offset, target_height, target_width)
         return image
 
-    def __parse_data_test(self, image_path, channels=0):
-        """
-        Get image test data as all ones
-        Args:
-           image_path  (string): path to an image
-           channels   (int): 4 for RGBA, 3 for RGB, 1 for grayscale, 0 - default encoding
-        Returns:
-            A Tensor of type dtype uint8
-        """
-        return tf.ones_like(self.__parse_data(image_path, channels))
-
-    def __get_image_data(self, img_paths, gt_paths=None, shuffle=True, preprocessing=None, offset=0, length=int(1e12),
-                         return_dataloader=True):
+    def __get_image_data(self, img_paths, gt_paths=None, shuffle=True, preprocessing=None, offset=0, length=int(1e12)):
         """
         Get images and masks
         Args:
@@ -119,28 +107,26 @@ class TFDataLoader(DataLoader):
            preprocessing: function to apply to the images
            offset (int): Offset from which we read the paths
            length (int): maximum length of the desired dataset
-           return_dataloader (bool): Whether to return a dataloader or just the data
         Returns:
-            Dataset or Data depending on return_dataloader
+            Dataset Generator
         """
         # WARNING: must use lambda captures (see https://stackoverflow.com/q/10452770)
         # WARNING: scientific notation is not recognized as an integer
+        
         img_paths_tf = tf.convert_to_tensor(img_paths[offset:int(offset + length)])
+        
+        # functions to parse the image paths to the actual image
         parse_img = (lambda x, preprocessing=preprocessing: self.__parse_data(x)) if preprocessing is None else \
             (lambda x, preprocessing=preprocessing: preprocessing(x=self.__parse_data(x), is_gt=False))
         parse_gt = (lambda x, preprocessing=preprocessing: self.__parse_data(x)) if preprocessing is None else \
             (lambda x, preprocessing=preprocessing: preprocessing(x=self.__parse_data(x), is_gt=True))
 
         # itertools.count() gives infinite generators
-
         if gt_paths is not None:
+            # groundtruth data exists --> use both input images and groundtruth
             gt_paths_tf = tf.convert_to_tensor(gt_paths[offset:offset + length])
             output_types = (parse_img(img_paths_tf[0]).dtype, parse_gt(gt_paths_tf[0]).dtype)
-            if not return_dataloader:
-                # don't shuffle and do return data
-                return [parse_img(img_path) for _ in itertools.count() for img_path in img_paths_tf], \
-                    [parse_gt(gt_path) for _ in itertools.count() for gt_path in gt_paths_tf]
-            elif shuffle:
+            if shuffle:
                 return tf.data.Dataset.from_generator(
                     lambda: ((parse_img(img_path), parse_gt(gt_path)) for _ in itertools.count()
                              for img_path, gt_path
@@ -152,11 +138,9 @@ class TFDataLoader(DataLoader):
                              for img_path, gt_path in zip(img_paths_tf, gt_paths_tf)),
                     output_types=output_types)
         else:
+            # no groundtruth data exists --> use only input images
             output_types = parse_img(img_paths_tf[0]).dtype
-            if not return_dataloader:
-                # don't shuffle and do return data
-                return [(parse_img(img_path) for _ in itertools.count() for img_path in img_paths_tf)]
-            elif shuffle:
+            if shuffle:
                 return tf.data.Dataset.from_generator(
                     lambda: (parse_img(img_path) for _ in itertools.count() for img_path in
                              utils.consistent_shuffling(img_paths_tf)[0]),
@@ -178,7 +162,7 @@ class TFDataLoader(DataLoader):
            offset (int): Offset from which we read the paths
            length (int): maximum length of the desired dataset
         Returns:
-            Dataset or Data depending on return_dataloader
+            Dataset
         """
         # WARNING: must use lambda captures (see https://stackoverflow.com/q/10452770)
         # WARNING: scientific notation is not recognized as an integer
@@ -235,29 +219,6 @@ class TFDataLoader(DataLoader):
                               for sample_idx in indices),
                     output_types=output_types)
                 
-    def get_training_data_for_one_epoch(self, split, preprocessing=None, **args):
-        """
-        Create training/validation dataset split, used for dynamic weighting of samples by their loss
-        Args:
-           split (float): training/test splitting ratio, e.g. 0.8 for 80"%" training and 20"%" test data
-           preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
-                                     constructing the native dataloader
-        Returns:
-            X and Y training samples
-        """
-        dataset_size = len(self.training_img_paths)
-        train_size = int(dataset_size * split)
-        test_size = dataset_size - train_size
-        
-        training_data_x, training_data_y = self.__get_image_data(self.training_img_paths, self.training_gt_paths,
-                                                                 preprocessing=preprocessing, offset=0,
-                                                                 length=train_size, return_dataloader=False)
-
-        if self.use_geometric_augmentation:
-            return (training_data_x,training_data_y).map(self.augmentation, tf.data.AUTOTUNE).prefetch(tf.data.AUTOTUNE)
-
-        return training_data_x, training_data_y
-    
     def get_training_dataloader(self, split, batch_size, preprocessing=None, suppress_adaboost_weighting=False, **args):
         """
         Create training/validation dataset split
