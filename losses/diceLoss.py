@@ -2,7 +2,7 @@ import tensorflow as tf
 import keras.backend as K
 
 
-def DiceLoss(smooth=1e-6):
+def DiceLossTF(smooth=1e-6):
     """
     Compute the Dice Loss
     Args:
