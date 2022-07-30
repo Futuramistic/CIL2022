@@ -354,7 +354,8 @@ class TorchRLTrainerMinimal(TorchTrainer):
         # WARNING: some models subclassing TorchTrainer overwrite this function, so make sure any changes here are
         # reflected appropriately in these models' files
         
-        # TODO: parallelize with SubprocVecEnv
+        # Overwrite the trainer in callback, because otherwise the functions of the super class will be used, where it is initialized
+        self.callback_handler.trainer = self
 
         model.train()
         opt = self.optimizer_or_lr
