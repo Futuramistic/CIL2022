@@ -1,4 +1,9 @@
 from data_handling import *
+<<<<<<< HEAD
+from models import *
+from models.reinforcement.first_try import ResNetBasedRegressor, SimpleRLCNNMinimal
+=======
+>>>>>>> main
 from trainers import *
 from models import *
 
@@ -53,6 +58,12 @@ class Factory(abc.ABC):
             return SimpleRLCNNFactory()
         elif model_name_lower_no_sep == "simplerlcnnminimal":
             return SimpleRLCNNMinimalFactory()
+        elif model_name_lower_no_sep == "simplerlcnnminimalsupervised":
+            return SimpleRLCNNMinimalSupervisedFactory()
+        elif model_name_lower_no_sep == "rlregressor":
+            return RLRegressorFactory()
+        elif model_name_lower_no_sep == "fftunet":
+            return FFT_UNetFactory()
         elif model_name_lower_no_sep == "segformer":
             return SegFormerFactory()
         elif model_name_lower_no_sep == "lawin":
@@ -63,7 +74,6 @@ class Factory(abc.ABC):
             return U2NetSmallFactory()
         elif model_name_lower_no_sep in ["u2netexp", "utwonetexp", "u2netexptf"]:
             return U2NetExpTFFactory()
-            
         else:
             print(f"The factory for the model {model_name} doesn't exist. Check if you wrote the model name "
                   f"correctly and implemented a corresponding factory in factory.py.")
@@ -231,7 +241,29 @@ class SimpleRLCNNMinimalFactory(Factory):
         return SimpleRLCNNMinimal
 
     def get_dataloader_class(self):
-        return TorchDataLoader
+        return TorchDataLoaderRL
+
+
+class SimpleRLCNNMinimalSupervisedFactory(Factory):
+    def get_trainer_class(self):
+        return TorchRLTrainerMinimal
+
+    def get_model_class(self):
+        return SimpleRLCNNMinimalSupervised
+
+    def get_dataloader_class(self):
+        return TorchDataLoaderRL
+
+
+class RLRegressorFactory(Factory):
+    def get_trainer_class(self):
+        return TorchRLTrainerMinimal
+
+    def get_model_class(self):
+        return ResNetBasedRegressor
+
+    def get_dataloader_class(self):
+        return TorchDataLoaderRL
 
 
 class UNetExpFactory(Factory):

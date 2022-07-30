@@ -1,4 +1,3 @@
-
 # Reinforcement Learning
 ## Basic ideas
 - how to use RL to segment image?

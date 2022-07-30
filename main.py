@@ -5,11 +5,13 @@ import argparse
 from contextlib import redirect_stderr, redirect_stdout
 import itertools
 import json
+import multiprocessing
 import numpy as np
+import os
 import random
 import re
-from adaboost.adaboost import AdaBooster
 
+from adaboost.adaboost import AdaBooster
 from factory import Factory
 from utils import *
 from utils.logging import pushbullet_logger
@@ -37,7 +39,7 @@ def main():
                     'max_rollout_len', 'std', 'reward_discount_factor', 'num_policy_epochs', 'policy_batch_size',
                     'sample_from_action_distributions', 'visualization_interval', 'min_steps', 'rollout_len',
                     'blobs_removal_threshold', 'T', 'hyper_seg_threshold', 'w', 'use_sample_weighting',
-                    'use_adaboost', 'a', 'f1_threshold_to_log_checkpoint', 'deep_adaboost', 'D']
+                    'use_adaboost', 'a', 'f1_threshold_to_log_checkpoint', 'deep_adaboost', 'D', 'use_supervision']
     dataloader_args = ['dataset', 'd', 'use_geometric_augmentation', 'use_color_augmentation',
                        'aug_brightness', 'aug_contrast', 'aug_saturation', 'use_adaboost', 'a']
 
@@ -162,6 +164,8 @@ def main():
 
 
 if __name__ == '__main__':
+    multiprocessing.set_start_method('spawn')
+
     # Setup the stderr and stdout files
     abs_logging_dir = os.path.join(ROOT_DIR, LOGGING_DIR)
     if not os.path.isdir(abs_logging_dir):
