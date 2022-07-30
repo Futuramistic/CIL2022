@@ -99,80 +99,7 @@ class DataLoader(abc.ABC):
                 gt_paths = np.array(gt_paths)[shuffler]
 
         return img_paths, gt_paths
-
-    @abc.abstractmethod
-    def get_img_val_min_max(self, preprocessing):
-        """
-        Get the minimum and maximum possible values of an image pixel, when preprocessing the image using the given
-        preprocessing function.
-        Args:
-            preprocessing: function taking a raw sample and returning a preprocessed sample to be used when
-                           constructing the native dataloader
-        Returns:
-            Tuple of (int, int)
-        """
-        raise NotImplementedError('must be defined for torch or tensorflow loader')
-
-    @abc.abstractmethod
-    def get_dataset_sizes(self, split):
-        """
-        Get the sizes of the training, test and unlabeled datasets associated with this DataLoader.
-        Args:
-            split: training/test splitting ratio \in [0,1]
-
-        Returns:
-            Tuple of (int, int, int): sizes of training, test and unlabeled test datasets, respectively,
-            in samples
-        """
-        raise NotImplementedError('must be defined for torch or tensorflow loader')
-
-    @abc.abstractmethod
-    def get_training_dataloader(self, split, batch_size, preprocessing=None, **args):
-        """
-        Args:
-            split (float): training/test splitting ratio \in [0,1]
-            batch_size (int): training batch size
-            preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
-                                      constructing the native dataloader
-            **args:for tensorflow e.g.
-                img_height (int): training image height in pixels
-                img_width (int): training image width in pixels
-
-        Raises:
-            NotImplementedError: _description_
-        """
-        raise NotImplementedError('must be defined for torch or tensorflow loader')
-
-    @abc.abstractmethod
-    def get_testing_dataloader(self, batch_size, preprocessing=None, **args):
-        """
-        Args:
-            batch_size (int): training batch size
-            preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
-                                      constructing the native dataloader
-            **args:for tensorflow e.g.
-                img_height (int): training image height in pixels
-                img_width (int): training image width in pixels
-
-        Raises:
-            NotImplementedError: _description_
-        """
-        raise NotImplementedError('must be defined for torch or tensorflow loader')
-
-    @abc.abstractmethod
-    def get_unlabeled_testing_dataloader(self, batch_size, preprocessing=None, **args):
-        """
-        Args:
-            batch_size (int): training batch size
-            preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
-                                      constructing the native dataloader
-            **args: parameters for torch dataloader, e.g. shuffle (boolean)
-
-        Raises:
-            NotImplementedError: _description_
-        """
-        raise NotImplementedError('must be defined for torch or tensorflow loader')
-
+    
     @staticmethod
     def get_default_evaluation_interval(batch_size):
         """
@@ -187,27 +114,7 @@ class DataLoader(abc.ABC):
         MIN_EVALUATION_INTERVAL = 20
         interval = max(MIN_EVALUATION_INTERVAL, EVALUATE_AFTER_PROCESSING_SAMPLES // batch_size)
         return interval
-
-    @abc.abstractmethod
-    def load_model(self, path):
-        """
-        Load a model from path
-        Args:
-            path (string): Path to the model data
-        Returns:
-            The loaded model
-        """
-        raise NotImplementedError('must be defined for torch or tensorflow loader')
-
-    @abc.abstractmethod
-    def save_model(self, model, path):
-        """
-        Save a model to disk
-        Args:
-            path (string): Path where to save the model
-        """
-        raise NotImplementedError('must be defined for torch or tensorflow loader')
-
+    
     @staticmethod
     def _download_data(dataset_name):
         """
@@ -306,3 +213,96 @@ class DataLoader(abc.ABC):
         print("Removing old file structure from download...")
         shutil.rmtree(f"{destination_path}/initial")
         print("...Done")
+    
+    @abc.abstractmethod
+    def get_img_val_min_max(self, preprocessing):
+        """
+        Get the minimum and maximum possible values of an image pixel, when preprocessing the image using the given
+        preprocessing function.
+        Args:
+            preprocessing: function taking a raw sample and returning a preprocessed sample to be used when
+                           constructing the native dataloader
+        Returns:
+            Tuple of (int, int)
+        """
+        raise NotImplementedError('must be defined for torch or tensorflow loader')
+
+    @abc.abstractmethod
+    def get_dataset_sizes(self, split):
+        """
+        Get the sizes of the training, test and unlabeled datasets associated with this DataLoader.
+        Args:
+            split: training/test splitting ratio \in [0,1]
+
+        Returns:
+            Tuple of (int, int, int): sizes of training, test and unlabeled test datasets, respectively,
+            in samples
+        """
+        raise NotImplementedError('must be defined for torch or tensorflow loader')
+
+    @abc.abstractmethod
+    def get_training_dataloader(self, split, batch_size, preprocessing=None, **args):
+        """
+        Args:
+            split (float): training/test splitting ratio \in [0,1]
+            batch_size (int): training batch size
+            preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
+                                      constructing the native dataloader
+            **args:for tensorflow e.g.
+                img_height (int): training image height in pixels
+                img_width (int): training image width in pixels
+
+        Raises:
+            NotImplementedError: _description_
+        """
+        raise NotImplementedError('must be defined for torch or tensorflow loader')
+
+    @abc.abstractmethod
+    def get_testing_dataloader(self, batch_size, preprocessing=None, **args):
+        """
+        Args:
+            batch_size (int): training batch size
+            preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
+                                      constructing the native dataloader
+            **args:for tensorflow e.g.
+                img_height (int): training image height in pixels
+                img_width (int): training image width in pixels
+
+        Raises:
+            NotImplementedError: _description_
+        """
+        raise NotImplementedError('must be defined for torch or tensorflow loader')
+
+    @abc.abstractmethod
+    def get_unlabeled_testing_dataloader(self, batch_size, preprocessing=None, **args):
+        """
+        Args:
+            batch_size (int): training batch size
+            preprocessing (function): function taking a raw sample and returning a preprocessed sample to be used when
+                                      constructing the native dataloader
+            **args: parameters for torch dataloader, e.g. shuffle (boolean)
+
+        Raises:
+            NotImplementedError: _description_
+        """
+        raise NotImplementedError('must be defined for torch or tensorflow loader')
+
+    @abc.abstractmethod
+    def load_model(self, path):
+        """
+        Load a model from path
+        Args:
+            path (string): Path to the model data
+        Returns:
+            The loaded model
+        """
+        raise NotImplementedError('must be defined for torch or tensorflow loader')
+
+    @abc.abstractmethod
+    def save_model(self, model, path):
+        """
+        Save a model to disk
+        Args:
+            path (string): Path where to save the model
+        """
+        raise NotImplementedError('must be defined for torch or tensorflow loader')
