@@ -51,7 +51,7 @@ class RefinementQ(nn.Module):
         return torch.concat((vel_angle, brush), dim=1)
 
 class SimpleRLCNN(nn.Module):
-    def __init__(self, patch_size, in_channels=10):
+    def __init__(self, patch_size=(10,10), in_channels=10):
         super(SimpleRLCNN, self).__init__()
         self.patch_size = patch_size
         self.in_channels = in_channels
@@ -81,7 +81,7 @@ class SimpleRLCNN(nn.Module):
         return torch.sigmoid(self.head(head_in))
 
 class SimpleRLCNNMinimal(nn.Module):
-    def __init__(self, patch_size, in_channels=1):
+    def __init__(self, patch_size=(10,10), in_channels=1):
         super(SimpleRLCNNMinimal, self).__init__()
         self.patch_size = patch_size
         self.in_channels = in_channels
