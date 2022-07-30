@@ -642,8 +642,8 @@ class TorchRLTrainerMinimal(TorchTrainer):
     @staticmethod
     def get_beta_params(mu, sigma):
         """When sampling the action from a distribution, this function was an initial idea to use beta-distributions.
-        Thus, interpreting the models action outputs as mean and variance (like in VAEs), we calculate the alpha and
-        beta parameters for the beta-distribution.
+        Thus, interpreting the models action outputs as the mean of the distribution (like in VAEs), we calculate the 
+        alpha and beta parameters for the beta-distribution.
         """
         # must ensure that sigma**2.0 <= mu * (1 - mu)
         if not hasattr(sigma, 'shape') and hasattr(mu, 'shape'):  # mu is tensor, sigma is scalar
@@ -976,5 +976,6 @@ class TorchRLTrainerMinimal(TorchTrainer):
         """get the default adam optimizer
         Args:
             lr (float): learning rate
-            """
+            model (torch Model): Model, on which the optimizer is used
+        """
         return optim.Adam(model.parameters(), lr=lr)
