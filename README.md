@@ -37,6 +37,7 @@ The overall structure of the repository is described below.
 
 ```
 .
+├── adaboost                        # Module for running adaboost on models
 ├── data_handling                   # Scripts for loading datasets
 ├── dataset                         # Folder containing the datasets
     ├── <dataset-name-1>
@@ -114,6 +115,23 @@ to avoid data leakage
 > * new_original_aug_6: Recreation of "original_aug_6" dataset, but with 80 additional samples scraped from Google Maps added before
 augmentation procedure, the second city class oversampled, and with 25 samples from original dataset excluded from
 augmentation procedure to avoid data leakage
+> * ext_original_aug_6:  Recreation of "original_aug_6" dataset, but with 80 additional samples scraped from Google Maps added before 
+augmentation procedure, and with 25 samples from original dataset excluded from augmentation procedure
+to avoid data leakage
+> * original_split_1: validation split 1 of original dataset (samples "satimage_0.png" to "satimage_24.png" from "original" dataset
+used as validation set)
+> * original_split_2: validation split 2 of original dataset (samples "satimage_25.png" to "satimage_49.png" from "original" dataset
+used as validation set)
+> * original_split_3: validation split 3 of original dataset (samples "satimage_50.png" to "satimage_74.png" from "original" dataset
+used as validation set)
+> * original_split_2_aug_6: validation split 2 of original dataset (samples "satimage_25.png" to "satimage_49.png" from "original" dataset used as validation set), with augmented training set using Preprocessor (x6)
+> * original_split_3_aug_6: validation split 3 of original dataset (samples "satimage_50.png" to "satimage_74.png" from "original" dataset used as validation set), with augmented training set using Preprocessor (x6)
+> * maps_filtered: hand-filtered dataset of 1597 satellite images screenshotted from Google Maps
+same 25 validation samples as in "new_original"
+> * maps_filtered_no_original_aug_6:  maps_filtered, without any original samples from the training set,
+400x400 but with augmented training set using Preprocessor (x6), same 25 validation samples as in "new_original"
+> * maps_filtered_aug_6:  maps_filtered, with 119 samples from the training set,
+400x400 but with augmented training set using Preprocessor (x6), same 25 validation samples as in "new_original"
 
 #### Custom datasets
 If you want to setup a custom dataset, simply place it in the 'dataset' folder,
