@@ -1,9 +1,4 @@
 from data_handling import *
-<<<<<<< HEAD
-from models import *
-from models.reinforcement.first_try import ResNetBasedRegressor, SimpleRLCNNMinimal
-=======
->>>>>>> main
 from trainers import *
 from models import *
 
@@ -62,8 +57,6 @@ class Factory(abc.ABC):
             return SimpleRLCNNMinimalSupervisedFactory()
         elif model_name_lower_no_sep == "rlregressor":
             return RLRegressorFactory()
-        elif model_name_lower_no_sep == "fftunet":
-            return FFT_UNetFactory()
         elif model_name_lower_no_sep == "segformer":
             return SegFormerFactory()
         elif model_name_lower_no_sep == "lawin":
