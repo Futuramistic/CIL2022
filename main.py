@@ -11,7 +11,7 @@ import os
 import random
 import re
 
-from adaboost.adaboost import AdaBooster
+from adaboost import AdaBooster
 from factory import Factory
 from utils import *
 from utils.logging import pushbullet_logger
@@ -52,7 +52,7 @@ def main():
     parser.add_argument('-E', '--experiment_name', type=str, required=False)
     parser.add_argument('-R', '--run_name', type=str, required=False)
     parser.add_argument('-s', '--split', type=float, default=DEFAULT_TRAIN_FRACTION, required=False)
-    parser.add_argument('-e', '--num_epochs', type=int, required=False)
+    parser.add_argument('-e', '--num_epochs', type=int, required=False, default=2)
     parser.add_argument('-b', '--batch_size', type=int, required=False)
     parser.add_argument('-L', '--loss_function', type=str, required=False)
     # json.loads: substitute for dict

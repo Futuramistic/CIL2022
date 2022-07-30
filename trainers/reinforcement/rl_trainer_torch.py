@@ -325,6 +325,15 @@ class TorchRLTrainer(TorchTrainer):
                     agent_pos_patch_end_x = min(img_width - 1, agent_pos[0] + agent_pos_patch_size)
                     agent_pos_patch_end_y = min(img_height - 1, agent_pos[1] + agent_pos_patch_size)
                     
+                    if torch.is_tensor(agent_pos_patch_start_x):
+                        agent_pos_patch_start_x = int(agent_pos_patch_start_x.item())
+                    if torch.is_tensor(agent_pos_patch_start_y):
+                        agent_pos_patch_start_y = int(agent_pos_patch_start_y.item())
+                    if torch.is_tensor(agent_pos_patch_end_x):
+                        agent_pos_patch_end_x = int(agent_pos_patch_end_x.item())
+                    if torch.is_tensor(agent_pos_patch_end_y):
+                        agent_pos_patch_end_y = int(agent_pos_patch_end_y.item())
+                    
                     curr_pred = prediction[:, min(timestep_idx, prediction_len-1)]  # collapse time dimension
                     curr_pred[:, agent_pos_patch_start_x:agent_pos_patch_end_x, agent_pos_patch_start_y:agent_pos_patch_end_y] =\
                         np.array([[[255]], [[255]], [[51]]], dtype=np.uint8) # signalize agent position
