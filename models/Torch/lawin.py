@@ -1,4 +1,3 @@
-from mmcv.cnn import ConvModule, NonLocal2d
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,6 +5,8 @@ import warnings
 import hashlib
 import urllib
 import os
+
+from mmcv.cnn import ConvModule, NonLocal2d
 from einops import rearrange
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from mmcv.runner import BaseModule, auto_fp16, force_fp32

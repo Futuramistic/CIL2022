@@ -3,8 +3,10 @@ All losses take as input the groundtruth and the prediction tensors and output t
 value if not stated otherwise.
 """
 import torch
+
 from torchvision import models
 from utils import to_cuda
+
 
 class VGGPerceptualLoss(torch.nn.Module):
     """

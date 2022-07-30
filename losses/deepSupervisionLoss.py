@@ -2,9 +2,10 @@
 All losses take as input the groundtruth and the prediction tensors and output the loss 
 value if not stated otherwise.
 """
-from losses import DiceLossTF
 import tensorflow as tf
 import keras.backend as K
+
+from losses import DiceLossTF
 
 
 def DeepSupervisionLoss(function=DiceLossTF, loss_weights=None, **kwargs):

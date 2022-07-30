@@ -2,9 +2,9 @@
 Plain UNet architecture
 Adapted from https://github.com/zhixuhao/unet
 """
-from keras.layers import *
 import tensorflow.keras as K
 
+from keras.layers import *
 from .blocks import *
 from utils import *
 

@@ -2,9 +2,11 @@
 All losses take as input the groundtruth and the prediction tensors and output the loss 
 value if not stated otherwise.
 """
-from losses import BCELoss
 import keras.backend as K
 import tensorflow as tf
+
+from losses import BCELoss
+
 
 def U2NET_loss(loss_func=BCELoss(logits=False)):
     """

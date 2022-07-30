@@ -1,4 +1,6 @@
-# Imports
+"""
+Given a trained model, make predictions on the test set
+"""
 import torch
 import tensorflow as tf
 import tensorflow.keras as K

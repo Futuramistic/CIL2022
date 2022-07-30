@@ -1,11 +1,11 @@
 import numpy as np
 import os
 import torch
-from torch.utils.data import DataLoader as torchDL, Subset, WeightedRandomSampler
-from torchvision import transforms
 import utils
 import warnings
 
+from torch.utils.data import DataLoader as torchDL, Subset, WeightedRandomSampler
+from torchvision import transforms
 from .torchDataset import SegmentationDataset
 from .dataloader import DataLoader
 from models import *

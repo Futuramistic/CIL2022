@@ -2,9 +2,9 @@
 UNet++ model
 Refer to https://github.com/MrGiovanni/UNetPlusPlus for more details
 """
-from keras.layers import *
 import tensorflow.keras as K
 
+from keras.layers import *
 from .blocks import *
 from utils import *
 

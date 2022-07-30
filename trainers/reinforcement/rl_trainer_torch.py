@@ -5,9 +5,9 @@ import torch
 import torch.cuda
 import torch.optim as optim
 import torch.distributions
+
 from torch.utils.data import DataLoader, Subset
 from PIL import Image, ImageDraw
-
 from losses.precision_recall_f1 import *
 from models.reinforcement.environment import SegmentationEnvironment, DEFAULT_REWARDS
 from utils.logging import mlflow_logger

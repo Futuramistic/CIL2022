@@ -115,30 +115,10 @@ class TFTrainer(Trainer, abc.ABC):
             print('Metrics: %s\n' % str(logs))
             mlflow_logger.log_metrics(logs, aggregate_iteration_idx=self.iteration_idx)
             mlflow_logger.log_logfiles()
-
-            # checkpoints should be logged to MLflow right after their creation, so that if training is
-            # stopped/crashes *without* reaching the final "mlflow_logger.log_checkpoints()" call in trainer.py,
-            # prior checkpoints have already been persisted
-            # since we don't have a way of getting notified when KC.ModelCheckpoint has finished creating the
-            # checkpoint, we simply check at the end of each epoch whether there are any checkpoints to upload
-            # and upload them if necessary
-
-            #if self.trainer.do_checkpoint and self.best_val_loss > logs['val_loss']\
-            #   and self.best_f1_score >= self.trainer.f1_threshold_to_log_checkpoint:
-            #    self.best_val_loss = logs['val_loss']
-            #    keras.models.save_model(model=self.model,
-            #                            filepath=os.path.join(CHECKPOINTS_DIR, "cp_best_val_loss.ckpt"),save_traces=True,include_optimizer=True)
-            #    mlflow_logger.log_checkpoints()
-
+            
             self.epoch_idx += 1
             self.epoch_iteration_idx = 0
-
-            # it seems we can only safely delete the original checkpoint dir after having trained for at least one
-            # iteration
-            # if self.original_checkpoint_hash is not None and os.path.isdir(f'original_checkpoint_{self.original_checkpoint_hash}.ckpt'):
-            #     shutil.rmtree(f'original_checkpoint_{self.original_checkpoint_hash}.ckpt')
-            
-
+        
         def on_train_batch_begin(self, batch, logs=None):
             """
             Called each time a train batch starts

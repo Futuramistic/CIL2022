@@ -1,7 +1,7 @@
 import cloudpickle
+
 from functools import partial
 from hyperopt import STATUS_OK, fmin, tpe, Trials, STATUS_FAIL
-
 from data_handling import *
 from factory import Factory, get_torch_scheduler
 from utils.logging import pushbullet_logger

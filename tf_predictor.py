@@ -1,21 +1,19 @@
-# Imports
+"""
+Given a trained model, make predictions on the test set
+"""
 import torch
 import pickle
-from tqdm import tqdm
-
-from factory import Factory
-from losses.precision_recall_f1 import precision_recall_f1_score_tf
 import tensorflow.keras as K
-from utils import *
 import numpy as np
-from losses.loss_harmonizer import DEFAULT_TF_DIM_LAYOUT, collapse_channel_dim_tf
 import argparse
 import tensorflow as tf
 import tensorflow_addons as tfa
 
-"""
-Given a trained model, make predictions on the test set
-"""
+from tqdm import tqdm
+from factory import Factory
+from losses.precision_recall_f1 import precision_recall_f1_score_tf
+from utils import *
+from losses.loss_harmonizer import DEFAULT_TF_DIM_LAYOUT, collapse_channel_dim_tf
 
 
 model = None

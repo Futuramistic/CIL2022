@@ -1,15 +1,15 @@
 import math
 import numpy as np
-from datetime import datetime
 import random
 import torch
 import torch.cuda
 import torch.optim as optim
 import torch.distributions
+
+from datetime import datetime
 from torch.utils.data import DataLoader
 from subproc_vec_env_torch import SubprocVecEnvTorch
 from PIL import Image, ImageDraw
-
 from losses.precision_recall_f1 import *
 from models.reinforcement.environment import DEFAULT_REWARDS_MINIMAL, SegmentationEnvironmentMinimal
 from utils.logging import mlflow_logger

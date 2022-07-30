@@ -1,6 +1,7 @@
+import numpy as np
+
 from hyperopt import hp
 from hyperopt.pyll.base import scope
-import numpy as np
 from utils import ROOT_DIR
 
 

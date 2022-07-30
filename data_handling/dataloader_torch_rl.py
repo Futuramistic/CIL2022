@@ -1,11 +1,12 @@
 import warnings
 import torch
+import utils
+
 from torch.utils.data import DataLoader as torchDL, Dataset, Subset
 from .torchDataset import SegmentationDataset
 from .dataloader import DataLoader
 from .dataloader_torch import TorchDataLoader
 from torchvision import transforms
-import utils
 from models import *
 
 

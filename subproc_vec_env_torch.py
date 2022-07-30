@@ -1,12 +1,9 @@
 # code partly from https://github.com/hill-a/stable-baselines/blob/master/stable_baselines/common/vec_env/subproc_vec_env.py
+import torch
 
 from datetime import datetime
-import numpy as np
-import multiprocessing
 from multiprocessing import Process, Pipe
 from baselines.common.vec_env import VecEnv, CloudpickleWrapper
-
-import torch
 
 def worker(remote, parent_remote, env_fn_wrapper):
     parent_remote.close()

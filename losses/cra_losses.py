@@ -12,8 +12,8 @@ value if not stated otherwise.
 import torch.nn.functional as F
 import torch
 import torch.nn as nn
-from utils import to_cuda
 
+from utils import to_cuda
 from losses.vgg_loss import VGGPerceptualLoss
 
 try:

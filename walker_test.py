@@ -1,14 +1,12 @@
-import argparse
 import cv2
-import matplotlib.pyplot as plt
-from multiprocessing import Process, cpu_count
 import numpy as np
 import os
 import pickle
 import random
 import torch
+
+from multiprocessing import Process, cpu_count
 from PIL import Image, ImageDraw
-from tqdm import tqdm
 import shutil
 
 

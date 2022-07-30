@@ -2,13 +2,13 @@
 All losses take as input the groundtruth and the prediction tensors and output the loss 
 value if not stated otherwise.
 """
-from typing import Iterable
-from .loss_harmonizer import *
-import torch.nn.functional as F
 import tensorflow.keras as K
 import tensorflow_addons as tfa
 import tensorflow as tf
-import numpy as np
+
+from typing import Iterable
+from .loss_harmonizer import *
+
 
 """
 If we take the F1 score for both classes (corresponding to average='micro' for sklearn.metrics.f1_score),
