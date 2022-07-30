@@ -223,7 +223,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
         predictions_nstepwise_rgb_test_set = []
         positions_nstepwise_test_set = []
 
-        for (batch_xs, batch_ys) in subset_dl:
+        for (batch_xs, batch_ys, idx) in subset_dl:
             # batch_xs, batch_ys = batch_xs.to(self.device), batch_ys.numpy()
             # output = self.model(batch_xs)
             # if type(output) is tuple:
@@ -354,8 +354,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
         # WARNING: some models subclassing TorchTrainer overwrite this function, so make sure any changes here are
         # reflected appropriately in these models' files
         
-        # Overwrite the trainer in callback, because otherwise the functions of the super class will be used, where it is initialized
-        self.callback_handler.trainer = self
+        # TODO: parallelize with SubprocVecEnv
 
         model.train()
         opt = self.optimizer_or_lr
@@ -645,10 +644,11 @@ class TorchRLTrainerMinimal(TorchTrainer):
                             reward_stats__first_sample__timestep_avg__reward_sums[key] = reward_stats__first_sample__timestep_avg__reward_sums.get(key, 0.0) + info_timestep_avg['reward_decomp_sums'][key]
 
                 preds = env.get_unpadded_segmentation().float()
-                precision, recall, f1_score = precision_recall_f1_score_torch(preds, sample_y)
-                precisions.append(precision.cpu().numpy())
-                recalls.append(recall.cpu().numpy())
-                f1_scores.append(f1_score.cpu().numpy())
+                precision_road, recall_road, f1_road, precision_bkgd, recall_bkgd, f1_bkgd, f1_macro, f1_weighted,\
+                f1_road_patchified, f1_bkgd_patchified, f1_patchified_weighted = precision_recall_f1_score_torch(preds, sample_y)
+                precisions.append(precision_road.cpu().numpy())
+                recalls.append(recall_road.cpu().numpy())
+                f1_scores.append(f1_weighted.cpu().numpy())
 
                 # print(f'Reward information for sample {idx}: {info}')
 
