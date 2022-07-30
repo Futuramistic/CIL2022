@@ -1,6 +1,8 @@
 """
-This file absolutely has to be in a subdirectory of the root directory of the project, because of the ROOT_DIR value
-DO NOT MOVE!
+! DO NOT MOVE ! (because of the ROOT_DIR value)
+
+This file contains global variables, Information on the Datasets and MlFlow, as well as usefull helper functions used
+throughout the framework.
 """
 
 import math

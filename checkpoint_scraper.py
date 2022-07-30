@@ -1,21 +1,18 @@
-import argparse
-import hashlib
-import os
-import sys
-import pysftp
-import requests
-import pickle
-
-from requests.auth import HTTPBasicAuth
-from urllib.parse import urlparse
-from factory import *
-from utils import *
-
-
 """
 Given a list of sftp urls, retrieve the corresponding checkpoints, load them into their respective models
 and let each model make a prediction, before ensembling all predictions into a single submission file
 """
+import argparse
+import hashlib
+import os
+import pysftp
+import requests
+import pickle
+from requests.auth import HTTPBasicAuth
+from urllib.parse import urlparse
+
+from factory import *
+from utils import *
 
 
 os.environ['MLFLOW_TRACKING_USERNAME'] = MLFLOW_HTTP_USER
@@ -70,8 +67,15 @@ def load_checkpoint(checkpoint_path, checkpoints_output_dir):
         return final_checkpoint_path
 
 
-def compute_majority_vote_prediction(checkpoint_paths, sftp_path_model_names, checkpoints_output_dir,
+def compute_majority_vote_prediction(checkpoint_paths, sftp_path_model_names,
                                      output_predictions_dir):
+    """Given sevaral model checkpoints, this function creates an ensembled submission via majority voting
+
+    Args:
+        checkpoint_paths (list(str)): The checkpoints to the models
+        sftp_path_model_names (list(str)): The names of the model classes
+        output_predictions_dir (str): The output directory for the predictions
+    """
     # Make one prediction per checkpoint
     for idx, checkpoint in enumerate(checkpoint_paths):
         fact = Factory.get_factory(model_name=sftp_path_model_names[idx])
@@ -90,7 +94,13 @@ def compute_majority_vote_prediction(checkpoint_paths, sftp_path_model_names, ch
     os.system(f'python processing/ensembled_submission_creator.py')
 
 
-def averaged_outputs_prediction(checkpoint_paths, sftp_path_model_names, checkpoints_output_dir):
+def averaged_outputs_prediction(checkpoint_paths, sftp_path_model_names):
+    """Given sevaral model checkpoints, this function creates an ensembled submission via averaging the predictions
+
+    Args:
+        checkpoint_paths (list(str)): The checkpoints to the models
+        sftp_path_model_names (list(str)): The names of the model classes
+    """
     os.makedirs(OUTPUT_PRED_DIR, exist_ok=True)
     summed_preds = [np.zeros((400, 400)) for _ in range(144)]
     nb_networks = 0
@@ -128,15 +138,6 @@ def averaged_outputs_prediction(checkpoint_paths, sftp_path_model_names, checkpo
 def main(model_name, sftp_paths_file, checkpoints_output_dir, output_predictions_dir, majority_vote=False):
     if model_name is not None:
         model_name = model_name.lower().replace('-', '').replace('_', '')
-
-    # Make sure the user wants to overwrite the current checkpoints directory
-    # if os.path.exists(checkpoints_output_dir):
-    #     answer = input(f'{checkpoints_output_dir} already exists. Do you want to overwrite it? [y/n]')
-    #     if answer.lower() == 'y':
-    #         shutil.rmtree(checkpoints_output_dir)
-    #     else:
-    #         print('Exiting...')
-    #         return
     
     os.makedirs(checkpoints_output_dir, exist_ok=True)
 
@@ -166,10 +167,10 @@ def main(model_name, sftp_paths_file, checkpoints_output_dir, output_predictions
     os.mkdir(output_predictions_dir)
 
     if majority_vote:
-        compute_majority_vote_prediction(checkpoint_paths, sftp_path_model_names, checkpoints_output_dir,
+        compute_majority_vote_prediction(checkpoint_paths, sftp_path_model_names,
                                          output_predictions_dir)
     else:
-        averaged_outputs_prediction(checkpoint_paths, sftp_path_model_names, checkpoints_output_dir)
+        averaged_outputs_prediction(checkpoint_paths, sftp_path_model_names)
 
 
 if __name__ == '__main__':

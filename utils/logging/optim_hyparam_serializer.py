@@ -1,13 +1,10 @@
+""" This file optimizes the gathering of hyperparameters to log to mlflow. Usually, each trainer has different 
+hyperparameters. There could be multiple names describing the same param, but we want the names to be consistent 
+so we can compare the parameters in MLflow easily --> make sure to keep the names consistent!
+"""
 import tensorflow as tf
 import torch.optim as T
 import tensorflow.keras.optimizers as K
-
-
-"""
-there could be multiple names describing the same param, but we want the names to be consistent so we can
-compare the parameters in MLflow easily
-make sure to keep the names consistent!
-"""
 
 
 def _get_consistent_hyparam_name(name):
