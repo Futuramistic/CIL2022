@@ -110,7 +110,10 @@ class TorchRLTrainerMinimal(TorchTrainer):
             scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer_or_lr, lr_lambda=lambda epoch: 1.0)
             
         if loss_function is None:
-            loss_function = torch.nn.MSELoss()
+            self.mse_loss = torch.nn.MSELoss()
+            def get_mse_loss():
+                return lambda input, target: self.mse_loss(input, target.long())
+            loss_function = get_mse_loss
         
         if isinstance(std, int) or isinstance(std, float):
             std = [std]*2
