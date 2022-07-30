@@ -4,7 +4,9 @@ import random
 import torch
 import torch.cuda
 import torch.optim as optim
+import torch.distributions
 from torch.utils.data import DataLoader, Subset
+from PIL import Image, ImageDraw
 
 from losses.precision_recall_f1 import *
 from models.reinforcement.environment import SegmentationEnvironment, DEFAULT_REWARDS
@@ -12,38 +14,26 @@ from utils.logging import mlflow_logger
 from trainers.trainer_torch import TorchTrainer
 from utils import *
 
-import gym
-# from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
-
-import torch.distributions
-
-import imageio
-
-from PIL import Image, ImageDraw
-
-# TODO: Comment this file when the reinforcement branch is merged
-
-# TODO: try letting the policy network output sigma parameters of distributions as well!
-
 EPSILON = 1e-5
 
 class TorchRLTrainer(TorchTrainer):
-    def __init__(self, dataloader, model, preprocessing=None,
-                 experiment_name=None, run_name=None, split=None, num_epochs=None, batch_size=None,
-                 optimizer_or_lr=None, scheduler=None, loss_function=None, loss_function_hyperparams=None,
-                 evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
-                 load_checkpoint_path=None, segmentation_threshold=None, history_size=5, use_channelwise_norm=False,
-                 max_rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), std=[1e-3, 1e-3, 1e-3, 1e-3, 1e-2], reward_discount_factor=0.99,
-                 num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20,
-                 min_steps=20, rewards = None, blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False,
-                 use_adaboost=False, deep_adaboost=False, f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
+    def __init__(self, dataloader, model, experiment_name=None, run_name=None, split=None, num_epochs=None,
+                 batch_size=None, optimizer_or_lr=None, scheduler=None, loss_function=None,
+                 loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
+                 checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
+                 use_channelwise_norm=False, adv_lambda=0.1, adv_lr=1e-4, blobs_removal_threshold=0,
+                 hyper_seg_threshold=False, use_sample_weighting=False, use_adaboost=False, deep_adaboost=False,
+                 f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT,
+                 history_size=5, max_rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), 
+                 std=[1e-3, 1e-3, 1e-3, 1e-3, 1e-2], reward_discount_factor=0.99, num_policy_epochs=4, 
+                 policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20, min_steps=20, 
+                 rewards = None):
         """
         Trainer for RL-based models.
         Args:
-            dataloader: the DataLoader to use when training the model
+            - Refer to the TorchTrainer superclass for more details on the arguments - 
+            - RL specific parameters below-
             model: the policy network to train
-            ...
-            patch_size (int, int): the size of the observations for the actor
             history_size (int): how many steps the actor can look back (become part of the observation)
             max_rollout_len (int): how large each rollout can get on maximum
                                    default value: 2 * 160000 (image size: 400*400; give agent chance to visit each pixel twice)

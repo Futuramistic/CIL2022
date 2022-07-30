@@ -13,6 +13,14 @@ from torchvision.models import resnet50
 
 
 class RefinementQ(nn.Module):
+    """The Refinement-Network as a try to use Reinforcement Learning to refine other models segmentation predictions.
+    Due to lacking performance of the simpler networks, the refinement q-network was never tested excessively but 
+    can be used in future tries.
+    Args:
+        num_conv_layer (int): the depth of the refinement network
+        patch_size (int): the length of the quadratic patch. Needed to compute the dimensions for the final linear
+        layer.
+    """
     def __init__(self, num_conv_layer, patch_size=10):
         super(RefinementQ, self).__init__()
         self.transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
@@ -56,6 +64,22 @@ class RefinementQ(nn.Module):
 
 
 class SimpleRLCNN(nn.Module):
+    """Simple Reinforcement Learning Convolutional Neural Network
+    Allthough this model does not achieve a very well performance (most likely to the inefficient trajectory sampling
+    as well as unsuited penalties), it's main ideas are a new approach to image segmentation and can 
+    be refined in the future. In the main idea, the agent is given the opportunity to segment a given patch. The agent
+    is set at the center of the patch and can either put down the brush to segment selected pixels as road by determining
+    delta angle, radius and magnitude of the brush. The brush is a "circle" which paints all pixels within the circle.
+    This allows for the usually round ends of a street to be painted easily.
+    
+    The CNN takes as input a history of the last actions, the new patch to segment, and optionally other information
+    concatenated to the input, such as e.g. the last brush state or a minimap of the agent's current position. 
+    It outputs actions, which are atm 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'.
+
+    Args:
+        patch_size (int, int): the size of the observations for the actor. Defaults to (10,10).
+        in_channels (int): The number of input channels depending on the history size. Defaults to 10.
+    """
     def __init__(self, patch_size=(10,10), in_channels=10):
         super(SimpleRLCNN, self).__init__()
         self.patch_size = patch_size
@@ -87,6 +111,15 @@ class SimpleRLCNN(nn.Module):
 
 
 class SimpleRLCNNMinimal(nn.Module):
+    """Simple Reinforcement Learning Convolutional Neural Network - Minimal Version
+    Because the non-minimal model does not achieve a very well performance, a minimal solution is proposed which for which this
+    model architecture is used in the trainer.
+    It outputs actions, which are atm 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'.
+
+    Args:
+        patch_size (int, int): the size of the observations for the actor. Defaults to (10,10).
+        in_channels (int): The number of input channels. Defaults to 10.
+    """
     def __init__(self, patch_size=(10,10), in_channels=1, out_channels=2):
         super(SimpleRLCNNMinimal, self).__init__()
         self.patch_size = patch_size
@@ -135,13 +168,13 @@ class ResNetBasedRegressor(nn.Module):
     def forward(self, x):
         return self.regressor(x)
 
-
-# adapted from https://github.com/DCurro/CannyEdgePytorch to process batches
 class Canny(nn.Module):
-    def __init__(self, threshold=10.0):
+    """Canny torch version in order to incorporate Canny edge detection easily into the models for faster
+    computation
+    adapted from https://github.com/DCurro/CannyEdgePytorch to process batches
+    """
+    def __init__(self):
         super(Canny, self).__init__()
-
-        self.threshold = threshold
 
         filter_size = 5
         generated_filters = gaussian(filter_size,std=1.0).reshape([1,filter_size])
@@ -249,10 +282,9 @@ class Canny(nn.Module):
         return grad_mag.detach(), grad_orientation.detach(), thin_edges.detach()
 
 
+
 # code taken from https://github.com/pytorch/vision/blob/main/torchvision/models/resnet.py begins here
-
-
-def conv3x3(in_planes: int, out_planes: int, stride: int = 1, groups: int = 1, dilation: int = 1) -> nn.Conv2d:
+def conv3x3(in_planes: int, out_planes: int, stride: int = 1, groups: int = 1, dilation: int = 1):
     """3x3 convolution with padding"""
     return nn.Conv2d(
         in_planes,
@@ -266,7 +298,7 @@ def conv3x3(in_planes: int, out_planes: int, stride: int = 1, groups: int = 1, d
     )
 
 
-def conv1x1(in_planes: int, out_planes: int, stride: int = 1) -> nn.Conv2d:
+def conv1x1(in_planes: int, out_planes: int, stride: int = 1):
     """1x1 convolution"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
 
@@ -284,7 +316,7 @@ class BasicBlock(nn.Module):
         base_width: int = 64,
         dilation: int = 1,
         norm_layer: Optional[Callable[..., nn.Module]] = None,
-    ) -> None:
+    ):
         super().__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -301,7 +333,7 @@ class BasicBlock(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor):
         identity = x
 
         out = self.conv1(x)
@@ -339,7 +371,7 @@ class Bottleneck(nn.Module):
         base_width: int = 64,
         dilation: int = 1,
         norm_layer: Optional[Callable[..., nn.Module]] = None,
-    ) -> None:
+    ):
         super().__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -355,7 +387,7 @@ class Bottleneck(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor):
         identity = x
 
         out = self.conv1(x)
@@ -390,7 +422,7 @@ class ResNetRegressor(nn.Module):
         width_per_group: int = 64,
         replace_stride_with_dilation: Optional[List[bool]] = None,
         norm_layer: Optional[Callable[..., nn.Module]] = None,
-    ) -> None:
+    ):
         super().__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -445,7 +477,7 @@ class ResNetRegressor(nn.Module):
         blocks: int,
         stride: int = 1,
         dilate: bool = False,
-    ) -> nn.Sequential:
+    ):
         norm_layer = self._norm_layer
         downsample = None
         previous_dilation = self.dilation
@@ -479,7 +511,7 @@ class ResNetRegressor(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def _forward_impl(self, x: Tensor) -> Tensor:
+    def _forward_impl(self, x: Tensor):
         # See note [TorchScript super()]
         x = self.conv1(x)
         x = self.bn1(x)
@@ -497,6 +529,6 @@ class ResNetRegressor(nn.Module):
 
         return F.sigmoid(x)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor):
         return self._forward_impl(x)
 
