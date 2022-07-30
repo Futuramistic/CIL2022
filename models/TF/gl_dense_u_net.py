@@ -88,6 +88,14 @@ def GLDenseUNet(input_shape=DEFAULT_TF_INPUT_SHAPE,
         return global_pool
 
     def __build_model(inputs):
+        """
+        Define the model architecture.
+        Call this function to feed the input through the network.
+        Args:
+            inputs (tensor): input tensor of shape (B, *input_shape)
+        Returns:
+            output of the network (tensor)
+        """
         conv2d_args = {'activation': conv2d_activation,
                        'kernel_regularizer': l2_reg()}
         conv2d_t_args = {'activation': conv2d_activation}

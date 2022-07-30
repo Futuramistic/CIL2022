@@ -11,7 +11,8 @@ from models import *
 
 class TorchDataLoaderRL(TorchDataLoader):
     def __init__(self, dataset="original", use_geometric_augmentation=False, use_color_augmentation=False,
-                 aug_contrast=[0.8,1.2], aug_brightness=[0.8, 1.2], aug_saturation=[0.8,1.2]):
+                 aug_contrast=[0.8,1.2], aug_brightness=[0.8, 1.2], aug_saturation=[0.8,1.2], use_adaboost=False):
         super().__init__(dataset, use_geometric_augmentation=use_geometric_augmentation,
                          use_color_augmentation=use_color_augmentation, aug_contrast=aug_contrast,
-                         aug_brightness=aug_brightness, aug_saturation=aug_saturation, use_rl_supervision=True)
+                         aug_brightness=aug_brightness, aug_saturation=aug_saturation, use_adaboost=use_adaboost,
+                         use_rl_supervision=True)

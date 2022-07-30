@@ -126,6 +126,9 @@ class OurDinkNet50(nn.Module):
     The CRA-Net
     @Note: The name is kept as-is from the original repo:
     https://github.com/liaochengcsu/Cascade_Residual_Attention_Enhanced_for_Refinement_Road_Extraction
+
+    Note that this networks outputs 2 segmentations, a refined one and a non-refined one.
+    More infos can be found in the paper https://www.mdpi.com/2220-9964/11/1/9
     """
     def __init__(self, num_classes=1):
         super(OurDinkNet50, self).__init__()
@@ -188,6 +191,8 @@ class OurDinkNet50(nn.Module):
         Args:
             input (tensor): batch of images with dim [B, C, H, W]
             apply_activation (bool): if True apply the Sigmoid on the output
+        Returns:
+            Tuple(tensor, tensor): Refined and non-refined segmentations
         """
         # Encoder
         x = self.firstconv(input)

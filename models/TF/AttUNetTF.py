@@ -16,9 +16,25 @@ def AttUnetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
     """
     Attention UNet model.
     Refer to https://github.com/ozan-oktay/Attention-Gated-Networks for details
+    Args:
+        input_shape (Union[List, Tuple]): Shape that the network expects
+        name (str): Name of the network (for logging)
+        dropout (float): Amount of dropout to use
+        kernel_init (str): Name of kernel initialization
+        normalize (bool): Whether to use batch normalization
+        up_transpose (bool): whether to use transpose convolutions or simple upscaling
+        kernel_regularizer: Specify the regularizer on the kernel weights or None
     """
 
     def __build_model(inputs):
+        """
+        Define the model architecture.
+        Call this function to feed the input through the network.
+        Args:
+            inputs (tensor): input tensor of shape (B, *input_shape)
+        Returns:
+            output of the network (tensor)
+        """
         nb_filters = [32, 64, 128, 256, 512]
 
         if up_transpose:
@@ -26,6 +42,7 @@ def AttUnetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         else:
             up_block = UpSampleConvo_Block
 
+        # Define network parameters
         down_args = {
             'dropout': dropout,
             'kernel_init': kernel_init,
@@ -50,10 +67,10 @@ def AttUnetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_regularizer': kernel_regularizer
         }
 
-        convo1,pool1 = Down_Block(name=name+"-down-block-1", filters=nb_filters[0], **down_args)(inputs)
-        convo2,pool2 = Down_Block(name=name+"-down-block-2", filters=nb_filters[1], **down_args)(pool1)
-        convo3,pool3 = Down_Block(name=name+"-down-block-3", filters=nb_filters[2], **down_args)(pool2)
-        convo4,pool4 = Down_Block(name=name+"-down-block-4", filters=nb_filters[3], **down_args)(pool3)
+        convo1, pool1 = Down_Block(name=name+"-down-block-1", filters=nb_filters[0], **down_args)(inputs)
+        convo2, pool2 = Down_Block(name=name+"-down-block-2", filters=nb_filters[1], **down_args)(pool1)
+        convo3, pool3 = Down_Block(name=name+"-down-block-3", filters=nb_filters[2], **down_args)(pool2)
+        convo4, pool4 = Down_Block(name=name+"-down-block-4", filters=nb_filters[3], **down_args)(pool3)
 
         convo5 = Convo_Block(name=name+"-convo-block", filters=nb_filters[4], **down_args)(pool4)
 
@@ -65,7 +82,7 @@ def AttUnetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         return Conv2D(name=name+"-final-convo", **out_args)(up4)
 
     inputs = K.Input(input_shape)
-    outputs = __build_model(inputs)
+    outputs = __build_model(inputs)  # Feed the input through the network
     model = K.Model(inputs=inputs, outputs=outputs, name='AttUNet')
     # store parameters for the Trainer to be able to log them to MLflow
     model.dropout = dropout

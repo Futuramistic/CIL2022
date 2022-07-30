@@ -1,16 +1,24 @@
 """
 U-Network, adjusted from https://github.com/milesial/Pytorch-UNet
 """
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
 class DoubleConv(nn.Module):
-    """(convolution => [BN] => ReLU) * 2"""
-
+    """
+    Performs two consecutive convolutions
+    (convolution => [BN] => ReLU) * 2
+    """
     def __init__(self, in_channels, out_channels, mid_channels=None):
+        """
+        Args:
+            in_channels (int): Number of input channels
+            out_channels (int): Number of output channels
+            mid_channels (int): If specified, indicates the number of channels between the 2 convolutions,
+            else, it is automatically set to the number of output channels
+        """
         super().__init__()
         if not mid_channels:
             mid_channels = out_channels
@@ -28,9 +36,11 @@ class DoubleConv(nn.Module):
 
 
 class Down(nn.Module):
-    """Downscaling with maxpool then double conv"""
-
+    """
+    Downscaling with maxpool then double conv
+    """
     def __init__(self, in_channels, out_channels):
+
         super().__init__()
         self.maxpool_conv = nn.Sequential(
             nn.MaxPool2d(2),
@@ -42,12 +52,18 @@ class Down(nn.Module):
 
 
 class Up(nn.Module):
-    """Upscaling then double conv"""
-
+    """
+    Upscaling then double conv
+    """
     def __init__(self, in_channels, out_channels, bilinear=True):
+        """
+        Args:
+            in_channels (int): Number of input channels
+            out_channels (int): Number of output channels
+            bilinear (bool): if bilinear, use the normal convolutions with upscaling to reduce the number of channels,
+            else perform a transposed convolution
+        """
         super().__init__()
-
-        # if bilinear, use the normal convolutions to reduce the number of channels
         if bilinear:
             self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
             self.conv = DoubleConv(in_channels, torch.div(out_channels, 2, rounding_mode='trunc'),
@@ -58,6 +74,12 @@ class Up(nn.Module):
             self.conv = DoubleConv(in_channels, out_channels)
 
     def forward(self, x1, x2):
+        """
+        Upscale x1 and concatenate it with x2
+        Args:
+            x1 (tensor): tensor from previous block in the upscaling path
+            x2 (tensor): tensor transferred from the encoding path via a skip-connection
+        """
         x1 = self.up(x1)
         # input is CHW
         diffY = torch.tensor([x2.size()[2] - x1.size()[2]])
@@ -73,7 +95,15 @@ class Up(nn.Module):
 
 
 class OutConv(nn.Module):
+    """
+    Perform the final convolution of the network (A simple 2D 1x1 convolution)
+    """
     def __init__(self, in_channels, out_channels):
+        """
+        Args:
+            in_channels (int): Number of input channels
+            out_channels (int): Number of output channels
+        """
         super(OutConv, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
 
@@ -84,7 +114,18 @@ class OutConv(nn.Module):
 
 
 class UNet(nn.Module):
+    """
+    Original UNet architecture
+    """
     def __init__(self, n_channels=3, n_classes=1, bilinear=True):
+        """
+        Args:
+            n_channels (int): Number of expected input channels (typically 3)
+            n_classes (int): Dimensionality of output, corresponds to the number of classes in the dataset
+            bilinear (bool): if bilinear, use the normal convolutions with upscaling to reduce the number of channels,
+            else perform a transposed convolution in the decoding part of the network (i.e. bilinear=False is more
+            parameter-heavy)
+        """
         super(UNet, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
@@ -104,11 +145,19 @@ class UNet(nn.Module):
         self.activation = nn.Softmax() if n_classes > 1 else nn.Sigmoid()
 
     def forward(self, x, apply_activation=True):
+        """
+        Pushes the input through the network
+        Args:
+            x (tensor): batch of images with dim [B, C, H, W]
+            apply_activation (bool): if True apply the Sigmoid on the output
+        """
+        # Encoding path
         x1 = self.inc(x)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         x5 = self.down4(x4)
+        # Decoding path
         x = self.up1(x5, x4)
         x = self.up2(x, x3)
         x = self.up3(x, x2)
