@@ -1,10 +1,7 @@
-# code taken from https://github.com/NVlabs/SegFormer/
-
-# ---------------------------------------------------------------
-# Copyright (c) 2021, NVIDIA Corporation. All rights reserved.
-#
-# This work is licensed under the NVIDIA Source Code License
-# ---------------------------------------------------------------
+"""Segformer Implementation
+code taken from https://github.com/NVlabs/SegFormer/
+Copyright (c) 2021, NVIDIA Corporation. All rights reserved.
+This work is licensed under the NVIDIA Source Code License"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -394,7 +391,7 @@ class DWConv(nn.Module):
 
 class mit_bzero(MixVisionTransformer):
     def __init__(self, pretrained_backbone_path=None, **kwargs):
-        super(mit_b0, self).__init__(
+        super(mit_bzero, self).__init__(
             img_size=400, patch_size=4, embed_dims=[32, 64, 160, 256], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 2, 2], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1, pretrained_backbone_path=pretrained_backbone_path)
@@ -402,7 +399,7 @@ class mit_bzero(MixVisionTransformer):
 
 class mit_bone(MixVisionTransformer):
     def __init__(self, pretrained_backbone_path=None, **kwargs):
-        super(mit_b1, self).__init__(
+        super(mit_bone, self).__init__(
             img_size=400, patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 2, 2], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1, pretrained_backbone_path=pretrained_backbone_path)
@@ -410,7 +407,7 @@ class mit_bone(MixVisionTransformer):
 
 class mit_btwo(MixVisionTransformer):
     def __init__(self, pretrained_backbone_path=None, **kwargs):
-        super(mit_b2, self).__init__(
+        super(mit_btwo, self).__init__(
             img_size=400, patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 4, 6, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1, pretrained_backbone_path=pretrained_backbone_path)
@@ -418,7 +415,7 @@ class mit_btwo(MixVisionTransformer):
 
 class mit_bthree(MixVisionTransformer):
     def __init__(self, pretrained_backbone_path=None, **kwargs):
-        super(mit_b3, self).__init__(
+        super(mit_bthree, self).__init__(
             img_size=400, patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 4, 18, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1, pretrained_backbone_path=pretrained_backbone_path)
@@ -426,7 +423,7 @@ class mit_bthree(MixVisionTransformer):
 
 class mit_bfour(MixVisionTransformer):
     def __init__(self, pretrained_backbone_path=None, **kwargs):
-        super(mit_b4, self).__init__(
+        super(mit_bfour, self).__init__(
             patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 8, 27, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1, pretrained_backbone_path=pretrained_backbone_path)

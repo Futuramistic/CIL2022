@@ -1,12 +1,10 @@
+"""
+This file contains Blocks used in various models
+"""
 import tensorflow as tf
 import tensorflow.keras as K
 
 from tensorflow.keras.layers import *
-
-
-"""
-This file contains many Blocks used in various models
-"""
 
 
 class ConvoRelu_Block(tf.keras.layers.Layer):

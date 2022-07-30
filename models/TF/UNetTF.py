@@ -1,14 +1,12 @@
+"""
+Plain UNet architecture
+Adapted from https://github.com/zhixuhao/unet
+"""
 from keras.layers import *
 import tensorflow.keras as K
 
 from .blocks import *
 from utils import *
-
-
-"""
-Plain UNet architecture
-Adapted from https://github.com/zhixuhao/unet
-"""
 
 
 def UNetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,

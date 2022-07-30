@@ -1,12 +1,3 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-from torchvision import models
-from functools import partial
-from torch.autograd import Variable
-
-
 """
 Adapted from https://github.com/liaochengcsu/Cascade_Residual_Attention_Enhanced_for_Refinement_Road_Extraction
 The network we use is called "OurDinkNet50",
@@ -14,6 +5,13 @@ The network we use is called "OurDinkNet50",
 In turn, code based on:
 "Codes of LinkNet based on https://github.com/snakers4/spacenet-three"
 """
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+from torchvision import models
+from functools import partial
+from torch.autograd import Variable
 
 nonlinearity = partial(F.relu, inplace=True)
 

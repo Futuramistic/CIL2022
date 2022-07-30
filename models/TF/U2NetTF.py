@@ -1,11 +1,10 @@
+"""
+Layers of the U^2Net
+"""
 import keras
 
 from .blocks import *
 from utils import *
-
-"""
-Layers of the U^2Net
-"""
 
 
 class RSU7(keras.layers.Layer):
