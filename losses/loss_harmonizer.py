@@ -1,3 +1,6 @@
+"""
+Helper functions to convert between different dimensionalities
+"""
 import keras
 import keras.backend
 import tensorflow as tf

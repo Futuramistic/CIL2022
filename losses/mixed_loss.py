@@ -1,3 +1,7 @@
+"""
+All losses take as input the groundtruth and the prediction tensors and output the loss 
+value if not stated otherwise.
+"""
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -13,6 +17,10 @@ def _dice_loss(input, target):
 
 
 class FocalLoss(nn.Module):
+    """
+    Args:
+        gamma (float): Refer to Paper: https://arxiv.org/pdf/1708.02002.pdf for more information
+    """
     def __init__(self, gamma):
         super().__init__()
         self.gamma = gamma
@@ -30,6 +38,12 @@ class FocalLoss(nn.Module):
 
 
 class MixedLoss(nn.Module):
+    """
+    Mixed Loss to combine the focal loss and the dice loss
+    Args:
+        alpha (float): Weighting term for focal loss part 
+        gamma (float): parameter for focal loss
+    """
     def __init__(self, alpha, gamma):
         super().__init__()
         self.alpha = alpha

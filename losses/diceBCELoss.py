@@ -1,3 +1,7 @@
+"""
+All losses take as input the groundtruth and the prediction tensors and output the loss 
+value if not stated otherwise.
+"""
 import tensorflow as tf
 import keras.backend as K
 
@@ -7,8 +11,6 @@ Two implementations can be found online:
 -> BCE + dice_loss
 -> 0.5*BCE - dice_coeff
 """
-
-
 def DiceBCELoss1(smooth=1e-6, logits=False):
     """
     BCE + dice_loss
