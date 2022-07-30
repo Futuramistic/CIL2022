@@ -12,10 +12,16 @@ class Deeplabv3(nn.Module):
     def __init__(self):
         super().__init__()
         self.model = deeplabv3(pretrained=True, progress=True)
-        self.model.classifier = DeepLabHead(2048, 1)
+        self.model.classifier = DeepLabHead(2048, 1)  # Define the head
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x, apply_activation=True):
+        """
+        Pushes the input through the network
+        Args:
+            x (tensor): batch of images with dim [B, C, H, W]
+            apply_activation (bool): if True apply the Sigmoid on the output
+        """
         out = self.model(x)["out"]
         if apply_activation:
             out = self.sigmoid(out)
