@@ -51,7 +51,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
                  deep_adaboost=False, f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT,
                  rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), std=[1e-3, 1e-3], reward_discount_factor=0.99,
                  num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20,
-                 rewards=None, gradient_clipping_norm=1.0, exploration_model_action_ratio=1.0):
+                 rewards=None, use_supervision=False, gradient_clipping_norm=1.0, exploration_model_action_ratio=0.5):
         """
         Trainer for RL-based models.
         Args:
@@ -112,7 +112,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
         if loss_function is None:
             self.mse_loss = torch.nn.MSELoss()
             def get_mse_loss():
-                return lambda input, target: self.mse_loss(input, target.long())
+                return lambda input, target: self.mse_loss(input, target)
             loss_function = get_mse_loss
         
         if isinstance(std, int) or isinstance(std, float):
@@ -155,7 +155,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
         for loader, offset, batch_size, num_envs, pass_gt in [(self.train_loader, 0, self.batch_size,
                                                                self.batch_size, True),
                                                               (self.test_loader, self.dataloader.get_dataset_sizes(self.split)[0],
-                                                               self.batch_size, self.batch_size, False)]: ## <<<<<<<<<<<<< change back to "False"!
+                                                               self.batch_size, self.batch_size, not self.use_supervision)]:
             all_env_img_paths = [[] for _ in range(num_envs)]
             all_env_gt_paths = [[] for _ in range(num_envs)] if pass_gt else [None for _ in range(num_envs)]
             all_env_opt_brush_radius_paths = [[] for _ in range(num_envs)] if self.use_supervision and pass_gt else [None for _ in range(num_envs)]
@@ -602,7 +602,6 @@ class TorchRLTrainerMinimal(TorchTrainer):
                 # reward_sample = torch.stack([policy_sample[4] for policy_sample in policy_batch])
 
                 returns_sample = torch.stack([policy_sample[5] for policy_sample in policy_batch])
-                supervision_info = torch.stack([policy_sample[6] for policy_sample in policy_batch])
 
                 # recalculate log probabilities (see tutorial: also recalculated)
                 # if we do not recalculate, we will get errors related to repeated backpropagation
@@ -619,6 +618,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
                 
                 if self.use_supervision:
                     # loss_function expects args: input (model output), target
+                    supervision_info = torch.stack([policy_sample[6] for policy_sample in policy_batch])
                     policy_loss = self.loss_function(self.unnormalize_model_output(model_output, min_patch_size=min(list(self.model.patch_size))), supervision_info)
                 else:
                     covariance_matrix = torch.diag(self.std)
@@ -774,7 +774,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
             if not self.use_supervision:
                 terminated = torch.Tensor([timestep_idx == self.rollout_len-1] * env.nenvs
                                            if is_multi_env else [timestep_idx == self.rollout_len-1]).to(self.device)
-                if not terminated:
+                if not torch.all(terminated):
                     pre_termination_unpadded_segmentation = [info[idx]['unpadded_segmentation'] for idx in range(env.nenvs)] if is_multi_env else info['unpadded_segmentation']
                     pre_termination_rounded_agent_pos = [info[idx]['rounded_agent_pos'] for idx in range(env.nenvs)] if is_multi_env else info['rounded_agent_pos']
             else:

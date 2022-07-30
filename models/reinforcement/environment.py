@@ -652,8 +652,8 @@ class SegmentationEnvironmentMinimal(Env):
                 new_brush_state = BRUSH_STATE_PAINT
         else:
             delta_angle, new_brush_state = [action[idx] for idx in range(2)]
-            magnitude = self.magnitude
-            new_brush_radius = self.brush_width
+            magnitude = torch.tensor(self.magnitude)
+            new_brush_radius = torch.tensor(self.brush_width)
             
         unnormed_patch_coord_list = [[(int(dim_pos) - ((self.patch_size[dim_idx]+1)//2)) + 1, int(dim_pos) + ((self.patch_size[dim_idx]+2)//2)] for dim_idx, dim_pos in enumerate(self.agent_pos)]
         reward, reward_decomp_quantities, reward_decomp_sums = torch.tensor(0.0), {}, {}

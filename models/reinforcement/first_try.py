@@ -111,16 +111,25 @@ class SimpleRLCNN(nn.Module):
 
 
 class SimpleRLCNNMinimal(nn.Module):
+
+    ##############################################################################
+    # TODO: adapt description
+    ##############################################################################
+
+
     """Simple Reinforcement Learning Convolutional Neural Network - Minimal Version
-    Because the non-minimal model does not achieve a very well performance, a minimal solution is proposed which for which this
+    Because the non-minimal model does not achieve a very good performance, a minimal solution is proposed which for which this
     model architecture is used in the trainer.
-    It outputs actions, which are atm 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'.
+    It outputs actions, which are atm 'delta_angle', 'brush_state' in non-supervised settings, and
+    'angle', 'brush_radius', 'magnitude' in supervised settings.
 
     Args:
-        patch_size (int, int): the size of the observations for the actor. Defaults to (10,10).
-        in_channels (int): The number of input channels. Defaults to 10.
+        patch_size (int, int): the size of the observations for the actor. Defaults to (10, 10).
+        in_channels (int): The number of input channels. Defaults to 5.
+        out_channels (int): The number of output channels. Defaults to 3 for the supervised setting,
+                            and 2 for the unsupervised one.
     """
-    def __init__(self, patch_size=(10,10), in_channels=1, out_channels=2):
+    def __init__(self, patch_size=(10, 10), in_channels=5, out_channels=2):
         super(SimpleRLCNNMinimal, self).__init__()
         self.patch_size = patch_size
         self.in_channels = in_channels
@@ -142,7 +151,11 @@ class SimpleRLCNNMinimal(nn.Module):
         self.convs = nn.Sequential(*layers)
         flattened_dims = functools.reduce(lambda x, y: x*y, curr_output_dims)*in_channels
         self.head = nn.Linear(flattened_dims, self.out_channels) # brush state and delta_angle
-        
+    
+    ##############################################################################
+    # TODO: adapt comment
+    ##############################################################################
+
     # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate', for which we return the mean of the beta distribution
     # the action is then sampled in the trainer from that distribution --> we only need values between 0 and 1 --> sigmoid everything
     def forward(self, x):
@@ -154,7 +167,7 @@ class SimpleRLCNNMinimal(nn.Module):
 
 class SimpleRLCNNMinimalSupervised(SimpleRLCNNMinimal):
     # simply uses different default values than SimpleRLCNNMinimal
-    def __init__(self, patch_size, in_channels=4, out_channels=3):
+    def __init__(self, patch_size, in_channels=5, out_channels=3):
         super(SimpleRLCNNMinimalSupervised, self).__init__(patch_size, in_channels, out_channels)
 
 
