@@ -330,9 +330,9 @@ simple_cnn_test = {
             'split': 0.02,
             'num_epochs': 2,
             'batch_size': 2,
-            'evaluation_interval': 2,
+            'evaluation_interval': 1,
             'num_samples_to_visualize': 9,
-            'checkpoint_interval': 25,
+            'checkpoint_interval': 1,
             # 'batch_size': , currently the batch size has no effect on the gradients
             'loss_function': None,
             'loss_function_hyperparams': None,
