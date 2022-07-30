@@ -419,62 +419,8 @@ class TorchRLTrainerMinimal(TorchTrainer):
                 if len(predictions_nstepwise_list) > longest_animation_length:
                     longest_animation_length = len(predictions_nstepwise)
 
-
                 # preds = envs.get_unpadded_segmentation().float().detach().cpu()
                 # preds_batch.append(preds)
-
-            # for idx, _sample_x in enumerate(batch_xs):
-            #     log_debug(f'create_visualizations: processing sample {idx} in batch')
-            #     log_debug_indent += 1
-
-            #     if self.use_supervision:
-            #         sample_x, opt_brush_radii, non_max_suppressed = _sample_x[:3], _sample_x[3], _sample_x[4]
-            #     else:
-            #         sample_x = _sample_x
-            #         opt_brush_radii, non_max_suppressed = None, None
-            #     sample_y = batch_ys[idx]
-            #     sample_x, sample_y = sample_x.to(self.device, dtype=torch.long), sample_y.to(self.device, dtype=torch.long)
-                
-            #     # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
-            #     # accordingly, sample_y must be of shape (H, W) not (1, H, W)
-            #     sample_y = torch.squeeze(sample_y)
-
-            #     # TODO: do not pass opt_brush_radii and non_max_suppressed, else environment will assume we're working off-policy
-            #     env = SegmentationEnvironmentMinimal(sample_x, sample_y, self.model.patch_size,
-            #                                          self.test_loader.img_val_min, self.test_loader.img_val_max,
-            #                                          is_supervised=self.use_supervision, rewards=self.rewards,
-            #                                          supervision_optimal_brush_radius_map=opt_brush_radii,
-            #                                          supervision_non_max_suppressed_map=non_max_suppressed)
-            #     env.reset()
-                
-            #     # in https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html,
-            #     # they loop for "rollouts.rollout_size" iterations, but here, we loop until network tells us to terminate
-            #     # loop until termination/timeout already inside this function
-            #     predictions_nstepwise, positions_nstepwise, reward, info =\
-            #         self.trajectory_step(env, sample_from_action_distributions=self.sample_from_action_distributions, visualization_interval=self.visualization_interval)
-
-
-            #     predictions_nstepwise_np = np.stack(predictions_nstepwise)  # stack all animation frames, dim(nsteps, height, width)
-                
-
-            #     sample_y_np = sample_y.cpu().numpy()
-                
-            #     merged = np.expand_dims(2 * predictions_nstepwise_np + sample_y_np, axis=0)
-            #     green_channel = merged == 3  # true positives
-            #     red_channel = merged == 2  # false positive
-            #     blue_channel = merged == 1  # false negative
-            #     rgb = np.concatenate((red_channel, green_channel, blue_channel), axis=0) # shape(rgb, nsteps, height, width)
-
-            #     predictions_nstepwise_rgb_test_set.append(rgb)
-            #     positions_nstepwise_test_set.append(positions_nstepwise)
-                
-            #     if len(predictions_nstepwise) > longest_animation_length:
-            #         longest_animation_length = len(predictions_nstepwise)
-
-            #     preds = env.get_unpadded_segmentation().float().detach().cpu()
-            #     preds_batch.append(preds)
-
-            #     log_debug_indent -= 1
 
             log_debug_indent -= 1
 
