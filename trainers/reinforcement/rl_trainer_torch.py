@@ -155,12 +155,18 @@ class TorchRLTrainer(TorchTrainer):
             return self.f1_score
     
     class ReplayMemory(object):
-        # inspired by https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
-        # and https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html
+        """The Replay Memory to hold trajectories of the exploration policy
+        inspired by https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
+        and https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html
+        
+        Args:
+            capacity (int): The amount of trajectories it should hold at maximum
+            balancing_trajectory_length (int): ensure even spread of samples across trajectory with the given length and slight randomness,
+                if not None, specifies whether to randomly discard or keep newly added elements when the memory is full, in a way that ensures 
+                the buffer contains samples evenly spread across trajectories of the length "capacity"
+                This is better than using the maximum length of a trajectory would be to use the expected length of a trajectory
+        """
         def __init__(self, capacity, balancing_trajectory_length=None):
-            # balancing_trajectory_length: if not None, specifies whether to randomly discard or keep newly added elements when the memory
-            # is full, in a way that ensures the buffer contains samples evenly spread across trajectories of the length "capacity"
-            # better than using the maximum length of a trajectory would be to use the expected length of a trajectory
             self.capacity = capacity
             self.balancing_trajectory_length = balancing_trajectory_length
             self.memory = []
@@ -177,9 +183,17 @@ class TorchRLTrainer(TorchTrainer):
                 self.memory.append(new_val)
 
         def sample(self, batch_size):
+            """Samples from memory with given batch size
+            Args:
+                batch_size (int): batch_size
+            """
             return random.sample(self.memory, min(batch_size, len(self.memory)))
 
         def compute_accumulated_discounted_returns(self, gamma):
+            """Computes accumulated discounted returns
+            Args:
+                gamma (float): discount factor
+            """
             # memory.push(observation, model_output, sampled_actions,
             #                   self.terminated, reward, torch.tensor(float('nan')))
             for step_idx in reversed(range(len(self.memory))):  # differs from tutorial code (but appears to be equivalent)
@@ -191,11 +205,10 @@ class TorchRLTrainer(TorchTrainer):
         def __len__(self):
             return len(self.memory)
 
-    # Visualizations are created using mlflow_logger's "log_visualizations" (containing ML framework-independent code),
-    # and the "create_visualizations" functions of the Trainer subclasses (containing ML framework-specific code)
-    # Specifically, the Trainer calls mlflow_logger's "log_visualizations" (e.g. in "on_train_batch_end" of the
-    # tensorflow.keras.callbacks.Callback subclass), which in turn uses the Trainer's "create_visualizations".
     def create_visualizations(self, file_path, iteration_index, epoch_idx, epoch_iteration_idx):
+        """Refer to the superclass for a detailed description
+        In this class, a visualization is a gif of an agent movements from init until termination.
+        """
         num_to_visualize = self.num_samples_to_visualize
         num_fixed_samples = num_to_visualize // 2
         num_random_samples = num_to_visualize - num_fixed_samples
@@ -216,11 +229,6 @@ class TorchRLTrainer(TorchTrainer):
         positions_nstepwise_test_set = []
 
         for (batch_xs, batch_ys, idx) in subset_dl:
-            # batch_xs, batch_ys = batch_xs.to(self.device), batch_ys.numpy()
-            # output = self.model(batch_xs)
-            # if type(output) is tuple:
-            #     output = output[0]
-            # preds = (output >= self.segmentation_threshold).float().cpu().detach().numpy()
 
             preds_batch = []
             longest_animation_length = 0
@@ -354,46 +362,36 @@ class TorchRLTrainer(TorchTrainer):
         return gif_path
 
     def _train_step(self, model, device, train_loader, callback_handler):
-        # WARNING: some models subclassing TorchTrainer overwrite this function, so make sure any changes here are
-        # reflected appropriately in these models' files
+        """Train step for the RL Model, refer to the superclass for a detailed description.
+        Specific to this train step:
+            Given a neutral init observation from the environemnt, new trajectories are created and saved. The policy model
+            is trained by the policy loss
+        """
         
         # Overwrite the trainer in callback, because otherwise the functions of the super class will be used, where it is initialized
         self.callback_handler.trainer = self
-        
-        # TODO: parallelize with SubprocVecEnv
 
         model.train()
         opt = self.optimizer_or_lr
         train_loss = 0
 
-        for (xs, ys, idx) in train_loader:
+        for (xs, ys, idx) in train_loader: # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
             for idx, sample_x in enumerate(xs):
                 sample_y = ys[idx]
                 sample_x, sample_y = sample_x.to(device, dtype=torch.float32), sample_y.to(device, dtype=torch.long)
+                
                 # insert each patch into ReplayMemory
-                # y must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
-                # accordingly, sample_y must be of shape (H, W) not (1, H, W)
-                sample_y = torch.squeeze(sample_y)
+                sample_y = torch.squeeze(sample_y) # must be of shape (H, W) not (1, H, W)
                 env = SegmentationEnvironment(sample_x, sample_y, self.model.patch_size, self.history_size, train_loader.img_val_min, train_loader.img_val_max, self.rewards)
                 # using maximum memory capacity for balancing_trajectory_length is suboptimal;
                 # could e.g. empirically approximate expected trajectory length and use that instead
                 memory = self.ReplayMemory(capacity=int(self.replay_memory_capacity),
                                            balancing_trajectory_length=int(self.replay_memory_capacity))
                 
-                # "state" is input to model
-                # observation in init state: RGB (3), history (5 by default), brush state (1)
-                
-                # env.step returns: (new_observation, reward, done, new_info)
-                # "state" in tutorial is "observation" here
-                
                 # in https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html,
                 # they loop for "rollouts.rollout_size" iterations, but here, we loop until network tells us to terminate
 
-                eps_reward = 0.0
-
                 # if we exit this function and "terminated" is false, we timed out
-                # (more than self.max_rollout_len iterations)
-                # loop until termination/timeout already inside this function
                 self.trajectory_step(env, sample_from_action_distributions=self.sample_from_action_distributions, memory=memory)
 
                 memory.compute_accumulated_discounted_returns(gamma=self.reward_discount_factor)
@@ -401,35 +399,19 @@ class TorchRLTrainer(TorchTrainer):
                 for epoch_idx in range(self.num_policy_epochs):
                     loss_accumulator = []
                     policy_batch = memory.sample(self.policy_batch_size)
+                    
                     for sample_idx, sample in enumerate(policy_batch):
-                        # memory.push(observation, model_output, action_log_probabilities, sampled_actions,
-                        #                   self.terminated, reward, torch.tensor(float('nan')))
-
-                        # model_output_sample, action_log_probabilities_sample, sampled_actions_sample: have requires_grad=True
-                        # model_output_sample, sampled_actions_sample not even used
+                        
+                        # get new model output
                         observation_sample, model_output_sample,\
                             sampled_actions_sample, terminated_sample, reward_sample, returns_sample = sample
-
-                        # recalculate log probabilities (see tutorial: also recalculated)
-                        # if we do not recalculate, we will get 
-
                         model_output = self.model(observation_sample.unsqueeze(0))
-
-                        # mean = alpha / (alpha + beta)
-
-                        # alphas, betas = TorchRLTrainer.get_beta_params(mu=model_output[0], sigma=self.std)  # remove batch dimension, multiply and add to avoid extreme points
-                        # print(f'alphas, betas: {(alphas, betas)}')
                         
-                        # dist = torch.distributions.Beta(alphas, betas)
-                        
+                        # calculate the policy loss by calculating, how likely it would be, that the updated model takes this action again
                         covariance_matrix = torch.diag(self.std)
                         dist = torch.distributions.MultivariateNormal(loc=model_output[0], covariance_matrix=covariance_matrix)
-                        
                         action_log_probabilities_sample = dist.log_prob(model_output_sample)
-
                         policy_loss = -(action_log_probabilities_sample * returns_sample).mean()
-                        # TODO: add entropy loss and see if it helps
-                        # entropy_loss = ...
                             
                         opt.zero_grad()
                         loss = policy_loss
@@ -448,10 +430,14 @@ class TorchRLTrainer(TorchTrainer):
             try:
                 self.scheduler.step()
             except:
-                self.scheduler.step(train_loss)  # TODO: perform step in _eval_step and use validation loss instead of train loss
+                self.scheduler.step(train_loss)
         return train_loss
 
     def _eval_step(self, model, device, test_loader):
+        """Eval step for the RL Model, refer to the superclass for a detailed description.
+        Specific to this train step:
+            We create trajectories on the test samples as the predictions to calculate the loss on
+        """
         if self.loss_function is None:
             return 0.0
 
@@ -484,6 +470,10 @@ class TorchRLTrainer(TorchTrainer):
 
     @staticmethod
     def get_beta_params(mu, sigma):
+        """When sampling the action from a distribution, this function was an initial idea to use beta-distributions.
+        Thus, interpreting the models action outputs as mean and variance (like in VAEs), we calculate the beta parameter
+        for the beta-distribution.
+        """
         # must ensure that sigma**2.0 <= mu * (1 - mu)
         if not hasattr(sigma, 'shape') and hasattr(mu, 'shape'):  # mu is tensor, sigma is scalar
             sigma = sigma * torch.ones_like(mu)
