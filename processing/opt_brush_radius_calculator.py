@@ -83,12 +83,11 @@ def process_imgs(file_names, dataset_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--dataset_dir', required=True, type=str, help='Path to the root '
-                                                                             'directory of the dataset to process')
+    parser.add_argument('-d', '--dataset', required=True, type=str, help='Name of the dataset to process')
     options = parser.parse_args()
 
-    dataset_dir = options.dataset_dir
-    dataset_path = os.path.join('dataset', dataset_dir)
+    dataset_name = options.dataset
+    dataset_path = os.path.join('dataset', dataset_name)
     optimal_brush_radius_dir = os.path.join(dataset_path, 'training', 'opt_brush_radius')
     os.makedirs(optimal_brush_radius_dir, exist_ok=True)
 

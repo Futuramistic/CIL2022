@@ -68,12 +68,11 @@ def process_files(file_names, optimal_brush_radius_dir, non_max_suppressed_dir):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--dataset_dir', required=True, type=str, help='Path to the root '
-                                                                             'directory of the dataset to process')
+    parser.add_argument('-d', '--dataset', required=True, type=str, help='Name of the dataset to process')
     options = parser.parse_args()
 
-    dataset_dir = options.dataset_dir
-    dataset_path = os.path.join('dataset', dataset_dir)
+    dataset_name = options.dataset
+    dataset_path = os.path.join('dataset', dataset_name)
     
     non_max_suppressed_dir = os.path.join(dataset_path, 'training', 'non_max_suppressed')
     new_dir(non_max_suppressed_dir)
