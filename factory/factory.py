@@ -30,8 +30,6 @@ class Factory(abc.ABC):
             return UNetTFFactory()
         elif model_name_lower_no_sep in ["unet++", "unetplusplus"]:
             return UNetPlusPlusFactory()
-        elif model_name_lower_no_sep == "attunet":
-            return AttUNetFactory()
         elif model_name_lower_no_sep in ["attunet++", "attentionunet++", "attentionunetplusplus", "attunetplusplus",
                                          "attunetplusplustf"]:
             return AttUNetPlusPlusTFFactory()
@@ -137,16 +135,6 @@ class UNetPlusPlusFactory(Factory):
     def get_dataloader_class(self):
         return TFDataLoader
 
-
-class AttUNetFactory(Factory):
-    def get_trainer_class(self):
-        return AttUNetTrainer
-
-    def get_model_class(self):
-        return AttUnetTF
-
-    def get_dataloader_class(self):
-        return TFDataLoader
 
 
 class AttUNetPlusPlusTFFactory(Factory):

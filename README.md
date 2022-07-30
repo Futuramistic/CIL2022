@@ -164,7 +164,6 @@ command-line below under the `model-name` argument):
 - UNet++ (name: 'unet++')
 - UNetExp (name: 'unetexp')
 - UNet3+ (name: 'unet3+')
-- Attention UNet ('attunet')
 - Attention UNet++ ('attunet++')
 - GL Dense UNet ('gldenseunet')
 ```

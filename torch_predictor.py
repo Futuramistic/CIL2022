@@ -3,7 +3,6 @@ Given a trained model, make predictions on the test set
 """
 import torch
 import tensorflow as tf
-import tensorflow.keras as K
 import numpy as np
 import argparse
 import torchvision.transforms.functional as TF
@@ -27,11 +26,6 @@ device = None
 model = None
 test_loader = None
 blob_threshold = None
-
-
-"""
-Given a trained model, make predictions on the test set
-"""
 
 
 def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True, checkpoint=None):
@@ -291,7 +285,6 @@ def _unify(images):
 
 def main():
     # seed everything
-
     random.seed(1)
     torch.manual_seed(1)
     np.random.seed(1)
