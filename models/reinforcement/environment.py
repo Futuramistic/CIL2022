@@ -38,18 +38,20 @@ DEFAULT_REWARDS_MINIMAL = {
 
 
 class SegmentationEnvironment(Env):
-
+    """Environment for Reinforcement Learning Approach
+    It calculates the next inputs for the model based on the models output, as well as calculates the rewards
+    and penalties. In general it saves the state of the agent and environment. The differences to the minimal
+    version, which you can find in the bottom half of this script, are marked with '<<< diff'
+    Args:
+        img (torch.Tensor): image to segment, dimension (img_size, img_channels)
+        gt (torch.Tensor): ground-truth of image to segment, or None if no segmentation is to be performed
+        patch_size (tuple of int): size of patch visible to agent at a given timestep
+        history_size (int): how many previous predictions of the network should be fed into the network
+        img_val_min (int or float): minimum value of a pixel in input image
+        img_val_max (int or float): maximum value of a pixel in input image
+        rewards (dictionary): a dictionary of rewards, penalties have a negative sign
+    """
     def __init__(self, img, gt, patch_size, history_size, img_val_min, img_val_max, rewards=DEFAULT_REWARDS):
-        """Environment for reinforcement learning
-
-        Args:
-            img (torch.Tensor): image to segment, dimension (img_size, img_channels)
-            gt (torch.Tensor): ground-truth of image to segment, or None if no segmentation is to be performed
-            patch_size (tuple of int): size of patch visible to agent at a given timestep
-            history_size (int): how many previous predictions of the network should be fed into the network
-            img_val_min (int or float): minimum value of a pixel in input image
-            img_val_max (int or float): maximum value of a pixel in input image
-        """
         super(SegmentationEnvironment, self).__init__()
         self.patch_size = patch_size
         self.img = img  # <<< diff
@@ -57,8 +59,6 @@ class SegmentationEnvironment(Env):
         self.img_size = img.shape[1:]
         self.rewards = rewards
         self.device = self.img.device
-        # self.padded_img_size = [dim_size + torch.ceil(dim_size / 2) * 2 for dim_size in img.shape]
-
         self.history_size = history_size  # <<< diff
         self.img_val_min = img_val_min  # <<< diff
         self.img_val_max = img_val_max  # <<< diff
@@ -66,8 +66,12 @@ class SegmentationEnvironment(Env):
         # pad binary segmentation map at the edges
         self.paddings_per_dim = [[(self.patch_size[dim_idx] + 1) // 2 - 1, (self.patch_size[dim_idx] + 1) // 2]
                                   for dim_idx in [1, 0]]
+        # <<< diff: minimal uses padded_gt
+        self.padded_img = F.pad(img, pad=flatten(self.paddings_per_dim),
+                                mode='constant', value=self.padding_value) 
+        self.min_patch_size = min(list(self.patch_size))
 
-        # RGB + history + global information + brush_state
+        # observation channel count = RGB + history + global information + brush_state
         self.observation_channel_count = 3 + self.history_size + 1 + 1    # <<< diff: minimal uses 1
         self.observation_shape = (*patch_size, self.observation_channel_count)
         self.observation_space = spaces.Box(low=min(-1, img_val_min), 
@@ -75,41 +79,31 @@ class SegmentationEnvironment(Env):
                                             shape=self.observation_shape,
                                             dtype = np.float32)
         
-        # delta_angle, magnitude brush_state, brush_radius, terminate?
-        self.min_patch_size = min(list(self.patch_size))
-        # action_spaces = {
-        #     'delta_angle': gym.spaces.Box(low=0, high=1, shape=(1,)),
-        #     'magnitude': gym.spaces.Box(low=0, high=self.min_patch_size / 2, shape=(1,)),
-        #     'brush_state': gym.spaces.Discrete(3, start=-1), # {-1, 0, 1} = {BRUSH_STATE_ERASE, BRUSH_STATE_NOTHING, BRUSH_STATE_PAINT}
-        #     'brush_radius': gym.spaces.Box(low=0, high=self.min_patch_size / 2, shape=(1,)),
-        #     'terminate': gym.spaces.Discrete(2) # {0, 1} = {TERMINATE_NO, TERMINATE_YES}
-        # }
-
-        # <<< diff: minimal only has delta_angle and brush_state
-        action_spaces = {
+        # define action space
+        action_spaces = { # <<< diff: minimal only has delta_angle and brush_state
              'delta_angle': gym.spaces.Box(low=0, high=1, shape=(1,)),
              'magnitude': gym.spaces.Box(low=0, high=1, shape=(1,)),
              'brush_state': gym.spaces.Box(low=0, high=1, shape=(1,)),
              'brush_radius': gym.spaces.Box(low=0, high=1, shape=(1,)),
              'terminate': gym.spaces.Box(low=0, high=1, shape=(1,))
         }
-        self.action_space = gym.spaces.Dict(action_spaces)
-                                                  
-
-        # <<< diff: minimal uses padded_gt
-        self.padded_img = F.pad(img, pad=flatten(self.paddings_per_dim),
-                                mode='constant', value=self.padding_value) 
-    
-        self.reset()        
+        self.action_space = gym.spaces.Dict(action_spaces)      
+        self.reset() # set default values
 
     def get_neutral_action(self):
-        # returns a neutral action
-        # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'
+        """Creates an initial neutral action, which is defined as 
+        ('delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate')
+        In the beginning of the agent, an initial state and observation is set by calling this function.
         
+        Returns:
+            observation: The first neutral observation given no prior agent action
+        """        
         # <<< diff: minimal only returns [0.0, BRUSH_STATE_NOTHING]
         return torch.tensor([0.0, 0.0, BRUSH_STATE_NOTHING, 0.0, 0.0], dtype=torch.float, device=self.device)
 
     def reset(self):
+        """Resets the environment state to its original state.
+        """
         self.agent_pos = [int(dim_size // 2) for dim_size in self.img.shape[1:]]
         self.agent_angle = 0.0
         self.brush_width = 0  # <<< diff: minimal has no brush_width 
@@ -124,13 +118,10 @@ class SegmentationEnvironment(Env):
             torch.meshgrid(torch.arange(self.seg_map_padded.shape[0], device=self.device),
                            torch.arange(self.seg_map_padded.shape[1], device=self.device),
                            indexing='xy')
-        
-        # [0]
-        # patch_size=5: [-1, -1, 0, -1, -1, -1]
-        # patch_size=4: [-1, 0, -1, -1]
-
+        # train of though on dimensionality using meshgrid and indices:
+        # patch_size = 5: [-1, -1, 0, -1, -1, -1]
+        # patch_size = 4: [-1, 0, -1, -1]
         # comparison with below:
-
         # patch_size = 5 (odd) : [dim_size - 2, dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]
         # patch_size = 4 (even): [dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]  (right-biased)
         
@@ -146,10 +137,23 @@ class SegmentationEnvironment(Env):
         self.seen_pixels = torch.zeros_like(self.img[0], dtype=torch.int8)
 
     def calculate_reward(self, delta_angle, new_brush_state, new_brush_radius, new_seen_pixels):
-        # we penalize "brush radius changes performed at the same time as angle changes" less
-        # than "brush size changes performed when the agent does not "$
-        # this may lead to loopholes (agent turning right for a short time just to change the brush width,
-        # then turning )
+        """Given information on the latest action, calculates a (positive or negative) reward
+        brush radius changes performed at the same time as angle changes are penalized less
+        than brush size changes performed when the agent does not change the angle. This is to elevate the 
+        underlying data structure, which is that a road usually has the same width. If the angle changes, 
+        there might be a road crossing or a curve, which might impact the width of a road, which is why we
+        allow this change more.
+        However, this may lead to loopholes (agent turning right for a short time just to change the brush width,
+        then turning )
+        Args:
+            delta_angle (float): the change of the brush angle
+            new_brush_state (int): the brush state as a literal
+            new_brush_radius (float): the new brush radius. The brush paints a circle, which is why radius is used
+            new_seen_pixels (int): the amount of newly seen pixels due to the agents latest action
+
+        Returns:
+            reward, decomposed rewards, sum of decomposed rewards
+        """
         
         reward_decomp_quantities = {k: 0 for k in self.rewards.keys()}
         reward_decomp_sums = {k: 0.0 for k in self.rewards.keys()}
@@ -161,15 +165,12 @@ class SegmentationEnvironment(Env):
         if self.terminated:
             # get huge penalty for unseen pixels
             # also get penalty for false negatives? (NO)
-
             # new_seen_pixels are exclusive!
-            
             num_unseen_pixels = self.img.shape[1]*self.img.shape[2] - self.seen_pixels.sum() - new_seen_pixels.sum()
             reward_delta = self.rewards['unseen_pix_pen'] * num_unseen_pixels
             reward -= reward_delta
             reward_decomp_quantities['unseen_pix_pen'] += normalize_tensor(num_unseen_pixels)
             reward_decomp_sums['unseen_pix_pen'] -= normalize_tensor(reward_delta)
-
             return reward, reward_decomp_quantities, reward_decomp_sums
         
         # changing brush state, angle and radius
@@ -228,11 +229,14 @@ class SegmentationEnvironment(Env):
         return reward, reward_decomp_quantities, reward_decomp_sums
 
     def step(self, action):
-        # returns: (new_observation, reward, done, new_info)
-        # action is Tensor, with highest dimension containing: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'
-        # unpack
+        """process a new action, return the new observations, penalty and other information for the trainer
+        Args:
+            action (Tensor): 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'
+
+        Returns:
+            (new_observation, reward, done, new_info)
+        """
         delta_angle, self.magnitude, new_brush_state, new_brush_radius, self.terminated = [action[idx] for idx in range(5)]
-        
         # <<< diff: cannot erase in minimal!
 
         # calculate new segmentation
@@ -242,9 +246,6 @@ class SegmentationEnvironment(Env):
             # inside circle: (x-center_x)^2 + (y-center_y)^2 - r^2 < 0
             # outside circle: (x-center_x)^2 + (y-center_y)^2 - r^2 > 0
 
-            # x: [0, 1, 2, 3, ...] (row vector)
-            # y: [0, 1, 2, 3, ...] (column vector)
-
             distance_map = (torch.square(self.padded_grid_y - (int(self.agent_pos[0]) + self.paddings_per_dim[0][0]))
                             + torch.square(self.padded_grid_x - (int(self.agent_pos[1]) + self.paddings_per_dim[1][0]) )
                             - new_brush_radius**2) # 2D
@@ -252,24 +253,21 @@ class SegmentationEnvironment(Env):
             stroke_ball = torch.logical_and(distance_map <= 0, unpadded_mask)  # boolean mask
             # paint: OR everything within stroke_ball with 1 (set to 1)
             # erase: AND everything within stroke_ball with 0 (set to 0)
-            #current_seg, new_seg_map
+            # current_seg, new_seg_map
             self.seg_map_padded[stroke_ball] = 1 if new_brush_state == BRUSH_STATE_PAINT else 0
 
             
-        # calculate new_seen_pixels
+        # calculate new_seen_pixels as we reward newly seen pixels to animate the agent to cover the whole segmentation map
         
         # unnormed_patch_coord_list: may exceed bounding box (be negative or >= width or >= height)
         unnormed_patch_coord_list = [[(int(dim_pos) - ((self.patch_size[dim_idx]+1)//2)) + 1, int(dim_pos) + ((self.patch_size[dim_idx]+2)//2)] for dim_idx, dim_pos in enumerate(self.agent_pos)]
         # reason for + 2:
         # patch_size = 5 (odd) : [dim_size - 2, dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]
         # patch_size = 4 (even): [dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]  (right-biased)
-        
         # assume + 1:
         # patch_size = 5 (odd) : [dim_size - 2, dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]
         # patch_size = 4 (even): [dim_size - 1, dim_size + 0, dim_size + 1]  <--- too small!
-        
         new_seen_pixels = torch.zeros_like(self.img[0], dtype=self.seen_pixels.dtype)
-        # new_pixel_idx = tuple([[max(0, dim_range[0]), min(self.seen_pixels.shape[dim_idx], dim_range[1])] for dim_idx, dim_range in enumerate(unnormed_patch_coord_list)])
         new_seen_pixels[max(0, unnormed_patch_coord_list[0][0]) : min(self.seen_pixels.shape[0], unnormed_patch_coord_list[0][1]),
                         max(0, unnormed_patch_coord_list[1][0]) : min(self.seen_pixels.shape[0], unnormed_patch_coord_list[1][1])] = 1
         new_seen_pixels = torch.max(new_seen_pixels - self.seen_pixels, torch.zeros_like(new_seen_pixels, dtype=new_seen_pixels.dtype)) > 0
@@ -280,12 +278,9 @@ class SegmentationEnvironment(Env):
         
         # update class values
         # current position is marked separately, and mark is added right before the minimap is forwarded to
-
         def get_minimap_pixel_coords(original_coords):
             return tuple([int(pos // (self.img.shape[dim_idx+1] / self.patch_size[dim_idx])) for dim_idx, pos in enumerate(original_coords)])
-
         self.minimap[get_minimap_pixel_coords(self.agent_pos)] = 1
-
         # calculate new position
         self.angle = self.agent_angle + delta_angle * math.pi
         delta_x = math.cos(self.angle) * self.magnitude
@@ -318,37 +313,44 @@ class SegmentationEnvironment(Env):
                     'reward_decomp_sums': reward_decomp_sums}
         return new_observation, reward, self.terminated, new_info
     
-    def get_unpadded_segmentation(self): # for trainer to calculate loss during testing
+    def get_unpadded_segmentation(self):
+        """ Retrieves the unpadded segmentation, so that the trainer can calculate the loss easily during testing
+        """
         paddings_dim_0, paddings_dim_1 = self.paddings_per_dim
         i, j = paddings_dim_0
         k, l = paddings_dim_1
         return self.seg_map_padded[i:-j, k:-l]
 
     def get_rounded_agent_pos(self):
+        """returns the rounded agent pos
+        """
         return [int(self.agent_pos[0]), int(self.agent_pos[1])]
 
 
 class SegmentationEnvironmentMinimal(Env):
+    """Minimal Environment for Reinforcement Learning Approach
+    It calculates the next inputs for the model based on the models output, as well as calculates the rewards
+    and penalties. In general it saves the state of the agent and environment. This minimal version uses a less complex
+    reward/penalty system as well as less information as the model's input and a smaller action space
+    Args:
+        gt (torch.Tensor): ground-truth of image to segment, or None if no segmentation is to be performed
+        img_val_min (int or float): minimum value of a pixel in input image
+        img_val_max (int or float): maximum value of a pixel in input image
+        is_supervised: indicates whether to use a supervised environment based on an automatically computed off-policy exploration policy
+                        if True, the policy network is assumed to output "angle", "brush_radius" and ; otherwise, network is 
+        patch_size (tuple of int): size of patch visible to agent at a given timestep
+        rewards (dictionary): a dictionary of rewards, penalties have a negative sign
+        supervision_optimal_brush_radius_map_paths (list of str): paths to pickled files with map of optimal radii for each pixel, or None if is_supervised is False
+        supervision_non_max_suppressed_map (list of str): map of values after performing non-maximum suppression on optimal brush radius maps, or None if is_supervised is False
+        exploration_model_action_ratio (float): the ratio of actions to sample from the model for the exploration policy
+    """
     def __init__(self, img_paths, gt_paths, patch_size, img_val_min, img_val_max, is_supervised=False, rewards=DEFAULT_REWARDS_MINIMAL,
                  supervision_optimal_brush_radius_map_paths=None,
                  supervision_non_max_suppressed_map_paths=None,
                  sample_preprocessing=None,
                  dl_sample_idxs=None,
                  exploration_model_action_ratio=1.0):
-        """Environment for reinforcement learning
-
-        Args:
-            gt (torch.Tensor): ground-truth of image to segment, or None if no segmentation is to be performed
-            img_val_min (int or float): minimum value of a pixel in input image
-            img_val_max (int or float): maximum value of a pixel in input image
-            is_supervised: indicates whether to use a supervised environment based on an automatically computed off-policy exploration policy
-                           if True, the policy network is assumed to output "angle", "brush_radius" and ; otherwise, network is 
-            patch_size (tuple of int): size of patch visible to agent at a given timestep
-            rewards
-            supervision_optimal_brush_radius_map_paths (list of str): paths to pickled files with map of optimal radii for each pixel, or None if is_supervised is False
-            supervision_non_max_suppressed_map (list of str): map of values after performing non-maximum suppression on optimal brush radius maps, or None if is_supervised is False
-            exploration_model_action_ratio (float): the ratio of actions to sample from the model for the exploration policy
-        """
+        
         super(SegmentationEnvironmentMinimal, self).__init__()
         print('SegmentationEnvironmentMinimal __init__ entered')
 
