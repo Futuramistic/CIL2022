@@ -172,6 +172,7 @@ command-line below under the `model-name` argument):
 - DeepLabV3+GAN (name: 'deeplabv3plusgan')
 - SegFormer (name: 'segformer')
 - TwoShotNet (name: 'twoshotnet')
+- Lawin (name: 'lawin')
 ```
 
 *Reinforcement Learning models (Torch)*
