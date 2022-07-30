@@ -1,3 +1,7 @@
+"""
+Calculate the optimal brush radius pickle files from the specified dataset for the supervised reinforcement learning setting
+"""
+
 import argparse
 import cv2
 from multiprocessing import Process, cpu_count
@@ -80,7 +84,7 @@ def process_imgs(file_names, dataset_path):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--dataset_dir', required=True, type=str, help='Path to the root '
-                                                                             'directory of the dataset')
+                                                                             'directory of the dataset to process')
     options = parser.parse_args()
 
     dataset_dir = options.dataset_dir
@@ -101,6 +105,8 @@ if __name__ == '__main__':
         num_handled_imgs += num_task_imgs
         num_remaining_imgs = max(0, num_remaining_imgs - num_task_imgs)
     
+    # uncomment:
+
     # serial processing:
     # for task_idx in range(num_tasks):
     #     process_imgs(task_imgs[task_idx], dataset_path)
