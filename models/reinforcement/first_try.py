@@ -87,11 +87,7 @@ class SimpleRLCNN(nn.Module):
 
 
 class SimpleRLCNNMinimal(nn.Module):
-<<<<<<< HEAD
     def __init__(self, patch_size=(10,10), in_channels=1, out_channels=2):
-=======
-    def __init__(self, patch_size=(10,10), in_channels=1):
->>>>>>> main
         super(SimpleRLCNNMinimal, self).__init__()
         self.patch_size = patch_size
         self.in_channels = in_channels
