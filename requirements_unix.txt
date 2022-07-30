@@ -1,0 +1,32 @@
+# ------ Venv with python=3.7 -------
+## conda create -n CIL2022 python==3.7
+## conda activate CIL2022
+## conda install cmake
+## pip install -r requirements.txt
+# select correct python interpreter via Ctrl+Shift+P --> "set python interpreter" --> select CIL2022 python interpreter
+# cmake needed for onnx
+# also install onnx to convert between torch and tensorfow:
+## git clone https://github.com/onnx/onnx-tensorflow.git && cd onnx-tensorflow && pip install -e
+
+hyperopt==0.2.5
+mlflow==1.24.0
+pysftp==0.2.9
+paramiko==2.11.0
+gym==0.24.1
+tensorflow==2.7.0
+torchvision==0.12.0
+pexpect==4.8.0
+requests==2.27.1
+urllib3==1.26.8
+sklearn==0.0
+opencv-python==4.5.4.60
+matplotlib==3.4.3
+Pillow==8.4.0
+baselines==0.1.5
+mpi4py==3.1.3
+tqdm==4.62.3
+timm==0.6.5
+mmcv==1.6.0
+ipython==7.34.0
+einops==0.4.1
+protobuf==3.20.1

@@ -1,22 +1,31 @@
 import torch
 from torchvision import models
-
+from utils import to_cuda
 
 class VGGPerceptualLoss(torch.nn.Module):
+    """
+    Compute the VGG Perceptual Loss
+    In a nutshell, feed both the input and the targets through the VGG encoder and compute the L1 distance
+    between the 2 outputs
+    """
     def __init__(self, resize=False):
+        """
+        Args:
+            resize: Whether to resize the input images or not
+        """
         super(VGGPerceptualLoss, self).__init__()
         blocks = []
-        blocks.append(models.vgg16(pretrained=True).features[:4].eval().cuda())
-        blocks.append(models.vgg16(pretrained=True).features[4:9].eval().cuda())
-        blocks.append(models.vgg16(pretrained=True).features[9:16].eval().cuda())
-        blocks.append(models.vgg16(pretrained=True).features[16:23].eval().cuda())
+        blocks.append(to_cuda(models.vgg16(pretrained=True).features[:4].eval()))
+        blocks.append(to_cuda(models.vgg16(pretrained=True).features[4:9].eval()))
+        blocks.append(to_cuda(models.vgg16(pretrained=True).features[9:16].eval()))
+        blocks.append(to_cuda(models.vgg16(pretrained=True).features[16:23].eval()))
         for bl in blocks:
             for p in bl:
                 p.requires_grad = False
         self.blocks = torch.nn.ModuleList(blocks)
         self.transform = torch.nn.functional.interpolate
-        self.mean = torch.nn.Parameter(torch.tensor([0.485, 0.456, 0.406]).view(1,3,1,1)).cuda()
-        self.std = torch.nn.Parameter(torch.tensor([0.229, 0.224, 0.225]).view(1,3,1,1)).cuda()
+        self.mean = torch.nn.Parameter(to_cuda(torch.tensor([0.485, 0.456, 0.406]).view(1,3,1,1)))
+        self.std = torch.nn.Parameter(to_cuda(torch.tensor([0.229, 0.224, 0.225]).view(1,3,1,1)))
         self.resize = resize
 
     def forward(self, input, target, feature_layers=[0, 1, 2, 3], style_layers=[]):
@@ -26,8 +35,8 @@ class VGGPerceptualLoss(torch.nn.Module):
         if input.shape[1] != 3:
             input = input.repeat(1, 3, 1, 1)
             target = target.repeat(1, 3, 1, 1)
-        input = ((input-self.mean) / self.std).cuda()
-        target = ((target-self.mean) / self.std).cuda()
+        input = to_cuda((input-self.mean) / self.std)
+        target = to_cuda((target-self.mean) / self.std)
         if self.resize:
             input = self.transform(input, mode='bilinear', size=(224, 224), align_corners=False)
             target = self.transform(target, mode='bilinear', size=(224, 224), align_corners=False)

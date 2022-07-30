@@ -1,15 +1,16 @@
-import abc
-
 from data_handling import *
+<<<<<<< HEAD
 from models import *
 from models.reinforcement.first_try import ResNetBasedRegressor, SimpleRLCNNMinimal
+=======
+>>>>>>> main
 from trainers import *
-from trainers.rl_trainer_torch_minimal import TorchRLTrainerMinimal
-from utils import *
+from models import *
 
 
 class Factory(abc.ABC):
-    """Abstract class for the factory method, in order to create corresponding trainer and dataloader for a specific model.
+    """
+    Abstract class for the factory method, in order to create corresponding trainer and dataloader for a specific model.
     Use the static method "get_factory(model_name: string) to get the corresponding factory class
     """
     
@@ -63,9 +64,52 @@ class Factory(abc.ABC):
             return RLRegressorFactory()
         elif model_name_lower_no_sep == "fftunet":
             return FFT_UNetFactory()
+        elif model_name_lower_no_sep == "segformer":
+            return SegFormerFactory()
+        elif model_name_lower_no_sep == "lawin":
+            return LawinFactory()
+        elif model_name_lower_no_sep in ["u2net", "utwonet", "u2nettf"]:
+            return U2NetFactory()
+        elif model_name_lower_no_sep in ["u2netsmall", "utwonetsmall", "u2netsmalltf"]:
+            return U2NetSmallFactory()
+        elif model_name_lower_no_sep in ["u2netexp", "utwonetexp", "u2netexptf"]:
+            return U2NetExpTFFactory()
         else:
             print(f"The factory for the model {model_name} doesn't exist. Check if you wrote the model name "
                   f"correctly and implemented a corresponding factory in factory.py.")
+
+
+class U2NetFactory(Factory):
+    def get_trainer_class(self):
+        return U2NetTFTrainer
+
+    def get_model_class(self):
+        return U2NetTF
+
+    def get_dataloader_class(self):
+        return TFDataLoader
+
+
+class U2NetSmallFactory(Factory):
+    def get_trainer_class(self):
+        return U2NetTFTrainer
+
+    def get_model_class(self):
+        return U2NetSmallTF
+
+    def get_dataloader_class(self):
+        return TFDataLoader
+
+
+class U2NetExpTFFactory(Factory):
+    def get_trainer_class(self):
+        return U2NetTFTrainer
+
+    def get_model_class(self):
+        return U2NetExpTF
+
+    def get_dataloader_class(self):
+        return TFDataLoader
 
 
 class UNetFactory(Factory):
@@ -244,17 +288,39 @@ class UNet3PlusFactory(Factory):
         return TFDataLoader
 
 
-class FFT_UNetFactory(Factory):
+class SegFormerFactory(Factory):
     def get_trainer_class(self):
-        return FFT_UNetTrainer
+        return SegFormerTrainer
 
     def get_model_class(self):
-        return FFT_UNet
+        return SegFormer
 
     def get_dataloader_class(self):
         return TorchDataLoader
 
+
+class LawinFactory(Factory):
+    def get_trainer_class(self):
+        return LawinTrainer
+
+    def get_model_class(self):
+        return Lawin
+
+    def get_dataloader_class(self):
+        return TorchDataLoader
+    
+
+
 def get_torch_scheduler(optimizer, scheduler_name, kwargs):
+    """
+    Get a Torch scheduler object, given its name
+    Args:
+        optimizer: The optimizer we want to schedule
+        scheduler_name (str): The scheduler name
+        kwargs: the arguments we want to pass to the created scheduler
+    Returns:
+        A learning rate scheduler
+    """
     if scheduler_name == "steplr":
         return torch.optim.lr_scheduler.StepLR(optimizer=optimizer, **kwargs)
     elif scheduler_name == 'lambdalr':

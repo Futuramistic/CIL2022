@@ -56,7 +56,7 @@ class RefinementQ(nn.Module):
 
 
 class SimpleRLCNN(nn.Module):
-    def __init__(self, patch_size, in_channels=10):
+    def __init__(self, patch_size=(10,10), in_channels=10):
         super(SimpleRLCNN, self).__init__()
         self.patch_size = patch_size
         self.in_channels = in_channels
@@ -87,7 +87,11 @@ class SimpleRLCNN(nn.Module):
 
 
 class SimpleRLCNNMinimal(nn.Module):
-    def __init__(self, patch_size, in_channels=1, out_channels=2):
+<<<<<<< HEAD
+    def __init__(self, patch_size=(10,10), in_channels=1, out_channels=2):
+=======
+    def __init__(self, patch_size=(10,10), in_channels=1):
+>>>>>>> main
         super(SimpleRLCNNMinimal, self).__init__()
         self.patch_size = patch_size
         self.in_channels = in_channels

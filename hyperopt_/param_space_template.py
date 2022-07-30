@@ -1,7 +1,8 @@
-from hyperopt import hp
-from sklearn.metrics import f1_score
-from models import UNet
 from utils import ROOT_DIR
+
+"""
+This file contains templates for Tensorflow and Torch search parameter spaces
+"""
 
 # For Tensorflow models (Trainer parameters differ between torch and tf)
 space_for_tf = {
@@ -9,25 +10,23 @@ space_for_tf = {
         'model_type': ...,  # string, to search for the corresponding factory using factory.py
         'saving_directory': f"{ROOT_DIR}/archive/models/...",
         # use kwargs for class-specific parameters, as hyperopt is written generically
-        'kwargs': {...
-        }
+        'kwargs': { ... }
     },
     'dataset': {
         'name': ...,
+        'dataloader_params': { ... }
     },
     'training': {
-        'minimize_loss': True, # always specify, as hyperopt can only minimize losses and therefore adapts the sign
-        'trainer_params':{
-            # 'preprocessing': ...,  <-- currently not needed I guess
-            'experiment_name': ..., # optional
-            'split': ..., 
-            'num_epochs':...,
+        'trainer_params': {
+            'experiment_name': ...,  # optional
+            'split': ...,
+            'num_epochs': ...,
             'batch_size': ...,
-            'optimizer_or_lr':..., 
-            'loss_function':...,
-            'loss_function_hyperparams':...,
-            'evaluation_interval':...,
-            'num_samples_to_visualize': ..., 
+            'optimizer_or_lr': ...,
+            'loss_function': ...,
+            'loss_function_hyperparams': ...,
+            'evaluation_interval': ...,
+            'num_samples_to_visualize': ...,
             'checkpoint_interval': ...,
             'segmentation_threshold': ...
         }
@@ -41,24 +40,23 @@ space_for_torch = {
         'saving_directory': f"{ROOT_DIR}/archive/models/...",
         # use kwargs for class-specific parameters, as hyperopt is written generically
         'kwargs': {...
-        }
+                   }
     },
     'dataset': {
         'name': ...,
+        'dataloader_params': { ... }
     },
     'training': {
-        'minimize_loss': True, # always specify, as hyperopt can only minimize losses and therefore adapts the sign
-        'trainer_params':{
-            # 'preprocessing': ...,  <-- currently not needed I guess
-            'experiment_name': ..., # optional
-            'split': ..., 
-            'num_epochs':...,
+        'trainer_params': {
+            'experiment_name': ...,  # optional
+            'split': ...,
+            'num_epochs': ...,
             'batch_size': ...,
-            'optimizer':..., 
-            'scheduler':...,
-            'loss_function':...,
-            'evaluation_interval':...,
-            'num_samples_to_visualize': ..., 
+            'optimizer': ...,
+            'scheduler': ...,
+            'loss_function': ...,
+            'evaluation_interval': ...,
+            'num_samples_to_visualize': ...,
             'checkpoint_interval': ...,
             'segmentation_threshold': ...
         }
