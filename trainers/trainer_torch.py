@@ -4,6 +4,7 @@ import hashlib
 import pysftp
 import requests
 import torch.cuda
+import numpy as np
 
 from torch.utils.data import DataLoader, Subset
 from urllib.parse import urlparse
