@@ -1,5 +1,6 @@
-from losses import *
-
+from losses import BCELoss
+import keras.backend as K
+import tensorflow as tf
 
 def U2NET_loss(loss_func=BCELoss(logits=False)):
     """

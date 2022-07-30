@@ -82,7 +82,13 @@ class RSU7(keras.layers.Layer):
 
         self.x1d = ConvoRelu_Block(**out_args)
 
+        self.resize_layer = keras.layers.Resizing(416, 416, interpolation='bilinear')
+        
     def call(self, inputs, **kwargs):
+        B, H, W, C = inputs.shape
+        
+        if H != 416 or W != 416:
+            inputs = self.resize_layer(inputs)
         x = inputs
         hx_in = self.convo_in(x, **kwargs)
 
