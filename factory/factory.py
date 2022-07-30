@@ -222,7 +222,7 @@ class SimpleRLCNNMinimalFactory(Factory):
         return SimpleRLCNNMinimal
 
     def get_dataloader_class(self):
-        return TorchDataLoaderRL
+        return TorchDataLoader
 
 
 class SimpleRLCNNMinimalSupervisedFactory(Factory):
@@ -233,7 +233,7 @@ class SimpleRLCNNMinimalSupervisedFactory(Factory):
         return SimpleRLCNNMinimalSupervised
 
     def get_dataloader_class(self):
-        return TorchDataLoaderRL
+        return TorchDataLoaderRLSupervised
 
 
 class RLRegressorFactory(Factory):
@@ -244,7 +244,7 @@ class RLRegressorFactory(Factory):
         return ResNetBasedRegressor
 
     def get_dataloader_class(self):
-        return TorchDataLoaderRL
+        return TorchDataLoaderRLSupervised
 
 
 class UNetExpFactory(Factory):

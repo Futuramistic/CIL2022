@@ -10,7 +10,7 @@ from torchvision import transforms
 from models import *
 
 
-class TorchDataLoaderRL(TorchDataLoader):
+class TorchDataLoaderRLSupervised(TorchDataLoader):
     def __init__(self, dataset="original", use_geometric_augmentation=False, use_color_augmentation=False,
                  aug_contrast=[0.8,1.2], aug_brightness=[0.8, 1.2], aug_saturation=[0.8,1.2], use_adaboost=False):
         super().__init__(dataset, use_geometric_augmentation=use_geometric_augmentation,
