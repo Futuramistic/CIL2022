@@ -3,6 +3,7 @@ import cv2
 import matplotlib.pyplot as plt
 import PIL.Image as Image
 import gym
+import pickle
 import torch
 import torch.nn.functional as F
 
@@ -51,22 +52,23 @@ class SegmentationEnvironment(Env):
         """
         super(SegmentationEnvironment, self).__init__()
         self.patch_size = patch_size
-        self.img = img
+        self.img = img  # <<< diff
         self.gt = gt
         self.img_size = img.shape[1:]
         self.rewards = rewards
         self.device = self.img.device
         # self.padded_img_size = [dim_size + torch.ceil(dim_size / 2) * 2 for dim_size in img.shape]
-        self.history_size = history_size
-        self.img_val_min = img_val_min
-        self.img_val_max = img_val_max
+
+        self.history_size = history_size  # <<< diff
+        self.img_val_min = img_val_min  # <<< diff
+        self.img_val_max = img_val_max  # <<< diff
         self.padding_value = -1 if img_val_min == 0 else -2 * img_val_min
         # pad binary segmentation map at the edges
         self.paddings_per_dim = [[(self.patch_size[dim_idx] + 1) // 2 - 1, (self.patch_size[dim_idx] + 1) // 2]
                                   for dim_idx in [1, 0]]
 
         # RGB + history + global information + brush_state
-        self.observation_channel_count = 3 + self.history_size + 1 + 1
+        self.observation_channel_count = 3 + self.history_size + 1 + 1    # <<< diff: minimal uses 1
         self.observation_shape = (*patch_size, self.observation_channel_count)
         self.observation_space = spaces.Box(low=min(-1, img_val_min), 
                                             high=max(img_val_max, 1),
@@ -83,6 +85,7 @@ class SegmentationEnvironment(Env):
         #     'terminate': gym.spaces.Discrete(2) # {0, 1} = {TERMINATE_NO, TERMINATE_YES}
         # }
 
+        # <<< diff: minimal only has delta_angle and brush_state
         action_spaces = {
              'delta_angle': gym.spaces.Box(low=0, high=1, shape=(1,)),
              'magnitude': gym.spaces.Box(low=0, high=1, shape=(1,)),
@@ -92,6 +95,8 @@ class SegmentationEnvironment(Env):
         }
         self.action_space = gym.spaces.Dict(action_spaces)
                                                   
+
+        # <<< diff: minimal uses padded_gt
         self.padded_img = F.pad(img, pad=flatten(self.paddings_per_dim),
                                 mode='constant', value=self.padding_value) 
     
@@ -100,12 +105,14 @@ class SegmentationEnvironment(Env):
     def get_neutral_action(self):
         # returns a neutral action
         # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'
+        
+        # <<< diff: minimal only returns [0.0, BRUSH_STATE_NOTHING]
         return torch.tensor([0.0, 0.0, BRUSH_STATE_NOTHING, 0.0, 0.0], dtype=torch.float, device=self.device)
 
     def reset(self):
         self.agent_pos = [int(dim_size // 2) for dim_size in self.img.shape[1:]]
         self.agent_angle = 0.0
-        self.brush_width = 0
+        self.brush_width = 0  # <<< diff: minimal has no brush_width 
         self.brush_state = BRUSH_STATE_NOTHING
         self.history = torch.zeros((self.history_size, *self.patch_size), dtype=torch.float, device=self.device)
         
@@ -128,6 +135,9 @@ class SegmentationEnvironment(Env):
         # patch_size = 4 (even): [dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]  (right-biased)
         
         self.padded_img_size = self.seg_map_padded.shape
+
+
+        # <<< diff: minimal has no minimap
         self.minimap = torch.zeros(self.patch_size, dtype=torch.float, device=self.device) # global aggregation of past <history_size> predictions and current position
         # self.curr_pred = torch.zeros(patch_size, dtype=torch.float, device=self.device) # directly use seg_map
         self.terminated = False
@@ -223,6 +233,8 @@ class SegmentationEnvironment(Env):
         # unpack
         delta_angle, self.magnitude, new_brush_state, new_brush_radius, self.terminated = [action[idx] for idx in range(5)]
         
+        # <<< diff: cannot erase in minimal!
+
         # calculate new segmentation
         # we don't need the old segmentation anymore, hence we do not store it
         if new_brush_state != BRUSH_STATE_NOTHING and new_brush_radius > 0:
@@ -296,6 +308,7 @@ class SegmentationEnvironment(Env):
 
         # seg_map is padded; add padding size to patch_coords (to correct negative offset)
         self.history = torch.cat((self.history[1:], new_padded_patch.unsqueeze(0)), dim=0)
+
         global_information = self.minimap.clone()
 
         global_information[get_minimap_pixel_coords(self.agent_pos)] = 0.5
@@ -316,21 +329,38 @@ class SegmentationEnvironment(Env):
 
 
 class SegmentationEnvironmentMinimal(Env):
-    def __init__(self, gt, patch_size, rewards=DEFAULT_REWARDS_MINIMAL):
+    def __init__(self, img_paths, gt_paths, patch_size, img_val_min, img_val_max, is_supervised=False, rewards=DEFAULT_REWARDS_MINIMAL,
+                 supervision_optimal_brush_radius_map_paths=None,
+                 supervision_non_max_suppressed_map_paths=None,
+                 sample_preprocessing=None,
+                 dl_sample_idxs=None,
+                 exploration_model_action_ratio=1.0):
         """Environment for reinforcement learning
 
         Args:
             gt (torch.Tensor): ground-truth of image to segment, or None if no segmentation is to be performed
+            img_val_min (int or float): minimum value of a pixel in input image
+            img_val_max (int or float): maximum value of a pixel in input image
+            is_supervised: indicates whether to use a supervised environment based on an automatically computed off-policy exploration policy
+                           if True, the policy network is assumed to output "angle", "brush_radius" and ; otherwise, network is 
             patch_size (tuple of int): size of patch visible to agent at a given timestep
             rewards
+            supervision_optimal_brush_radius_map_paths (list of str): paths to pickled files with map of optimal radii for each pixel, or None if is_supervised is False
+            supervision_non_max_suppressed_map (list of str): map of values after performing non-maximum suppression on optimal brush radius maps, or None if is_supervised is False
+            exploration_model_action_ratio (float): the ratio of actions to sample from the model for the exploration policy
         """
         super(SegmentationEnvironmentMinimal, self).__init__()
+        print('SegmentationEnvironmentMinimal __init__ entered')
+
+        self.sample_idx = -1
         self.patch_size = patch_size
-        self.gt = gt
+        self.img_paths = img_paths
+        self.gt_paths = gt_paths
         self.rewards = rewards
-        self.device = self.gt.device
-        # self.padded_img_size = [dim_size + torch.ceil(dim_size / 2) * 2 for dim_size in img.shape]
-        self.padding_value = -1
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.img_val_min = img_val_min
+        self.img_val_max = img_val_max
+        self.padding_value = -1 if img_val_min == 0 else -2 * img_val_min
         # pad binary segmentation map at the edges
         self.paddings_per_dim = [[(self.patch_size[dim_idx] + 1) // 2 - 1, (self.patch_size[dim_idx] + 1) // 2]
                                   for dim_idx in [1, 0]]
@@ -345,30 +375,111 @@ class SegmentationEnvironmentMinimal(Env):
         
         # delta_angle, magnitude brush_state, brush_radius, terminate?
         self.min_patch_size = min(list(self.patch_size))
-        self.magnitude = 1.0 # 1/self.min_patch_size # magnitude is always one pixel per step
-        self.brush_width = 1 # paint one pixel per
 
-        action_spaces = {
-             'delta_angle': gym.spaces.Box(low=0, high=1, shape=(1,)),
-             'brush_state': gym.spaces.Box(low=0, high=1, shape=(1,))
-        }
+        self.magnitude = 5.0 if is_supervised else 1.0  # 1.0 # 1/self.min_patch_size # magnitude is always one pixel per step (if in unsupervised setting)
+        self.brush_width = 1 # paint one pixel per step (if in unsupervised setting)
+        self.is_supervised = is_supervised
+        self.sample_preprocessing = sample_preprocessing
+        self.dl_sample_idxs = dl_sample_idxs
+        
+        if is_supervised:
+            action_spaces = {
+                'angle': gym.spaces.Box(low=0, high=1, shape=(1,)),
+                'brush_radius': gym.spaces.Box(low=0, high=1, shape=(1,)),
+                'magnitude': gym.spaces.Box(low=0, high=1, shape=(1,))
+            }
+        else:
+            action_spaces = {
+                'delta_angle': gym.spaces.Box(low=0, high=1, shape=(1,)),
+                'brush_state': gym.spaces.Box(low=0, high=1, shape=(1,))
+            }
         self.action_space = gym.spaces.Dict(action_spaces)
                                                   
-        self.padded_gt = F.pad(gt, pad=flatten(self.paddings_per_dim),
-                                mode='constant', value=self.padding_value) 
-    
-        self.reset()        
+        self.supervision_optimal_brush_radius_map_paths = supervision_optimal_brush_radius_map_paths
+        self.supervision_non_max_suppressed_map_paths = supervision_non_max_suppressed_map_paths
 
-    def get_neutral_action(self):
+        self.exploration_model_action_ratio = exploration_model_action_ratio
+
+        print('SegmentationEnvironmentMinimal __init__: about to call reset()')
+
+        self.reset()
+        
+        print('SegmentationEnvironmentMinimal __init__ left')
+
+    @staticmethod
+    def get_neutral_action():
         # returns a neutral action
         # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'
-        return torch.tensor([0.0, BRUSH_STATE_NOTHING], dtype=torch.float, device=self.device)
+        
+        # <<< diff: minimal only returns [0.0, BRUSH_STATE_NOTHING]
+        return torch.tensor([0.0, 0.0, BRUSH_STATE_NOTHING, 0.0, 0.0], dtype=torch.float,
+                            device='cuda' if torch.cuda.is_available() else 'cpu')
 
     def reset(self):
-        self.agent_pos = [int(dim_size // 2) for dim_size in self.gt.shape]
+        # move to next sample
+        self.sample_idx = (self.sample_idx + 1) % len(self.img_paths)
+
+        img_path = self.img_paths[self.sample_idx]
+
+        # load the image from disk
+        img_np = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+        self.img = torch.from_numpy(img_np)
+        self.img = torch.permute(self.img, (2, 0, 1))  # channel dim first
+        # BGR to RGB
+        self.img = self.img[[2, 1, 0, 3] if self.img.shape[0] == 4 else [2, 1, 0] if self.img.shape[0] == 3 else [0]]
+        self.img = self.img.to(self.device)
+        
+        if self.sample_preprocessing is not None:
+            self.img = self.sample_preprocessing(self.img, is_gt=False)
+
+        if self.gt_paths is not None:
+            gt_path = self.gt_paths[self.sample_idx]
+            # there is groundtruth
+            gt_np = cv2.imread(gt_path, cv2.IMREAD_UNCHANGED)
+            self.gt = torch.from_numpy(gt_np)
+            if len(self.gt.shape) == 3:
+                self.gt = torch.permute(self.gt, (2, 0, 1))  # channel dim first
+                # BGR to RGB
+                self.gt = self.gt[[2, 1, 0, 3] if self.gt.shape[0] == 4 else [2, 1, 0] if self.gt.shape[0] == 3 else [0]]
+            else:
+                self.gt = self.gt.unsqueeze(0)
+            
+            if self.sample_preprocessing is not None:
+                self.gt = self.sample_preprocessing(self.gt, is_gt=True)
+
+
+            while len(self.gt.shape) >= 3:
+                self.gt = self.gt[0]
+            
+            self.gt = self.gt.to(self.device)
+            self.padded_gt = F.pad(self.gt, pad=flatten(self.paddings_per_dim),
+                                    mode='constant', value=self.padding_value)
+        else:
+            self.gt = None
+            self.padded_gt = None
+        
+        if self.supervision_optimal_brush_radius_map_paths is not None:
+            with open(self.supervision_optimal_brush_radius_map_paths[self.sample_idx], 'rb') as f:
+                self.supervision_optimal_brush_radius_map = torch.from_numpy(pickle.load(f))
+        else:
+            self.supervision_optimal_brush_radius_map = None
+
+        if self.supervision_non_max_suppressed_map_paths is not None:
+            with open(self.supervision_non_max_suppressed_map_paths[self.sample_idx], 'rb') as f:
+                self.supervision_non_max_suppressed_map = torch.from_numpy(pickle.load(f))
+        else:
+            self.supervision_non_max_suppressed_map = None
+
+        self.img_size = self.img.shape[1:]
+
+        self.padded_img = F.pad(self.img, pad=flatten(self.paddings_per_dim),
+                                mode='constant', value=self.padding_value)
+
+        self.agent_pos = [int(dim_size // 2) for dim_size in self.img_size]
         self.agent_angle = 0.0
+        self.brush_width = 0.0 if self.is_supervised else 1.0
         self.brush_state = BRUSH_STATE_NOTHING
-        self.seg_map_padded = F.pad(torch.zeros(self.gt.shape, device=self.device),
+        self.seg_map_padded = F.pad(torch.zeros(self.img_size, device=self.device),
                                     pad=flatten(self.paddings_per_dim),
                                     mode='constant', value=self.padding_value)  
 
@@ -376,13 +487,13 @@ class SegmentationEnvironmentMinimal(Env):
             torch.meshgrid(torch.arange(self.seg_map_padded.shape[0], device=self.device),
                            torch.arange(self.seg_map_padded.shape[1], device=self.device),
                            indexing='xy')
+
         self.grid_x, self.grid_y =\
-            torch.meshgrid(torch.arange(self.gt.shape[0], device=self.device),
-                           torch.arange(self.gt.shape[1], device=self.device),
+            torch.meshgrid(torch.arange(self.img_size[0], device=self.device),
+                           torch.arange(self.img_size[1], device=self.device),
                            indexing='xy')
         
-        self.seen_pixels = torch.zeros_like(self.gt, dtype=torch.int8)
-        
+        self.seen_pixels = torch.zeros(self.img_size, dtype=torch.int8, device=self.img.device)
         
         # [0]
         # patch_size=5: [-1, -1, 0, -1, -1, -1]
@@ -394,6 +505,33 @@ class SegmentationEnvironmentMinimal(Env):
         # patch_size = 4 (even): [dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]  (right-biased)
         
         self.padded_img_size = self.seg_map_padded.shape
+        
+        self.minimap = torch.zeros(self.patch_size, dtype=torch.float, device=self.device) # global aggregation of past <history_size> predictions and current position
+
+        if self.is_supervised and self.gt is not None:
+            # initialization of exploration policy
+            # (as in walker.py)
+
+            dims = self.img_size
+            y, x = float(random.randint(0, dims[0]-1)), float(random.randint(0, dims[1]-1))
+
+            last_y_int, last_x_int = int(np.round(y)), int(np.round(x))
+            
+            is_on_road = self.gt[last_y_int, last_x_int] > 0
+            is_on_max = self.supervision_non_max_suppressed_map[last_y_int, last_x_int] > 0
+            
+            self.policy_state = {'is_on_road': is_on_road,
+                                 'is_on_max': is_on_max,
+                                 'last_angle': 0.0,
+                                 'last_x_int': last_x_int,
+                                 'last_y_int': last_y_int,
+                                 'current_is_visited': False,
+                                 'visited': torch.zeros(dims, device=self.img.device, dtype=torch.int8)}
+        else:
+            self.policy_state = None
+
+        self.info_sum = {'reward_decomp_quantities': {}, 'reward_decomp_sums': {}}
+        return torch.tensor(0)  # must return a Tensor
 
     def calculate_reward(self, stroke_ball, new_seen_pixels):
         # we penalize "brush radius changes performed at the same time as angle changes" less
@@ -448,88 +586,202 @@ class SegmentationEnvironmentMinimal(Env):
         return reward, reward_decomp_quantities, reward_decomp_sums
 
     def step(self, action):
+        # action has already been unnormalized!
+
         # returns: (new_observation, reward, done, new_info)
         # action is Tensor, with highest dimension containing: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate'
-        # unpack
-        delta_angle, new_brush_state = [action[idx] for idx in range(2)]
-        
-        # calculate new segmentation
-        # we don't need the old segmentation anymore, hence we do not store it
-        
-        # implicit circle equation: (x-center_x)^2 + (y-center_y)^2 - r^2 = 0
-        # inside circle: (x-center_x)^2 + (y-center_y)^2 - r^2 < 0
-        # outside circle: (x-center_x)^2 + (y-center_y)^2 - r^2 > 0
 
-        # x: [0, 1, 2, 3, ...] (row vector)
-        # y: [0, 1, 2, 3, ...] (column vector)
-        distance_map = (torch.square(self.padded_grid_y - (int(self.agent_pos[0]) + self.paddings_per_dim[0][0]))
-                        + torch.square(self.padded_grid_x - (int(self.agent_pos[1]) + self.paddings_per_dim[0][1]) )
-                        - self.brush_width**2) # 2D
-        unpadded_mask = self.seg_map_padded != self.padding_value
-        stroke_ball = torch.logical_and(distance_map <= 0, unpadded_mask)  # boolean mask
-        distance_map_unpadded = (torch.square(self.grid_y - max(0,min(len(self.grid_y)-1, int(self.agent_pos[0]))))
-                        + torch.square(self.grid_x - max(0,min(len(self.grid_x)-1, int(self.agent_pos[1]))))
-                        - self.brush_width**2) # 2D
-        stroke_ball_unpadded = distance_map_unpadded <= 0
-        # paint: OR everything within stroke_ball with 1 (set to 1)
-        # erase: AND everything within stroke_ball with 0 (set to 0)
-        #current_seg, new_seg_map
-        self.seg_map_padded[stroke_ball] = 1 if new_brush_state == BRUSH_STATE_PAINT else 0
+        def get_minimap_pixel_coords(original_coords):
+            return tuple([int(pos // (self.img.shape[dim_idx+1] / self.patch_size[dim_idx])) for dim_idx, pos in enumerate(original_coords)])
         
-        # unnormed_patch_coord_list: may exceed bounding box (be negative or >= width or >= height)
+        terminated = False
+        supervision_desired_outputs = None
+
+        # here, we define the exploration policy
+        if self.is_supervised:
+            # distinguish whether GT is available or not
+            # if GT available, use "supervised" exploration policy
+            # else, use model's outputs
+
+            if None not in [self.supervision_optimal_brush_radius_map, self.supervision_non_max_suppressed_map]:
+                LARGE_VALUE = 2**30  # needed because "distance_map_no_brush" has dtype long; cannot use inf
+
+                distance_map_no_brush = torch.square(self.grid_y - self.agent_pos[0]) + torch.square(self.grid_x - self.agent_pos[1])
+                distance_map_no_brush[self.supervision_non_max_suppressed_map == 0] = LARGE_VALUE
+                distance_map_no_brush[self.policy_state['visited'] > 0] = LARGE_VALUE
+                
+                if distance_map_no_brush.min() == LARGE_VALUE:
+                    terminated = True
+                else:
+                    closest_ys, closest_xs = torch.where(distance_map_no_brush == distance_map_no_brush.min())
+                        
+                    lowest_delta_angle = torch.tensor(torch.nan)
+                    lowest_delta_magnitude = torch.tensor(torch.nan)
+
+                    final_closest_y, final_closest_x = None, None
+
+                    for closest_y, closest_x in zip(closest_ys, closest_xs):
+                        tmp_angle = torch.arctan2(closest_y - self.agent_pos[0], closest_x - self.agent_pos[1])
+                        if torch.isnan(lowest_delta_angle) or torch.abs(tmp_angle - self.policy_state['last_angle']) < torch.abs(lowest_delta_angle - self.policy_state['last_angle']):
+                            lowest_delta_angle = tmp_angle
+                            lowest_delta_magnitude = torch.sqrt( (closest_y - self.agent_pos[0])**2.0 + (closest_x - self.agent_pos[1])**2.0 ).item()
+                            final_closest_y = closest_y
+                            final_closest_x = closest_x
+
+                    magnitude = min(self.magnitude, lowest_delta_magnitude)
+                    new_brush_radius = self.supervision_optimal_brush_radius_map[self.policy_state['last_y_int'], self.policy_state['last_x_int']]
+                    
+                    # note: delta in lowest _delta_ angle refers to delta from policy_state['last_angle']
+                    delta_angle = lowest_delta_angle - self.policy_state['last_angle']
+
+                    # the loss is minimized between the unnormalized model outputs and the desired outputs we just
+                    # calculated
+                    supervision_desired_outputs = torch.tensor([lowest_delta_angle, new_brush_radius, magnitude],
+                                                                device=self.img.device, dtype=self.img.dtype)
+
+                    if np.random.uniform() <= self.exploration_model_action_ratio:
+                        # still use model's output
+                        angle, new_brush_radius, magnitude = [action[idx] for idx in range(3)]
+                    
+                new_brush_state = BRUSH_STATE_PAINT
+            else:
+                angle, new_brush_radius, magnitude = [action[idx] for idx in range(3)]
+                delta_angle = angle - self.agent_angle
+                new_brush_state = BRUSH_STATE_PAINT
+        else:
+            delta_angle, new_brush_state = [action[idx] for idx in range(2)]
+            magnitude = self.magnitude
+            new_brush_radius = self.brush_width
+            
         unnormed_patch_coord_list = [[(int(dim_pos) - ((self.patch_size[dim_idx]+1)//2)) + 1, int(dim_pos) + ((self.patch_size[dim_idx]+2)//2)] for dim_idx, dim_pos in enumerate(self.agent_pos)]
-        # reason for + 2:
-        # patch_size = 5 (odd) : [dim_size - 2, dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]
-        # patch_size = 4 (even): [dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]  (right-biased)
-        
-        # assume + 1:
-        # patch_size = 5 (odd) : [dim_size - 2, dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]
-        # patch_size = 4 (even): [dim_size - 1, dim_size + 0, dim_size + 1]  <--- too small!
-        
-        new_seen_pixels = torch.zeros_like(self.gt, dtype=self.seen_pixels.dtype)
-        # new_pixel_idx = tuple([[max(0, dim_range[0]), min(self.seen_pixels.shape[dim_idx], dim_range[1])] for dim_idx, dim_range in enumerate(unnormed_patch_coord_list)])
-        new_seen_pixels[max(0, unnormed_patch_coord_list[0][0]) : min(self.seen_pixels.shape[0], unnormed_patch_coord_list[0][1]),
-                        max(0, unnormed_patch_coord_list[1][0]) : min(self.seen_pixels.shape[0], unnormed_patch_coord_list[1][1])] = 1
-        new_seen_pixels = torch.max(new_seen_pixels - self.seen_pixels, torch.zeros_like(new_seen_pixels, dtype=new_seen_pixels.dtype)) > 0
-        
-        # calculate reward
-        reward, reward_decomp_quantities, reward_decomp_sums =\
-            self.calculate_reward(stroke_ball_unpadded, new_seen_pixels)
-        
-        # update class values
+        reward, reward_decomp_quantities, reward_decomp_sums = torch.tensor(0.0), {}, {}
 
-        # calculate new position
-        self.angle = self.agent_angle + delta_angle * math.pi
-        delta_x = math.cos(self.angle) * self.magnitude
-        delta_y = math.sin(self.angle) * self.magnitude
-        # project to bounding box
-        # do not round here, since if the changes are too small, the position may never get updated
-        self.agent_pos = [max(0, min(self.agent_pos[0] + delta_y, self.gt.shape[0] - 1)),
-                          max(0, min(self.agent_pos[1] + delta_x, self.gt.shape[1] - 1))]
-        self.brush_state = new_brush_state
-        
-        
-        self.seen_pixels[new_seen_pixels] = 1
-        
+        if not terminated:
+            # calculate new segmentation
+            # we don't need the old segmentation anymore, hence we do not store it
+            
+            # implicit circle equation: (x-center_x)^2 + (y-center_y)^2 - r^2 = 0
+            # inside circle: (x-center_x)^2 + (y-center_y)^2 - r^2 < 0
+            # outside circle: (x-center_x)^2 + (y-center_y)^2 - r^2 > 0
+
+            # x: [0, 1, 2, 3, ...] (row vector)
+            # y: [0, 1, 2, 3, ...] (column vector)
+
+            if torch.round(new_brush_radius) > 0:
+                distance_map = (torch.square(self.padded_grid_y - (int(self.agent_pos[0]) + self.paddings_per_dim[0][0]))
+                                + torch.square(self.padded_grid_x - (int(self.agent_pos[1]) + self.paddings_per_dim[0][1]) )
+                                - new_brush_radius**2) # 2D
+                unpadded_mask = self.seg_map_padded != self.padding_value
+                stroke_ball = torch.logical_and(distance_map <= 0, unpadded_mask)  # boolean mask
+                distance_map_unpadded = (torch.square(self.grid_y - max(0,min(len(self.grid_y)-1, int(self.agent_pos[0]))))
+                                        + torch.square(self.grid_x - max(0,min(len(self.grid_x)-1, int(self.agent_pos[1]))))
+                                        - new_brush_radius**2) # 2D
+                stroke_ball_unpadded = distance_map_unpadded <= 0
+                # paint: OR everything within stroke_ball with 1 (set to 1)
+                # erase: AND everything within stroke_ball with 0 (set to 0)
+                #current_seg, new_seg_map
+                self.seg_map_padded[stroke_ball] = 1 if new_brush_state == BRUSH_STATE_PAINT else 0
+
+                if self.is_supervised and None not in [self.supervision_optimal_brush_radius_map, self.supervision_non_max_suppressed_map]:
+                    if self.policy_state['is_on_road']:
+                        self.policy_state['visited'][stroke_ball_unpadded] = 1
+
+            
+            # unnormed_patch_coord_list: may exceed bounding box (be negative or >= width or >= height)
+            # reason for + 2:
+            # patch_size = 5 (odd) : [dim_size - 2, dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]
+            # patch_size = 4 (even): [dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]  (right-biased)
+            
+            # assume + 1:
+            # patch_size = 5 (odd) : [dim_size - 2, dim_size - 1, dim_size + 0, dim_size + 1, dim_size + 2]
+            # patch_size = 4 (even): [dim_size - 1, dim_size + 0, dim_size + 1]  <--- too small!
+            
+            new_seen_pixels = torch.zeros_like(self.img[0], dtype=self.seen_pixels.dtype)
+            # new_pixel_idx = tuple([[max(0, dim_range[0]), min(self.seen_pixels.shape[dim_idx], dim_range[1])] for dim_idx, dim_range in enumerate(unnormed_patch_coord_list)])
+            new_seen_pixels[max(0, unnormed_patch_coord_list[0][0]) : min(self.seen_pixels.shape[0], unnormed_patch_coord_list[0][1]),
+                            max(0, unnormed_patch_coord_list[1][0]) : min(self.seen_pixels.shape[0], unnormed_patch_coord_list[1][1])] = 1
+            new_seen_pixels = torch.max(new_seen_pixels - self.seen_pixels, torch.zeros_like(new_seen_pixels, dtype=new_seen_pixels.dtype)) > 0
+            
+            # calculate reward
+            if not self.is_supervised:
+                reward, reward_decomp_quantities, reward_decomp_sums =\
+                    self.calculate_reward(stroke_ball_unpadded, new_seen_pixels)
+
+            self.minimap[get_minimap_pixel_coords(self.agent_pos)] = 1
+
+            # update class values
+
+            # calculate new position
+            self.agent_angle = torch.clip(self.agent_angle + delta_angle, -torch.pi, torch.pi)
+            delta_x = math.cos(self.agent_angle) * magnitude
+            delta_y = math.sin(self.agent_angle) * magnitude
+            # project to bounding box
+            # do not round here, since if the changes are too small, the position may never get updated
+            self.agent_pos = [max(0, min(self.agent_pos[0] + delta_y, self.img_size[0] - 1)),
+                              max(0, min(self.agent_pos[1] + delta_x, self.img_size[1] - 1))]
+            self.brush_state = new_brush_state
+            
+            self.seen_pixels[new_seen_pixels] = 1
+            
+            if self.is_supervised and None not in [self.supervision_optimal_brush_radius_map, self.supervision_non_max_suppressed_map]:
+                new_y_int, new_x_int = self.get_rounded_agent_pos()
+
+                self.policy_state['is_on_road'] = self.supervision_optimal_brush_radius_map[new_y_int, new_x_int] > 0
+                self.policy_state['is_on_max'] = self.supervision_non_max_suppressed_map[new_y_int, new_x_int] > 0
+
+                self.policy_state['current_is_visited'] = self.policy_state['visited'][new_y_int, new_x_int] > 0
+
+                for fill_y in range(min(self.policy_state['last_y_int'], new_y_int), max(self.policy_state['last_y_int'], new_y_int)):
+                    for fill_x in range(min(self.policy_state['last_x_int'], new_x_int), max(self.policy_state['last_x_int'], new_x_int)):
+                        self.policy_state['visited'][fill_y, fill_x] = 1
+
+                self.policy_state['last_y_int'], self.policy_state['last_x_int'] = new_y_int, new_x_int
+                self.policy_state['last_angle'] = lowest_delta_angle
+
         # extract padded patch, but shift indices so that they start from 0 (instead of possibly negative indices due to padding)
         start_dim_0 = self.paddings_per_dim[0][0] + unnormed_patch_coord_list[0][0]
         end_dim_0 = self.paddings_per_dim[0][0] + unnormed_patch_coord_list[0][1]
         start_dim_1 = self.paddings_per_dim[1][0] + unnormed_patch_coord_list[1][0]
         end_dim_1 = self.paddings_per_dim[1][0] + unnormed_patch_coord_list[1][1]
-        new_padded_patch = self.seg_map_padded[start_dim_0:end_dim_0, start_dim_1:end_dim_1]
-        new_input_patch = self.padded_gt[start_dim_0:end_dim_0, start_dim_1:end_dim_1]
+        # new_padded_patch = self.seg_map_padded[start_dim_0:end_dim_0, start_dim_1:end_dim_1]
+        new_rgb_patch = self.padded_img[:, start_dim_0:end_dim_0, start_dim_1:end_dim_1]
 
-        # seg_map is padded; add padding size to patch_coords (to correct negative offset)
-        new_observation = torch.cat([new_input_patch], dim=0)
+        global_information = self.minimap.clone()
+
+        global_information[get_minimap_pixel_coords(self.agent_pos)] = 0.5
+
+        # also append a map of the currently segmented areas
+
+        # F.interpolate expects B, C, H, W --> unsqueeze self.get_unpadded_segmentation() twice: B=1, C=1
+        # then remove batch dim from result
+        red_seg =\
+            F.interpolate(self.get_unpadded_segmentation().unsqueeze(0).unsqueeze(0), self.minimap.shape).squeeze(0)
+
+        new_observation = torch.cat([new_rgb_patch, self.minimap.unsqueeze(0), red_seg], dim=0)
         new_info = {'reward_decomp_quantities': reward_decomp_quantities,
                     'reward_decomp_sums': reward_decomp_sums}
-        return new_observation, reward, new_info
+        
+        if supervision_desired_outputs is not None:
+            new_info['supervision_desired_outputs'] = supervision_desired_outputs
+        
+        new_info['unpadded_segmentation'] = self.get_unpadded_segmentation().float().detach()
+        new_info['rounded_agent_pos'] = self.get_rounded_agent_pos()
+
+
+        self.info_sum['reward_decomp_quantities'] = {k: self.info_sum['reward_decomp_quantities'].get(k, 0.0) + v for k, v in reward_decomp_quantities.items()}
+        self.info_sum['reward_decomp_sums'] = {k: self.info_sum['reward_decomp_sums'].get(k, 0.0) + v for k, v in reward_decomp_sums.items()}
+
+        new_info['info_sum'] = self.info_sum
+        if self.dl_sample_idxs is not None:
+            new_info['sample_idx'] = self.dl_sample_idxs[self.sample_idx]
+        new_info['sample_sequence_idx'] = self.sample_idx
+        return new_observation, reward, torch.tensor(terminated, device=self.img.device), new_info
     
     def get_unpadded_segmentation(self): # for trainer to calculate loss during testing
         paddings_dim_0, paddings_dim_1 = self.paddings_per_dim
         i, j = paddings_dim_0
         k, l = paddings_dim_1
-        return self.seg_map_padded[i:-j, k:-l]
+        return torch.clone(self.seg_map_padded[i:-j, k:-l])
 
     def get_rounded_agent_pos(self):
         return [int(self.agent_pos[0]), int(self.agent_pos[1])]

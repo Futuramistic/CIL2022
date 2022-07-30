@@ -9,6 +9,8 @@ from .Torch.CRA_Net import OurDinkNet50
 from .Torch.DeepLabV3PlusGAN import DeepLabV3PlusGAN
 from .reinforcement.first_try import SimpleRLCNN
 from .reinforcement.first_try import SimpleRLCNNMinimal
+from .reinforcement.first_try import SimpleRLCNNMinimalSupervised
+from .reinforcement.first_try import ResNetBasedRegressor
 from .Torch.segformer import SegFormer
 from .TF.UNetExpTF import UNet3PlusTF, UNetExpTF
 from .Torch.lawin import Lawin
