@@ -1,3 +1,7 @@
+"""
+All losses take as input the groundtruth and the prediction tensors and output the loss 
+value if not stated otherwise.
+"""
 import tensorflow as tf
 import keras.backend as K
 
