@@ -47,10 +47,14 @@ class TorchRLTrainer(TorchTrainer):
             min_steps (int): minimum number of steps agent has to perform before it is allowed to terminate a trajectory
             rewards (dict): Dictionary of rewards, see type of rewards in models/reinforcement/environment.py under DEFAULT_REWARDS
             
-            use_sample_weighting: Never needed in RL
+            use_sample_weighting (bool): never needed in RL
+            use_adaboost (bool): never needed in RL
+            deep_adaboost (bool): never needed in RL
         """
         if loss_function is not None:
             raise RuntimeError('Custom losses not supported by TorchRLTrainer')
+        if use_adaboost:
+            raise RuntimeError('AdaBoost not supported here, but can be uses for supervised RL trainers.')
         
         preprocessing = None
         if use_channelwise_norm and dataloader.dataset in DATASET_STATS:
@@ -98,8 +102,6 @@ class TorchRLTrainer(TorchTrainer):
         self.visualization_interval = int(visualization_interval)
         self.min_steps = int(min_steps)
         self.rewards = DEFAULT_REWARDS if rewards is None else rewards
-
-        # self.scheduler set by TorchTrainer superclass
 
     # This class is a mimicry of TensorFlow's "Callback" class behavior, used not out of necessity (as we write the
     # training loop explicitly in Torch, instead of using the "all-inclusive" model.fit(...) in TF, and can thus just
@@ -194,8 +196,6 @@ class TorchRLTrainer(TorchTrainer):
             Args:
                 gamma (float): discount factor
             """
-            # memory.push(observation, model_output, sampled_actions,
-            #                   self.terminated, reward, torch.tensor(float('nan')))
             for step_idx in reversed(range(len(self.memory))):  # differs from tutorial code (but appears to be equivalent)
                 terminated = self.memory[step_idx][3] 
                 future_return = self.memory[step_idx + 1][-1] if step_idx < len(self.memory) - 1 else 0
@@ -367,7 +367,6 @@ class TorchRLTrainer(TorchTrainer):
             Given a neutral init observation from the environemnt, new trajectories are created and saved. The policy model
             is trained by the policy loss
         """
-        
         # Overwrite the trainer in callback, because otherwise the functions of the super class will be used, where it is initialized
         self.callback_handler.trainer = self
 
@@ -397,10 +396,9 @@ class TorchRLTrainer(TorchTrainer):
                 memory.compute_accumulated_discounted_returns(gamma=self.reward_discount_factor)
 
                 for epoch_idx in range(self.num_policy_epochs):
-                    loss_accumulator = []
                     policy_batch = memory.sample(self.policy_batch_size)
                     
-                    for sample_idx, sample in enumerate(policy_batch):
+                    for sample in policy_batch:
                         
                         # get new model output
                         observation_sample, model_output_sample,\
@@ -471,8 +469,8 @@ class TorchRLTrainer(TorchTrainer):
     @staticmethod
     def get_beta_params(mu, sigma):
         """When sampling the action from a distribution, this function was an initial idea to use beta-distributions.
-        Thus, interpreting the models action outputs as mean and variance (like in VAEs), we calculate the beta parameter
-        for the beta-distribution.
+        Thus, interpreting the models action outputs as mean and variance (like in VAEs), we calculate the alpha and
+        beta parameters for the beta-distribution.
         """
         # must ensure that sigma**2.0 <= mu * (1 - mu)
         if not hasattr(sigma, 'shape') and hasattr(mu, 'shape'):  # mu is tensor, sigma is scalar
@@ -496,7 +494,6 @@ class TorchRLTrainer(TorchTrainer):
         """Uses modle predictions to create trajectory until terminated
         Args:
             env (Environment): the environment the model shall explore
-            observation (Observation): the observation input for the model
             sample_from_action_distributions (bool, optional): Whether to sample from the action distribution created by the model output or use model output directly. Defaults to self.sample_action_distribution.
             memory (Memory, optional): Memory to store the trajectory during training. Defaults to None.
             visualization_interval (int, optional): number of timesteps between frames of the returned list of observations
@@ -584,11 +581,13 @@ class TorchRLTrainer(TorchTrainer):
         return predictions_nsteps, positions_nsteps, reward, {'info_timestep_sum': info_sum, 'info_timestep_avg': info_avg}
 
     def get_F1_score_validation(self):
+        """returns the f1 score on the validation data"""
         _, _, f1_score, _ = self.get_precision_recall_F1_score_validation()
         return f1_score
 
     def get_precision_recall_F1_score_validation(self):
-        # this function also returns reward statistics (averaged, summed, and for the first sample)
+        """return multiple precision, recall and f1 score metrics on the validation data.
+        # this function also returns reward statistics (averaged, summed, and for the first sample)"""
 
         reward_stats__first_sample__timestep_sum__reward_quantities = {}
         reward_stats__first_sample__timestep_sum__reward_sums = {}
@@ -681,6 +680,8 @@ class TorchRLTrainer(TorchTrainer):
         return np.mean(precisions), np.mean(recalls), np.mean(f1_scores), reward_info
 
     def _get_hyperparams(self):
+        """Hyperparameters used for logging
+        """
         return {**(super()._get_hyperparams()),
                 **({param: getattr(self, param)
                    for param in ['history_size', 'max_rollout_len', 'replay_memory_capacity', 'reward_discount_factor',
@@ -695,4 +696,9 @@ class TorchRLTrainer(TorchTrainer):
     
     @staticmethod
     def get_default_optimizer_with_lr(lr, model):
+        """get the default adam optimizer
+        Args:
+            lr (float): learning rate
+            model (torch Model): Model, on which the optimizer is used
+        """
         return optim.Adam(model.parameters(), lr=lr)

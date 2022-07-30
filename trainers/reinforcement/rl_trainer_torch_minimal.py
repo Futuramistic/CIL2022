@@ -1,5 +1,3 @@
-# TODO: add mini-version of current segmentation map as input, so network knows history!
-
 import math
 import numpy as np
 from datetime import datetime
@@ -7,26 +5,16 @@ import random
 import torch
 import torch.cuda
 import torch.optim as optim
-from torch.utils.data import DataLoader, Subset
+import torch.distributions
+from torch.utils.data import DataLoader
+from subproc_vec_env_torch import SubprocVecEnvTorch
+from PIL import Image, ImageDraw
 
 from losses.precision_recall_f1 import *
 from models.reinforcement.environment import DEFAULT_REWARDS_MINIMAL, SegmentationEnvironmentMinimal
 from utils.logging import mlflow_logger
 from trainers.trainer_torch import TorchTrainer
 from utils import *
-
-import gym
-from subproc_vec_env_torch import SubprocVecEnvTorch
-
-import torch.distributions
-
-import imageio
-
-from PIL import Image, ImageDraw
-
-# TODO: Comment this file when the reinforcement branch is merged
-
-# TODO: try letting the policy network output sigma parameters of distributions as well!
 
 EPSILON = 1e-5
 log_debug_indent = 0
@@ -53,17 +41,18 @@ class TorchRLTrainerMinimal(TorchTrainer):
                  num_policy_epochs=4, policy_batch_size=10, sample_from_action_distributions=False, visualization_interval=20,
                  rewards=None, use_supervision=False, gradient_clipping_norm=1.0, exploration_model_action_ratio=0.5):
         """
-        Trainer for RL-based models.
+        Trainer for the minimal RL-based models
+        The difference to the TorchRLTrainer is that this version focuses on minimum arguments in order to make learning easier
+        for the model.
         Args:
-            dataloader: the DataLoader to use when training the model
+            - Refer to the TorchTrainer superclass for more details on the arguments - 
+            - RL specific parameters below-
             model: the policy network to train
-            ...
-            patch_size (int, int): the size of the observations for the actor
             history_size (int): how many steps the actor can look back (become part of the observation)
             max_rollout_len (int): how large each rollout can get on maximum
                                    default value: 2 * 160000 (image size: 400*400; give agent chance to visit each pixel twice)
-            replay_memory_capacity (int): capacity of the replay memory, per sample of the train loader!
-            std ([float, float]): standard deviation assumed on the predictions 'delta_angle', 'brush_state' of the actor network to use on a Normal distribution as a policy to compute the next action
+            replay_memory_capacity (int): capacity of the replay memory
+            std ([float, float, float, float, float]): standard deviation assumed on the predictions 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate' of the actor network to use on a Normal distribution as a policy to compute the next action
             reward_discount_factor (float): factor by which to discount the reward per timestep into the future, when calculating the accumulated future return
             num_policy_epochs (int): number of epochs for which to train the policy network during a single iteration (for a single sample)
             policy_batch_size (int): size of batches to sample from the replay memory of the policy per policy training epoch
@@ -75,6 +64,7 @@ class TorchRLTrainerMinimal(TorchTrainer):
                                     training with rewards as in classical reinforcement learning
             gradient_clipping_norm (float): norm to clip the gradients of the loss function to; set to 0 or None to avoid gradient clipping
             exploration_model_action_ratio (float): the ratio of actions to sample from the model for the exploration policy
+            
             use_sample_weighting (bool): never needed in RL
             use_adaboost (bool): never needed in RL
             deep_adaboost (bool): never needed in RL
@@ -137,11 +127,12 @@ class TorchRLTrainerMinimal(TorchTrainer):
         self.use_supervision = use_supervision
         self.gradient_clipping_norm = gradient_clipping_norm
         self.exploration_model_action_ratio = exploration_model_action_ratio
-        # self.scheduler set by TorchTrainer superclass
 
         self.spawn_environments()
 
     def spawn_environments(self):
+        """Creates multiple Environments in order to parallelize training using SubprocVecEnvTorch
+        """
         global log_debug_indent
         log_debug('entered spawn_environments')
         log_debug_indent += 1
@@ -281,12 +272,18 @@ class TorchRLTrainerMinimal(TorchTrainer):
             return self.f1_score
     
     class ReplayMemory(object):
-        # inspired by https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
-        # and https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html
+        """The Replay Memory to hold trajectories of the exploration policy
+        inspired by https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
+        and https://goodboychan.github.io/python/pytorch/reinforcement_learning/2020/08/06/03-Policy-Gradient-With-Gym-MiniGrid.html
+        
+        Args:
+            capacity (int): The amount of trajectories it should hold at maximum
+            balancing_trajectory_length (int): ensure even spread of samples across trajectory with the given length and slight randomness,
+                if not None, specifies whether to randomly discard or keep newly added elements when the memory is full, in a way that ensures 
+                the buffer contains samples evenly spread across trajectories of the length "capacity"
+                This is better than using the maximum length of a trajectory would be to use the expected length of a trajectory
+        """
         def __init__(self, capacity, balancing_trajectory_length=None):
-            # balancing_trajectory_length: if not None, specifies whether to randomly discard or keep newly added elements when the memory
-            # is full, in a way that ensures the buffer contains samples evenly spread across trajectories of the length "capacity"
-            # better than using the maximum length of a trajectory would be to use the expected length of a trajectory
             self.capacity = capacity
             self.balancing_trajectory_length = balancing_trajectory_length
             self.memory = []
@@ -303,15 +300,20 @@ class TorchRLTrainerMinimal(TorchTrainer):
                 self.memory.append(new_val)
 
         def sample(self, batch_size):
+            """Samples from memory with given batch size
+            Args:
+                batch_size (int): batch_size
+            """
             return random.sample(self.memory, min(batch_size, len(self.memory)))
 
         def compute_accumulated_discounted_returns(self, gamma):
+            """Computes accumulated discounted returns
+            Args:
+                gamma (float): discount factor
+            """
             global log_debug_indent
             log_debug('entered compute_accumulated_discounted_returns')
             log_debug_indent += 1
-
-            # memory.push(observation, model_output, sampled_actions,
-            #                   self.terminated, reward, torch.tensor(float('nan')))
             for step_idx in reversed(range(len(self.memory))):  # differs from tutorial code (but appears to be equivalent)
                 terminated = self.memory[step_idx][3]
                 future_return = self.memory[step_idx + 1][-1] if step_idx < len(self.memory) - 1 else 0
@@ -325,11 +327,10 @@ class TorchRLTrainerMinimal(TorchTrainer):
         def __len__(self):
             return len(self.memory)
 
-    # Visualizations are created using mlflow_logger's "log_visualizations" (containing ML framework-independent code),
-    # and the "create_visualizations" functions of the Trainer subclasses (containing ML framework-specific code)
-    # Specifically, the Trainer calls mlflow_logger's "log_visualizations" (e.g. in "on_train_batch_end" of the
-    # tensorflow.keras.callbacks.Callback subclass), which in turn uses the Trainer's "create_visualizations".
     def create_visualizations(self, file_path, iteration_index, epoch_idx, epoch_iteration_idx):
+        """Refer to the superclass for a detailed description
+        In this class, a visualization is a gif of an agent movements from init until termination.
+        """
         global log_debug_indent
         log_debug('entered create_visualizations')
         log_debug_indent += 1
@@ -359,24 +360,11 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
             log_debug('create_visualizations: sampled new batch (batch_xs, batch_ys) from subset_dl')
             log_debug_indent += 1
-        
-            # batch_xs, batch_ys = batch_xs.to(self.device), batch_ys.numpy()
-            # output = self.model(batch_xs)
-            # if type(output) is tuple:
-            #     output = output[0]
-            # preds = (output >= self.segmentation_threshold).float().cpu().detach().numpy()
-
-            # preds_batch = []
             
             if self.use_supervision:
-                batch_xs, opt_brush_radii, non_max_suppressed =\
-                    _batch_xs[:, :3, :, :], _batch_xs[:, 3, :, :], _batch_xs[:, 4, :, :]
+                batch_xs = _batch_xs[:, :3, :, :]
             else:
                 batch_xs = _batch_xs
-                opt_brush_radii, non_max_suppressed = None, None
-            
-            # sample_y = batch_ys[idx]
-            # sample_x, sample_y = sample_x.to(self.device, dtype=torch.long), sample_y.to(self.device, dtype=torch.long)
 
             batch_xs, batch_ys = batch_xs.to(self.device, dtype=torch.long), batch_ys.to(self.device, dtype=torch.long)
             
@@ -390,7 +378,6 @@ class TorchRLTrainerMinimal(TorchTrainer):
                                      memory=None, visualization_interval=self.visualization_interval)
 
             # environment reset in trajectory_step
-
             for env_idx in filter(lambda i: i >= 0, [env_idx if sample_idx in batch_idxs else -1
                                                  for env_idx, sample_idx
                                                  in enumerate(info['info_sample_idx']
@@ -418,9 +405,6 @@ class TorchRLTrainerMinimal(TorchTrainer):
                 
                 if len(predictions_nstepwise_list) > longest_animation_length:
                     longest_animation_length = len(predictions_nstepwise)
-
-                # preds = envs.get_unpadded_segmentation().float().detach().cpu()
-                # preds_batch.append(preds)
 
             log_debug_indent -= 1
 
@@ -508,27 +492,22 @@ class TorchRLTrainerMinimal(TorchTrainer):
             gif_frames[0].save(gif_path, save_all=True, append_images=gif_frames[1:], duration=100, loop=0) # duration is milliseconds between frames, loop=0 means loop infinite times
 
             log_debug('create_visualizations: GIF saved')
-            
             # if not working, convert via: imageio.core.util.Array(numpy_array)
-
             # At this point we should have preds.shape = (batch_size, 1, H, W) and same for batch_ys
-            # self._fill_images_array(torch.stack(preds_batch, dim=0).unsqueeze(1).float().detach().cpu().numpy(), batch_ys.numpy(), images)
-
-        # return super().create_visualizations(file_path)
         
         log_debug_indent -= 1
         log_debug('left create_visualizations')
         return gif_path
 
     def _train_step(self, model, device, train_loader, callback_handler):
+        """Train step for the RL Model, refer to the superclass for a detailed description.
+        Specific to this train step:
+            Given a neutral init observation from the environemnt, new trajectories are created and saved. The policy model
+            is trained by the policy loss
+        """
         global log_debug_indent
         log_debug('entered _train_step')
         log_debug_indent += 1
-
-        # WARNING: some models subclassing TorchTrainer overwrite this function, so make sure any changes here are
-        # reflected appropriately in these models' files
-        
-        # TODO: parallelize with SubprocVecEnv
 
         model.train()
         opt = self.optimizer_or_lr
@@ -552,15 +531,12 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
             _xs, ys = _xs.to(device, dtype=torch.float32), ys.to(device, dtype=torch.long)
 
-            xs, opt_brush_radii, non_max_suppressed = _xs[:, :3], _xs[:, 3], _xs[:, 4]
-
             # batch_ys must be of shape (batch_size, H, W) not (batch_size, 1, H, W)
             if len(ys.shape) == 4:
                 ys = torch.squeeze(ys, axis=1)
             
             # already called in environments:
             # envs.reset()
-
             # if we exit this function and "terminated" is false, we timed out
             # (more than self.max_rollout_len iterations)
             # loop until termination/timeout already inside this function
@@ -588,33 +564,15 @@ class TorchRLTrainerMinimal(TorchTrainer):
                 policy_batch = random.sample(memory_list_to_sample_from,
                                             min(self.policy_batch_size, len(memory_list_to_sample_from)))
 
-                # memory.push(observation, model_output, action_log_probabilities, sampled_actions,
-                #                   self.terminated, reward, torch.tensor(float('nan')))
-
-                # model_output_sample, action_log_probabilities_sample, sampled_actions_sample: have requires_grad=True
-                
                 observation_sample = torch.stack([policy_sample[0] for policy_sample in policy_batch])
                 model_output_sample = torch.stack([policy_sample[1] for policy_sample in policy_batch])
-
-                # unused:
-                # unnormalized_actions_sample = torch.stack([policy_sample[2] for policy_sample in policy_batch])
-                # terminated_sample = torch.stack([policy_sample[3] for policy_sample in policy_batch])
-                # reward_sample = torch.stack([policy_sample[4] for policy_sample in policy_batch])
 
                 returns_sample = torch.stack([policy_sample[5] for policy_sample in policy_batch])
 
                 # recalculate log probabilities (see tutorial: also recalculated)
                 # if we do not recalculate, we will get errors related to repeated backpropagation
 
-                # model_output = self.model(observation_sample.unsqueeze(0).unsqueeze(0))
                 model_output = self.model(observation_sample)
-
-                # mean = alpha / (alpha + beta)
-
-                # alphas, betas = TorchRLTrainer.get_beta_params(mu=model_output[0], sigma=self.std)  # remove batch dimension, multiply and add to avoid extreme points
-                # print(f'alphas, betas: {(alphas, betas)}')
-                
-                # dist = torch.distributions.Beta(alphas, betas)
                 
                 if self.use_supervision:
                     # loss_function expects args: input (model output), target
@@ -625,8 +583,6 @@ class TorchRLTrainerMinimal(TorchTrainer):
                     dist = torch.distributions.MultivariateNormal(loc=model_output[0], covariance_matrix=covariance_matrix)
                     action_log_probabilities_sample = dist.log_prob(model_output_sample)
                     policy_loss = -(action_log_probabilities_sample * returns_sample).mean()
-                # TODO: add entropy loss and see if it helps
-                # entropy_loss = ...
                     
                 opt.zero_grad()
                 loss = policy_loss
@@ -650,17 +606,27 @@ class TorchRLTrainerMinimal(TorchTrainer):
             try:
                 self.scheduler.step()
             except:
-                self.scheduler.step(train_loss)  # TODO: perform step in _eval_step and use validation loss instead of train loss
+                self.scheduler.step(train_loss)
         
         log_debug_indent -= 1
         log_debug('left _train_step')
         return train_loss
 
     def _eval_step(self, model, device, test_loader):
-        # it does not make sense to have this function in an RL trainer
+        """Eval step for the RL Model that has to be implemented, but does not make sense here so return dummy value
+        """
         return 0.0
 
     def unnormalize_model_output(self, model_output, min_patch_size):
+        """Transformes normalized model outputs to physical quantity and image pixels
+
+        Args:
+            model_output: normalized action from model
+            min_patch_size (int): the minimum patch size (needed to calculate the painted area)
+
+        Returns:
+            action: denormalized action
+        """
         if self.use_supervision:
             pre = torch.stack([(-1 + 2 * model_output[..., 0]) * torch.pi,  # angle in [-pi, pi]
                                 model_output[..., 1] * (min_patch_size / 2),  # brush_radius in [0, min_patch_size / 2]
@@ -675,6 +641,10 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
     @staticmethod
     def get_beta_params(mu, sigma):
+        """When sampling the action from a distribution, this function was an initial idea to use beta-distributions.
+        Thus, interpreting the models action outputs as mean and variance (like in VAEs), we calculate the alpha and
+        beta parameters for the beta-distribution.
+        """
         # must ensure that sigma**2.0 <= mu * (1 - mu)
         if not hasattr(sigma, 'shape') and hasattr(mu, 'shape'):  # mu is tensor, sigma is scalar
             sigma = sigma * torch.ones_like(mu)
@@ -687,7 +657,6 @@ class TorchRLTrainerMinimal(TorchTrainer):
         mu = torch.clamp(mu, EPSILON/2, 1 - EPSILON/2)
         sigma = torch.clamp(sigma, torch.zeros_like(sigma) + 1e-8, torch.sqrt(mu * (1.0 - mu)))
         
-        # returns (alpha, beta) parameters for Beta distribution, based on mu and sigma for that distribution
         # based on https://stats.stackexchange.com/a/12239
         alpha = ((1 - mu) / (sigma ** 2) - 1/mu) * mu ** 2
         beta = alpha * (1 / mu - 1)
@@ -697,7 +666,6 @@ class TorchRLTrainerMinimal(TorchTrainer):
         """Uses model predictions to create trajectory until terminated
         Args:
             env (Environment): the environment the model shall explore
-            observation (Observation): the observation input for the model
             sample_from_action_distributions (bool, optional): Whether to sample from the action distribution created by the model output or use model output directly. Defaults to self.sample_action_distribution.
             memory (Memory or list of Memory, optional): memory/memories to store the trajectories to during training. Defaults to None.
             visualization_interval (int, optional): number of timesteps between frames of the returned list of observations
@@ -709,20 +677,14 @@ class TorchRLTrainerMinimal(TorchTrainer):
         log_debug_indent += 1
 
         # here, the reward information is aggregated over the *timesteps* (sum and average)
-
         is_multi_env = isinstance(env, SubprocVecEnvTorch)
 
         # WARNING: this was changed
 
-        # predictions_nsteps = [env.get_unpadded_segmentation().float().detach().cpu().numpy()]
-        # positions_nsteps = [env.get_rounded_agent_pos()]
-
         predictions_nsteps = []
         positions_nsteps = []
-
-        # info_sum = [{'reward_decomp_quantities': {}, 'reward_decomp_sums': {}}]
-        # moved into environment
-
+        
+        # step
         observation, *_, info = env.step(torch.stack([SegmentationEnvironmentMinimal.get_neutral_action()
                                                       for _ in range(env.nenvs)])
                                          if is_multi_env else SegmentationEnvironmentMinimal.get_neutral_action())
@@ -733,13 +695,8 @@ class TorchRLTrainerMinimal(TorchTrainer):
         predictions_nsteps.append(unpadded_segmentation)
         positions_nsteps.append(rounded_agent_pos)
 
-        # predictions_nsteps.append(env.get_unpadded_segmentation().float().detach().cpu().numpy())
-        # positions_nsteps.append(env.get_rounded_agent_pos())
-
         if sample_from_action_distributions is None:
             sample_from_action_distributions = self.sample_from_action_distributions
-
-        # log_debug(f'looping over range(self.rollout_len) == range({self.rollout_len})', no_line_break=True)
 
         log_debug(f'looping over range(self.rollout_len) == range({self.rollout_len})...')
 
@@ -993,9 +950,15 @@ class TorchRLTrainerMinimal(TorchTrainer):
         return np.mean(precisions), np.mean(recalls), np.mean(f1_scores), reward_info
 
     def make_list(self, l, enforce=False):
+        """helper function to transform input to list
+        Args:
+            l: the object to be transformed
+            enforce: whether to embrace l in a list regardless of its type"""
         return [l] if not isinstance(l, list) or enforce else l  # do not use Iterable!
 
     def _get_hyperparams(self):
+        """Hyperparameters used for logging
+        """
         return {**(super()._get_hyperparams()),
                 **({param: getattr(self, param)
                    for param in ['history_size', 'rollout_len', 'replay_memory_capacity', 'reward_discount_factor',
@@ -1010,4 +973,8 @@ class TorchRLTrainerMinimal(TorchTrainer):
 
     @staticmethod
     def get_default_optimizer_with_lr(lr, model):
+        """get the default adam optimizer
+        Args:
+            lr (float): learning rate
+            """
         return optim.Adam(model.parameters(), lr=lr)
