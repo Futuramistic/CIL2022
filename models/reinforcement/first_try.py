@@ -68,7 +68,7 @@ class SimpleRLCNN(nn.Module):
     Allthough this model does not achieve a very well performance (most likely to the inefficient trajectory sampling
     as well as unsuited penalties), it's main ideas are a new approach to image segmentation and can 
     be refined in the future. In the main idea, the agent is given the opportunity to segment a given patch. The agent
-    is set at the center of the patch and can either put down the brush to segment selected pixels as road by determining
+    is set at the center of the patch and can either put down the brush to segment selected pixels as road by e.g. determining
     delta angle, radius and magnitude of the brush. The brush is a "circle" which paints all pixels within the circle.
     This allows for the usually round ends of a street to be painted easily.
     
@@ -102,9 +102,8 @@ class SimpleRLCNN(nn.Module):
         flattened_dims = functools.reduce(lambda x, y: x*y, curr_output_dims)*in_channels
         self.head = nn.Linear(flattened_dims, 5)
         
-    # action is: 'delta_angle', 'magnitude', 'brush_state', 'brush_radius', 'terminate', for which we return the mean of the beta distribution
-    # the action is then sampled in the trainer from that distribution --> we only need values between 0 and 1 --> sigmoid everything
     def forward(self, x):
+        # the action is sampled in the trainer from that distribution --> we only need values between 0 and 1 --> sigmoid everything
         conv_out = self.convs(x)
         head_in = torch.flatten(conv_out, start_dim=1)
         return torch.sigmoid(self.head(head_in))
@@ -112,7 +111,7 @@ class SimpleRLCNN(nn.Module):
 
 class SimpleRLCNNMinimal(nn.Module):
     """Simple Reinforcement Learning Convolutional Neural Network - Minimal Version
-    Because the non-minimal model does not achieve a very good performance, a minimal solution is proposed which for which this
+    Because the non-minimal model does not achieve a satisfactory performance, a minimal solution is proposed for which this
     model architecture is used in the trainer.
     It outputs actions, which are atm 'delta_angle', 'brush_state' in non-supervised settings, and
     'angle', 'brush_radius', 'magnitude' in supervised settings.
@@ -120,7 +119,7 @@ class SimpleRLCNNMinimal(nn.Module):
     Args:
         patch_size (int, int): the size of the observations for the actor. Defaults to (10, 10).
         in_channels (int): The number of input channels. Defaults to 5.
-        out_channels (int): The number of output channels. Defaults to 3 for the supervised setting,
+        out_channels (int): The number of output channels as the next action. Defaults to 3 for the supervised setting,
                             and 2 for the unsupervised one.
     """
     def __init__(self, patch_size=(10, 10), in_channels=5, out_channels=2):
@@ -134,7 +133,6 @@ class SimpleRLCNNMinimal(nn.Module):
         kernel_size = 3
         stride=1
         padding=1
-        # initial input: RGB (3), history (5 by default), brush state (1)
         for _ in range(3):
             layers.append(nn.Conv2d(in_channels, in_channels*2, kernel_size, stride, padding))
             in_channels *= 2
@@ -147,9 +145,7 @@ class SimpleRLCNNMinimal(nn.Module):
         self.head = nn.Linear(flattened_dims, self.out_channels) # brush state and delta_angle
 
     def forward(self, x):
-        # the action to be predicted is 'delta_angle', 'brush_state' in non-supervised settings, and
-        # 'angle', 'brush_radius', 'magnitude' in supervised settings
-        # the action is then sampled in the trainer from that distribution --> we only need values between 0 and 1 --> sigmoid everything
+        # the action is sampled in the trainer from that distribution --> we only need values between 0 and 1 --> sigmoid everything
         x = x.float()
         conv_out = self.convs(x)
         head_in = torch.flatten(conv_out, start_dim=1)
@@ -169,7 +165,7 @@ class ResNetBasedRegressor(nn.Module):
     In comparison to the other RL Models, this approach uses the regressor to predict an action that is
     compared to a given optimal "groundtruth" action. It still takes as input a patch of the neighboring area
     
-    The following classes are part of this Regressor Module.
+    The classes defined below are part of this Regressor Module if not stated otherwise.
     Args:
         patch_size (int): The size of the patch that is the input for the model
     """
@@ -205,6 +201,15 @@ def conv1x1(in_planes: int, out_planes: int, stride: int = 1):
 
 class BasicBlock(nn.Module):
     """Basic building block of the ResNetBasedRegressor
+    Args:
+        inplanes (int): The number of input channels
+        planes (int): Increases the number of channels in-between conv layers
+        stride (int): Stride of convolutions
+        downsample (Optional[nn.Module]): Optional Downsampling module to be added after the final conv
+        groups (int): number of groups
+        base_width (int): number of base width
+        dilation (int): dilation factor
+        norm_layer (Optional[Callable[..., nn.Module]]): To optionally replace the batchnorm2D layers after the convs
     """
     expansion: int = 1
 
@@ -256,6 +261,16 @@ class BasicBlock(nn.Module):
 
 class Bottleneck(nn.Module):
     """BottleNeck of the ResNetBasedRegressor
+
+    Args:
+        inplanes (int): The number of input channels
+        planes (int): Increases the number of channels in-between conv layers
+        stride (int): Stride of convolutions
+        downsample (Optional[nn.Module]): Optional Downsampling module to be added after the final conv
+        groups (int): number of groups
+        base_width (int): number of base width
+        dilation (int): dilation factor
+        norm_layer (Optional[Callable[..., nn.Module]]): To optionally replace the batchnorm2D layers after the convs
     """
     expansion: int = 4
 
@@ -444,8 +459,7 @@ class ResNetRegressor(nn.Module):
 
 
 class Canny(nn.Module):
-    """Canny torch version in order to incorporate Canny edge detection easily into the models for faster
-    computation
+    """Canny torch version in order to incorporate Canny edge detection easily into the models for faster computation
     adapted from https://github.com/DCurro/CannyEdgePytorch to process batches
     """
     def __init__(self):

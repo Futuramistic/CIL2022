@@ -103,12 +103,14 @@ class TorchRLTrainer(TorchTrainer):
         self.min_steps = int(min_steps)
         self.rewards = DEFAULT_REWARDS if rewards is None else rewards
 
-    # This class is a mimicry of TensorFlow's "Callback" class behavior, used not out of necessity (as we write the
-    # training loop explicitly in Torch, instead of using the "all-inclusive" model.fit(...) in TF, and can thus just
-    # build event handlers into the training loop), but to have a more consistent codebase across TorchTrainer and
-    # TFTrainer.
-    # See the comment next to the KC.Callback subclass in "trainer_tf.py" for more information.
+
     class Callback:
+        """This class is a mimicry of TensorFlow's "Callback" class behavior, used not out of necessity (as we write the
+        training loop explicitly in Torch, instead of using the "all-inclusive" model.fit(...) in TF, and can thus just
+        build event handlers into the training loop), but to have a more consistent codebase across TorchTrainer and
+        TFTrainer.
+        See the comment next to the KC.Callback subclass in "trainer_tf.py" for more information.
+        """
         def __init__(self, trainer, mlflow_run, model):
             super().__init__()
             self.model = model
@@ -587,7 +589,7 @@ class TorchRLTrainer(TorchTrainer):
 
     def get_precision_recall_F1_score_validation(self):
         """return multiple precision, recall and f1 score metrics on the validation data.
-        # this function also returns reward statistics (averaged, summed, and for the first sample)"""
+        this function also returns reward statistics (averaged, summed, and for the first sample)"""
 
         reward_stats__first_sample__timestep_sum__reward_quantities = {}
         reward_stats__first_sample__timestep_sum__reward_sums = {}
