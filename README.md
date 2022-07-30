@@ -67,7 +67,7 @@ main.py                             # Script for training models
 
 ## Requirements
 
-The implementation works both on Linux and Windows.
+The implementation works both on Linux and Windows. 
 
 To setup an environment, run:
 
@@ -88,6 +88,11 @@ pip install -r requirements_unix.txt
 - Windows:
 ```setup
 pip install -r requirements_windows.txt
+```
+
+- On Euler, load the following modules: 
+```
+module load gcc/8.2.0 && module load python_gpu/3.9.9 && module load openmpi && module load eth_proxy
 ```
 
 ## Datasets
