@@ -15,7 +15,6 @@ class RSU7(keras.layers.Layer):
                  kernel_regularizer=K.regularizers.l2(),
                  mid_channels=12,
                  out_channels=3,
-                 resize=False,
                  **kwargs):
         super(RSU7, self).__init__()
 
@@ -83,14 +82,7 @@ class RSU7(keras.layers.Layer):
 
         self.x1d = ConvoRelu_Block(**out_args)
 
-        self.resize_layer = keras.layers.Resizing(416, 416, interpolation='bilinear')
-        self.resize = resize
-        
     def call(self, inputs, **kwargs):
-        B, H, W, C = inputs.shape
-        
-        if self.resize and (H != 416 or W != 416):
-            inputs = self.resize_layer(inputs)
         x = inputs
         hx_in = self.convo_in(x, **kwargs)
 
@@ -508,7 +500,7 @@ def U2NetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         else:
             original_input_size = None
         
-        hx1 = RSU7(mid_channels=32, out_channels=64, resize=True, **network_args)(inputs)
+        hx1 = RSU7(mid_channels=32, out_channels=64, **network_args)(inputs)
         hx = MaxPool2D(**pool_args)(hx1)
 
         hx2 = RSU6(mid_channels=32, out_channels=128, **network_args)(hx)
@@ -548,7 +540,7 @@ def U2NetTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         side2_in = Conv2D(**convo2d_args)(hx2d)
         side2 = UpSampling2D(size=(2, 2), interpolation='bilinear')(side2_in)
 
-        hx1d = RSU7(mid_channels=16, out_channels=64, resize=False, **network_args)(tf.concat([hx2dup, hx1], axis=3))
+        hx1d = RSU7(mid_channels=16, out_channels=64, **network_args)(tf.concat([hx2dup, hx1], axis=3))
         side1 = Conv2D(**convo2d_args)(hx1d)
         outconv = Conv2D(1, (1, 1), padding='same',
                          kernel_regularizer=kernel_regularizer)(tf.concat([side1, side2, side3, side4,
@@ -642,7 +634,7 @@ def U2NetSmallTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         else:
             original_input_size = None
         
-        hx1 = RSU7(resize=True, **network_args)(inputs)
+        hx1 = RSU7(**network_args)(inputs)
         hx = MaxPool2D(**pool_args)(hx1)
 
         hx2 = RSU6(**network_args)(hx)
@@ -682,7 +674,7 @@ def U2NetSmallTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         side2_in = Conv2D(**convo2d_args)(hx2d)
         side2 = UpSampling2D(size=(2, 2), interpolation='bilinear')(side2_in)
 
-        hx1d = RSU7(resize=False, **network_args)(tf.concat([hx2dup, hx1], axis=3))
+        hx1d = RSU7(**network_args)(tf.concat([hx2dup, hx1], axis=3))
         side1 = Conv2D(**convo2d_args)(hx1d)
         outconv = Conv2D(1, (1, 1), padding='same')(tf.concat([side1, side2, side3, side4, side5, side6], axis=3))
 
@@ -779,7 +771,15 @@ def U2NetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
     }
 
     def __build_model(inputs):
-        hx1 = RSU7(mid_channels=32, out_channels=64, resize=True, **network_args)(inputs)
+        B, H, W, C = inputs.shape
+        
+        if H != 416 or W != 416:
+            original_input_size = (H, W)
+            inputs = keras.layers.Resizing(416, 416, interpolation='bilinear')(inputs)
+        else:
+            original_input_size = None
+        
+        hx1 = RSU7(mid_channels=32, out_channels=64, **network_args)(inputs)
         hx = MaxPool2D(**pool_args)(hx1)
 
         hx2 = RSU6(mid_channels=32, out_channels=128, **network_args)(hx)
@@ -891,12 +891,34 @@ def U2NetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
 
         concat_1 = ConvoRelu_Block(name=name + "concat-1", **conovo_relu_args)(
             tf.concat([hx2dup, hx1, hx6_up, hx5_up, hx4_up, hx3_up], axis=3))
-        hx1d = RSU7(mid_channels=16, out_channels=64, resize=False, **network_args)(concat_1)
+        hx1d = RSU7(mid_channels=16, out_channels=64, **network_args)(concat_1)
         side1 = Conv2D(**convo2d_args)(hx1d)
         outconv = Conv2D(1, (1, 1), padding='same', kernel_regularizer=kernel_regularizer)(
             tf.concat([side1, side2, side3, side4, side5, side6], axis=3))
 
         sigmoid = keras.activations.sigmoid
+        if original_input_size is not None:
+            outconv = keras.layers.Resizing(original_input_size[0],
+                                            original_input_size[1],
+                                            interpolation='bilinear')(outconv)
+            side1 = keras.layers.Resizing(original_input_size[0],
+                                          original_input_size[1],
+                                          interpolation='bilinear')(side1)
+            side2 = keras.layers.Resizing(original_input_size[0],
+                                          original_input_size[1],
+                                          interpolation='bilinear')(side2)
+            side3 = keras.layers.Resizing(original_input_size[0],
+                                          original_input_size[1],
+                                          interpolation='bilinear')(side3)
+            side4 = keras.layers.Resizing(original_input_size[0],
+                                          original_input_size[1],
+                                          interpolation='bilinear')(side4)
+            side5 = keras.layers.Resizing(original_input_size[0],
+                                          original_input_size[1],
+                                          interpolation='bilinear')(side5)
+            side6 = keras.layers.Resizing(original_input_size[0],
+                                          original_input_size[1],
+                                          interpolation='bilinear')(side6)
         return tf.stack(
             [sigmoid(outconv), sigmoid(side1), sigmoid(side2), sigmoid(side3), sigmoid(side4), sigmoid(side5),
              sigmoid(side6)])
