@@ -114,14 +114,14 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_regularizer': kernel_regularizer
         }
         inputs = K.applications.vgg19.preprocess_input(tf.cast(inputs,dtype=tf.float32))
-        if architecture is not None:
+        if architecture is None:
             convo1, pool1 = Down_Block(name=name + "-down-block-1", filters=nb_filters[0], **down_args)(inputs)
             convo2, pool2 = Down_Block(name=name + "-down-block-2", filters=nb_filters[1], **down_args)(pool1)
             convo3, pool3 = Down_Block(name=name + "-down-block-3", filters=nb_filters[2], **down_args)(pool2)
             convo4, pool4 = Down_Block(name=name + "-down-block-4", filters=nb_filters[3], **down_args)(pool3)
             convo5 = Convo_Block(name=name + "-convo-block", filters=nb_filters[4], **down_args)(pool4)
         else:
-            layer_names = ['block2_conv2', 'block3_conv4', 'block4_conv4', 'block5_conv4', 'block6_conv4']
+            layer_names = ['block1_conv2','block2_conv2', 'block3_conv4', 'block4_conv4', 'block5_conv4']
             base_model = K.applications.VGG19(include_top=False, weights='imagenet', input_shape=input_shape)
             for layer in base_model.layers:
                 if isinstance(layer,K.layers.BatchNormalization):
