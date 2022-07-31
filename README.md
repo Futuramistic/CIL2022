@@ -227,27 +227,22 @@ To reproduce our results, run the following commands:
 
 #### Baselines
 
-1) U-Net:
+1) U-Net3+:
 ```reproduce
 python todo
 ```
-2) U-Net3+:
+2) DeepLabV3:
 ```reproduce
 python todo
 ```
-3) CRA-Net:
+3) SegFormer:
 ```reproduce
 python todo
 ```
-4) DeepLabV3:
+4) Lawin:
 ```reproduce
 python todo
 ```
-5) SegFormer:
-```reproduce
-python todo
-```
-6) Lawin:
 
 To obtain thes results, first pre-train model:
 ```
