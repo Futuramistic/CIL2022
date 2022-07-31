@@ -112,7 +112,7 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_initializer': kernel_init,
             'kernel_regularizer': kernel_regularizer
         }
-
+        inputs = K.applications.vgg19.preprocess_input(tf.cast(inputs,dtype=tf.float32))
         convo1, pool1 = Down_Block(name=name + "-down-block-1", filters=nb_filters[0], **down_args)(inputs)
         convo2, pool2 = Down_Block(name=name + "-down-block-2", filters=nb_filters[1], **down_args)(pool1)
         convo3, pool3 = Down_Block(name=name + "-down-block-3", filters=nb_filters[2], **down_args)(pool2)
@@ -305,7 +305,9 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             inputs = K.applications.resnet_v2.preprocess_input(tf.cast(inputs,dtype=tf.float32))
             layer_names = ['conv1_conv', 'conv2_block3_1_conv', 'conv3_block4_1_conv', 'conv4_block23_1_conv']
             base_model = K.applications.ResNet101V2(include_top=False, weights='imagenet', input_shape=input_shape)
-        
+        elif architecture is None:
+            inputs = K.applications.vgg19.preprocess_input(tf.cast(inputs,dtype=tf.float32))
+
         if base_model is not None:
             # Full freeze of the base model - no data specific learned/only better gradient
             if freeze == "full-freeze":
