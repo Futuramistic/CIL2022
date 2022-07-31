@@ -263,7 +263,7 @@ python main.py --model=lawin --dataset=original_split_1 --split=0.827 -E=Lawin -
 1) UNet Exp:
 To obtain thes results, first pre-train model:
 ```
-python main.py --model=unetexp --dataset=maps_filtered --split=0.9846 -E=UnetExp --num_epochs=200 --hyper_seg_threshold=False '--run_name=Pretrain on maps_filtered' --use_geometric_augmentation=True --batch_size=4 
+python main.py --model=unetexp --dataset=maps_filtered_aug_6 --split=0.9978 -E=UnetExp --num_epochs=200 --hyper_seg_threshold=False '--run_name=Pretrain on maps_filtered' --use_geometric_augmentation=True --batch_size=4 
 ```
 Then, as with previous models, run this command with checkpoint provided in the --load_checkpoint_path argument on the selected finetuning dataset:
 ```
