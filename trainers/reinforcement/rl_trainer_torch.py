@@ -22,7 +22,7 @@ class TorchRLTrainer(TorchTrainer):
                  loss_function_hyperparams=None, evaluation_interval=None, num_samples_to_visualize=None,
                  checkpoint_interval=None, load_checkpoint_path=None, segmentation_threshold=None,
                  use_channelwise_norm=False, adv_lambda=0.1, adv_lr=1e-4, blobs_removal_threshold=0,
-                 hyper_seg_threshold=False, use_sample_weighting=False, use_adaboost=False, deep_adaboost=False,
+                 hyper_seg_threshold=False, use_sample_weighting=False, use_adaboost=False, monoboost=False,
                  f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT,
                  history_size=5, max_rollout_len=int(2*16e4), replay_memory_capacity=int(1e4), 
                  std=[1e-3, 1e-3, 1e-3, 1e-3, 1e-2], reward_discount_factor=0.99, num_policy_epochs=4, 
@@ -49,7 +49,7 @@ class TorchRLTrainer(TorchTrainer):
             
             use_sample_weighting (bool): never needed in RL
             use_adaboost (bool): never needed in RL
-            deep_adaboost (bool): never needed in RL
+            monoboost (bool): never needed in RL
         """
         if loss_function is not None:
             raise RuntimeError('Custom losses not supported by TorchRLTrainer')
@@ -89,7 +89,7 @@ class TorchRLTrainer(TorchTrainer):
                  optimizer_or_lr=optimizer_or_lr, scheduler=scheduler, loss_function=loss_function, loss_function_hyperparams=loss_function_hyperparams,
                  evaluation_interval=evaluation_interval, num_samples_to_visualize=num_samples_to_visualize, checkpoint_interval=checkpoint_interval,
                  load_checkpoint_path=load_checkpoint_path, segmentation_threshold=segmentation_threshold, blobs_removal_threshold=blobs_removal_threshold, 
-                 hyper_seg_threshold=hyper_seg_threshold, use_sample_weighting=False, use_adaboost=False, deep_adaboost=False, 
+                 hyper_seg_threshold=hyper_seg_threshold, use_sample_weighting=False, use_adaboost=False, monoboost=False, 
                  f1_threshold_to_log_checkpoint=f1_threshold_to_log_checkpoint) # use_sampling_weighting and adaboost not needed in RL
         self.history_size = int(history_size)
         self.max_rollout_len = int(max_rollout_len)
