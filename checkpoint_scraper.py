@@ -120,7 +120,7 @@ def averaged_outputs_prediction(checkpoint_paths, sftp_path_model_names):
                 summed_preds[i] += pred
         nb_networks += 1
 
-    segmentation_threshold = 0.5  # TODO should search for the best segmentation threshold again
+    segmentation_threshold = 0.5
     for i, prediction in enumerate(summed_preds):
         pred = ((prediction / nb_networks) >= segmentation_threshold).astype(int)
         pred *= 255
