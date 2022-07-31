@@ -22,7 +22,7 @@ research process and results.
 4. [Datasets](#datasets)
 5. [Models](#models)
 6. [Training](#training)
-7. [Evaluation](#evaluation)
+7. [Predicting](#predicting)
 8. [The RL Framework](#the-rl-framework)
 9. [Reproducibility](#reproducibility)
 10. [Pre-trained Models](#pre-trained-models)
@@ -103,8 +103,6 @@ For reproducing our results, you do not need to setup a dataset folder, you
 just need to specify the dataset name in the command line when training and 
 our framework will automatically download the relevant dataset. Available 
 dataset names are:
-
->📋  TODO: Only keep the datasets that we need
 
 > * original: dataset used in the ETHZ CIL Road Segmentation 2022 Kaggle competition
 > * original_split_1: validation split 1 of original dataset (samples "satimage_0.png" to "satimage_24.png" from "original" dataset
@@ -187,24 +185,28 @@ python main.py -d original -m deeplabv3 -E training_run --batch_size 4 --num_epo
 
 When a model is trained, checkpoints appear in the `checkpoints` folder.
 
-## Evaluation
+## Predicting
 
 #### Torch models
-To evaluate a Torch model, run:
+To output predictions using a Torch model, run:
 
 ```eval
 python torch_predictor.py -m <model-name> -c <checkpoint-name>
 ```
+You can add extra arguments:
+* `--floating_predictions`: to output non-thresholded value. If this is specified, also specify `--floating_output_dir <path/to/output/dir`
+* `--apply_sigmoid`: this must specified for the following models: UNet, CRANet, DeepLabV3, SegFormer, TODO: others?
+* `--blob_threshold <integer>`: if specified, all 'blobs' with less than `<integer>` pixels will be removed
 
 #### Tensorflow models
-To evaluate a Tensorflow model, run:
+To output predictions using a Tensorflow model, run:
 
 ```eval
 python tf_predictor.py -m <model-name> -c <checkpoint-name>
 ```
 
 #### RL models
-To evaluate an RL model, run:
+To output predictions using an RL model, run:
 
 ```eval
 python todo
