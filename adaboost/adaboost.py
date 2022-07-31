@@ -18,9 +18,11 @@ def fix_gpu():
     session = InteractiveSession(config=config)
     
 SMOL = 2e-5
+DEFAULT_MONOBOOST_TEMPERATURE = 0.0001
 
 class AdaBooster:
-    def __init__(self, factory, known_args_dict, unknown_args_dict,  model_spec_args, trainer_spec_args, dataloader_spec_args, monoboost, is_debug):
+    def __init__(self, factory, known_args_dict, unknown_args_dict,  model_spec_args, trainer_spec_args,
+                 dataloader_spec_args, monoboost, monoboost_temperature, is_debug):
         """An Adaboost class for performing the classical adaboost algorithm and other variants, such as the MonoBoost. The evaluation parameter will create the submission files on
         the test data set.
         Note that it is necessary to call each new adaboost experiment by a separate experiment name, otherwise the previous experiment
@@ -37,6 +39,7 @@ class AdaBooster:
         self.trainer_args = trainer_spec_args
         self.dataloader_args = dataloader_spec_args
         self.monoboost = monoboost
+        self.monoboost_temperature = monoboost_temperature
         self.is_debug = is_debug
 
         fix_gpu()
@@ -85,8 +88,6 @@ class AdaBooster:
         if curr_run_idx > 0:
             self.dataloader.weights_set = True
 
-        MONOBOOST_TEMPERATURE = 0.2  # quicker decay
-
         if self.monoboost:
             # calculate the val sample -- train sample similarities once
 
@@ -102,11 +103,10 @@ class AdaBooster:
             trainer = trainer_class(dataloader=self.dataloader, model=model,
                                     **self.trainer_args)
 
-            #if os.path.isfile(val_sample_train_sample_dist_path):
-            #    with open(val_sample_train_sample_dist_path, 'rb') as f:
-            #        training_sample_weights_for_validation_samples = pickle.load(f)
-            #else:
-            if True:
+            if os.path.isfile(val_sample_train_sample_dist_path):
+                with open(val_sample_train_sample_dist_path, 'rb') as f:
+                    training_sample_weights_for_validation_samples = pickle.load(f)
+            else:
                 print('Precaching val sample -- train sample distances...')
 
                 # iterate through, calculate
@@ -139,9 +139,9 @@ class AdaBooster:
                             sample_distances[train_x_filename][test_x_filename]
                     
                     training_sample_weights_for_validation_samples[test_idx] = (
-                        np.exp(-training_sample_weights_for_validation_samples[test_idx] / MONOBOOST_TEMPERATURE) /
+                        np.exp(-training_sample_weights_for_validation_samples[test_idx] / self.monoboost_temperature) /
                         np.sum(np.exp(-training_sample_weights_for_validation_samples[test_idx]))
-                               / MONOBOOST_TEMPERATURE)
+                               / self.monoboost_temperature)
                 
                 print('Val sample -- train sample distances calculated')
                 with open(val_sample_train_sample_dist_path, 'wb') as f:

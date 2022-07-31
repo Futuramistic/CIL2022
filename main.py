@@ -11,7 +11,7 @@ import os
 import random
 import re
 
-from adaboost import AdaBooster
+from adaboost import AdaBooster, DEFAULT_MONOBOOST_TEMPERATURE
 from factory import Factory
 from utils import *
 from utils.logging import pushbullet_logger
@@ -42,7 +42,8 @@ def parse_args():
                        'aug_brightness', 'aug_contrast', 'aug_saturation', 'use_adaboost', 'a']
 
     # list of other arguments to avoid passing to constructor of model class
-    filter_args = ['h', 'model', 'm', 'evaluate', 'eval', 'V', 'seed', 'S', 'adaboost_runs', 'A']
+    filter_args = ['h', 'model', 'm', 'evaluate', 'eval', 'V', 'seed', 'S', 'adaboost_runs', 'A',
+                   'monoboost_temperature', 'O']
 
     parser = argparse.ArgumentParser(description='Implementation of ETHZ CIL Road Segmentation 2022 project')
     parser.add_argument('-m', '--model', type=str, required=True, 
@@ -98,11 +99,13 @@ def parse_args():
                         help="If True, use sample weighting during training to train more on samples with big errors. The sample \
                         weights are adapted after each epoch. Currently only working with Torch models and disabled in TF")
     parser.add_argument('-a', '--use_adaboost', type=bool, required=False, default=False,
-                        help="If True, apply the Adaboost algorithm to the training (original or mono version)")
+                        help="If True, apply the AdaBoost algorithm to the training (original or mono version)")
     parser.add_argument('-M', '--monoboost', type=bool, required=False, default=False,
                         help="If True, apply the MonoBoost algorithm to the training (use_adaboost must be True)")
+    parser.add_argument('-O', '--monoboost_temperature', type=float, required=False, default=DEFAULT_MONOBOOST_TEMPERATURE,
+                        help="If MonoBoost is used, the temperature parameter to use with MonoBoost")
     parser.add_argument('-A', '--adaboost_runs', type=int, required=False, default=20,
-                        help="Only if adaboost is used, specify the number of models to ensemble")
+                        help="Only if AdaBoost or MonoBoost is used, specify the number of runs to execute")
     known_args, unknown_args = parser.parse_known_args()
     
 
@@ -150,7 +153,7 @@ def main(factory, model_spec_args, trainer_spec_args, dataloader_spec_args, know
     # call adaboost script if adaboost is used
     if known_args_dict["use_adaboost"]:
         adabooster = AdaBooster(factory, known_args_dict, unknown_args_dict, model_spec_args, trainer_spec_args,
-                                dataloader_spec_args, known_args.monoboost, IS_DEBUG)
+                                dataloader_spec_args, known_args.monoboost, known_args.monoboost_temperature, IS_DEBUG)
         adabooster.run()
         return
     
