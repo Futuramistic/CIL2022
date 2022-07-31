@@ -300,7 +300,7 @@ You can download pretrained models here:
   - [Lawin 2](https://polybox.ethz.ch/index.php/s/UDgZiDWdUt8Yof0/download) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
   - [Lawin 3](https://polybox.ethz.ch/index.php/s/Au4PRgKZynB16wG/download) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
 - U-NetExp model:
-  - [U-Net Exp](/download) trained on "maps_filtered_aug_6"
+  - [U-Net Exp](https://polybox.ethz.ch/index.php/s/lOsk3fX4HMI0NEP/download) trained on "maps_filtered_aug_6"
 
 ## Results
 
