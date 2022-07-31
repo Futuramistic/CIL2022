@@ -253,7 +253,7 @@ To obtain thes results, first pre-train model:
 ```
 python main.py --model=lawin --dataset=maps_filtered --split=0.9846 -E=Lawin --num_epochs=5000 --checkpoint_interval=500 --hyper_seg_threshold=False '--run_name=Pretrain on maps_filtered' --use_geometric_augmentation=True --use_color_augmentation=True --blobs_removal_threshold=0 --use_channelwise_norm=True --backbone_name=mit_bfive
 ```
-Then, to finetune on one of the split datasets, run this command with checkpoint provided in the --load_checkpoint_path argument
+Then, to finetune on one of the split datasets, run this command with checkpoint provided in the --load_checkpoint_path argument:
 ```
 python main.py --model=lawin --dataset=original_split_1 --split=0.827 -E=Lawin --num_epochs=5000 --checkpoint_interval=100000 --hyper_seg_threshold=False '--run_name=Finetune on original_split_1 (pretrained on maps_filtered)' --use_geometric_augmentation=True --use_color_augmentation=True --blobs_removal_threshold=0 --use_channelwise_norm=True --backbone_name=mit_bfive --load_checkpoint_path=<MODEL/URL/OR/PATH/HERE>
 ```
@@ -261,8 +261,13 @@ python main.py --model=lawin --dataset=original_split_1 --split=0.827 -E=Lawin -
 #### Our Contributions
 
 1) UNet Exp:
-```reproduce
-python main.py --model=
+To obtain thes results, first pre-train model:
+```
+python main.py --model=unetexp --dataset=maps_filtered --split=0.9846 -E=UnetExp --num_epochs=200 --hyper_seg_threshold=False '--run_name=Pretrain on maps_filtered' --use_geometric_augmentation=True --batch_size=4 
+```
+Then, as with previous models, run this command with checkpoint provided in the --load_checkpoint_path argument on the selected finetuning dataset:
+```
+python main.py --model=unetexp --dataset=original_split_1 --split=0.827 -E=UnetExp --num_epochs=200 --hyper_seg_threshold=False '--run_name=Finetune on original_split_1 (pretrained on maps_filtered)' --use_geometric_augmentation=True --batch_size=4 --load_checkpoint_path=<MODEL/URL/OR/PATH/HERE>
 ```
 2) RL Seg:
 ```reproduce
@@ -293,9 +298,7 @@ You can download pretrained models here:
 - Models used for the final submission:
   - [Lawin 1](https://polybox.ethz.ch/index.php/s/VI7G1l0B2SkKI3N/download) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
   - [Lawin 2](https://polybox.ethz.ch/index.php/s/UDgZiDWdUt8Yof0/download) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
-  - [Lawin 3](https://polybox.ethz.ch/index.php/s/Au4PRgKZynB16wG/download) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
-- U-NetExp model:
-  - [U-Net Exp](/download) trained on "maps_filtered_aug_6"
+  - [Lawin 3](/download) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
 
 ## Results
 
