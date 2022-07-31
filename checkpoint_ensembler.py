@@ -158,7 +158,10 @@ def main(model_name, sftp_paths_file, checkpoints_output_dir, output_predictions
     # Load the checkpoints from paths
     checkpoint_paths = []
     for sftp_path in sftp_paths:
-        checkpoint_paths.append(load_checkpoint(sftp_path, checkpoints_output_dir))
+        if 'sftp://' in sftp_path:  # download checkpoint from network
+            checkpoint_paths.append(load_checkpoint(sftp_path, checkpoints_output_dir))
+        else:  # checkpoint is already on disk
+            checkpoint_paths.append(sftp_path)
 
     if os.path.exists(output_predictions_dir):
         shutil.rmtree(output_predictions_dir)
