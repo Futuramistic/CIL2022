@@ -85,6 +85,7 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
                 deep_supervision=False,
                 cgm=False,
                 cgm_dropout=0.1,
+                architecture=None,
                 **kwargs):
     #K.mixed_precision.set_global_policy('mixed_float16')
     def __build_model(inputs):
@@ -112,14 +113,25 @@ def UNet3PlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_initializer': kernel_init,
             'kernel_regularizer': kernel_regularizer
         }
-
-        convo1, pool1 = Down_Block(name=name + "-down-block-1", filters=nb_filters[0], **down_args)(inputs)
-        convo2, pool2 = Down_Block(name=name + "-down-block-2", filters=nb_filters[1], **down_args)(pool1)
-        convo3, pool3 = Down_Block(name=name + "-down-block-3", filters=nb_filters[2], **down_args)(pool2)
-        convo4, pool4 = Down_Block(name=name + "-down-block-4", filters=nb_filters[3], **down_args)(pool3)
-
-        convo5 = Convo_Block(name=name + "-convo-block", filters=nb_filters[4], **down_args)(pool4)
-
+        inputs = K.applications.vgg19.preprocess_input(tf.cast(inputs,dtype=tf.float32))
+        if architecture is not None:
+            convo1, pool1 = Down_Block(name=name + "-down-block-1", filters=nb_filters[0], **down_args)(inputs)
+            convo2, pool2 = Down_Block(name=name + "-down-block-2", filters=nb_filters[1], **down_args)(pool1)
+            convo3, pool3 = Down_Block(name=name + "-down-block-3", filters=nb_filters[2], **down_args)(pool2)
+            convo4, pool4 = Down_Block(name=name + "-down-block-4", filters=nb_filters[3], **down_args)(pool3)
+            convo5 = Convo_Block(name=name + "-convo-block", filters=nb_filters[4], **down_args)(pool4)
+        else:
+            layer_names = ['block2_conv2', 'block3_conv4', 'block4_conv4', 'block5_conv4', 'block6_conv4']
+            base_model = K.applications.VGG19(include_top=False, weights='imagenet', input_shape=input_shape)
+            for layer in base_model.layers:
+                if isinstance(layer,K.layers.BatchNormalization):
+                    layer.trainable = True
+                else:
+                    layer.trainable = False
+            outputs = [base_model.get_layer(name).output for name in layer_names]
+            model = K.Model([base_model.input], outputs)
+            convo1, convo2, convo3, convo4, convo5 = model(inputs)[0],model(inputs)[1],model(inputs)[2],model(inputs)[3],model(inputs)[4]
+            
         convo3_4 = MaxPool2D((2, 2), 2, 'same')(convo3)
         convo3_4 = Convo_Block(name=name + "-convo3_4", filters=nb_filters[5], **down_args)(convo3_4)
 
@@ -239,7 +251,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
               deep_supervision=False,
               cgm=False,
               cgm_dropout=0.1,
-              architecture="vgg",
+              architecture=None,
               freeze="freeze",
               **kwargs):
     """
@@ -305,7 +317,9 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             inputs = K.applications.resnet_v2.preprocess_input(tf.cast(inputs,dtype=tf.float32))
             layer_names = ['conv1_conv', 'conv2_block3_1_conv', 'conv3_block4_1_conv', 'conv4_block23_1_conv']
             base_model = K.applications.ResNet101V2(include_top=False, weights='imagenet', input_shape=input_shape)
-        
+        elif architecture is None:
+            inputs = K.applications.vgg19.preprocess_input(tf.cast(inputs,dtype=tf.float32))
+
         if base_model is not None:
             # Full freeze of the base model - no data specific learned/only better gradient
             if freeze == "full-freeze":
