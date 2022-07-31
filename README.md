@@ -194,7 +194,7 @@ To output predictions using a Torch model, run:
 python torch_predictor.py -m <model-name> -c <checkpoint-name>
 ```
 You can add extra arguments:
-* `--floating_predictions`: to output non-thresholded value. If this is specified, also specify `--floating_output_dir <path/to/output/dir`
+* `--floating_predictions`: to output non-thresholded values. If this is specified, also specify `--floating_output_dir <path/to/output/dir>`
 * `--apply_sigmoid`: this must specified for the following models: UNet, CRANet, DeepLabV3, SegFormer
 * `--blob_threshold <integer>`: if specified, all 'blobs' with less than `<integer>` pixels will be removed from the segmentation
 
@@ -244,7 +244,7 @@ python todo
 python todo
 ```
 
-To obtain thes results, first pre-train model:
+To obtain these results, first pre-train the model:
 ```
 python main.py --model=lawin --dataset=maps_filtered --split=0.9846 -E=Lawin --num_epochs=5000 --checkpoint_interval=500 --hyper_seg_threshold=False '--run_name=Pretrain on maps_filtered' --use_geometric_augmentation=True --use_color_augmentation=True --blobs_removal_threshold=0 --use_channelwise_norm=True --backbone_name=mit_bfive
 ```
@@ -256,7 +256,7 @@ python main.py --model=lawin --dataset=original_split_1 --split=0.827 -E=Lawin -
 #### Our Contributions
 
 1) UNet Exp:
-To obtain thes results, first pre-train model:
+To obtain these results, first pre-train the model:
 ```
 python main.py --model=unetexp --dataset=maps_filtered_aug_6 --split=0.9978 -E=UnetExp --num_epochs=200 --hyper_seg_threshold=False '--run_name=Pretrain on maps_filtered' --use_geometric_augmentation=True --batch_size=4 
 ```
