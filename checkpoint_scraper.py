@@ -17,8 +17,6 @@ from utils import *
 
 os.environ['MLFLOW_TRACKING_USERNAME'] = MLFLOW_HTTP_USER
 os.environ['MLFLOW_TRACKING_PASSWORD'] = MLFLOW_HTTP_PASS
-offset = 144  # TODO put this in utils since it's also used in torch_predictor and tf_predictor
-
 
 def sftp_url_to_command(url):
     """
@@ -127,7 +125,7 @@ def averaged_outputs_prediction(checkpoint_paths, sftp_path_model_names):
         pred = ((prediction / nb_networks) >= segmentation_threshold).astype(int)
         pred *= 255
         pred = pred[None, :, :]
-        tf.keras.utils.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset + i}.png', pred,
+        tf.keras.utils.save_img(f'{OUTPUT_PRED_DIR}/satimage_{OFFSET_FOR_SAVING_IMAGES + i}.png', pred,
                                 data_format="channels_first")
 
     os.system('python mask_to_submission.py')
