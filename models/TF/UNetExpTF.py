@@ -251,7 +251,7 @@ def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
               deep_supervision=False,
               cgm=False,
               cgm_dropout=0.1,
-              architecture="vgg",
+              architecture=None,
               freeze="freeze",
               **kwargs):
     """
