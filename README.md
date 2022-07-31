@@ -280,18 +280,21 @@ python todo
 
 You can download pretrained models here:
 
-- [Pretrained model name 1](https://drive.google.com/mymodel.pth) trained on 'blabla' using parameters 'blabla'. 
+- Models used for the final submission:
+  - [Lawin 1](https://drive.google.com/mymodel.pth) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
+  - [Lawin 2](https://drive.google.com/mymodel.pth) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
+  - [Lawin 3](https://drive.google.com/mymodel.pth) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
 
 ## Results
 
 Our models achieve the following performance on the 'original' dataset:
 
-| Model name         | F1-Score  | Weighted F1-Score |
-| ------------------ |---------------- |------------------|
-| UNet Exp  |     0.999         |          1         |
-| Submission ensemble  |     0.998         |           1        |
+| Model name           | Road F1-Score     | Macro F1-Score     | Weighted F1-Score |
+| -------------------- | ----------------- | ------------------ | ----------------- |
+| UNet Exp             |     0.999         |          1         |         1         |
+| Submission ensemble  |     0.998         |          1         |         1         |
 
-Our ensemble of Lawin models extensively pretrained on the scraped dataset and fine-tuned on the original dataset ("original_split_1", "original_split_2", "original_split_3") achieved an F1-Score of `0.93737` on the Kaggle competition, granting us the `3rd` position on the Leaderboard. 
+Our ensemble of Lawin models extensively pretrained on the scraped dataset ("maps_filtered") and fine-tuned on the original dataset ("original_split_1", "original_split_2", "original_split_3") achieved an F1-Score of `0.93737` on the Kaggle competition, granting us the `3rd` position on the Leaderboard. 
 
 ## References
 
