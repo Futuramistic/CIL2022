@@ -23,10 +23,11 @@ research process and results.
 5. [Models](#models)
 6. [Training](#training)
 7. [Evaluation](#evaluation)
-8. [Reproducibility](#reproducibility)
-9. [Pre-trained Models](#pre-trained-models)
-10. [Results](#results)
-11. [References](#references)
+8. [The RL Framework](#the-rl-framework)
+9. [Reproducibility](#reproducibility)
+10. [Pre-trained Models](#pre-trained-models)
+11. [Results](#results)
+12. [References](#references)
 
 ## Our Image Segmentation Framework
 We conceived our framework to be able to handle both tensorflow-based models and torch-based models, as both are ubiquitous in the literature. To track our experiments, we used the MLFlow framework. Although it makes the code base a bit more complex, it allowed us to have a centralized space where we could log and **share** our experiments, model checkpoints, hyperparameters and so on. For hyperparameter tuning, we use [HyperOpt](http://hyperopt.github.io/hyperopt/), a framework conceived to optimize hyper parameter searches.
@@ -227,6 +228,9 @@ python todo
 ```
 
 The predictions appear in the `output_preds` directory
+
+## The RL Framework
+![The walker algorithm](http://kamui-interactive.com/wp-content/uploads/2022/07/walker_test_5.gif)
 
 ## Reproducibility
 
