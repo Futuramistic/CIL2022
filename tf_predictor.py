@@ -1,27 +1,24 @@
-# Imports
+"""
+Given a trained model, make predictions on the test set
+"""
 import torch
 import pickle
-from tqdm import tqdm
-
-from factory import Factory
-from losses.precision_recall_f1 import precision_recall_f1_score_tf
 import tensorflow.keras as K
-from utils import *
 import numpy as np
-from losses.loss_harmonizer import DEFAULT_TF_DIM_LAYOUT, collapse_channel_dim_tf
 import argparse
 import tensorflow as tf
 import tensorflow_addons as tfa
 
-"""
-Given a trained model, make predictions on the test set
-"""
+from tqdm import tqdm
+from factory import Factory
+from losses.precision_recall_f1 import precision_recall_f1_score_tf
+from utils import *
+from losses.loss_harmonizer import DEFAULT_TF_DIM_LAYOUT, collapse_channel_dim_tf
 
 
 model = None
 
 # Fixed constants
-offset = 144  # Numbering of first test image
 dataset = 'original'
 test_set_size = 144
 
@@ -184,8 +181,6 @@ def _unify(images):
 
 
 def main():
-    with_augmentation = True  # TODO: turn into command line arg
-
     parser = argparse.ArgumentParser(description='Predictions maker for tensorflow models')
     parser.add_argument('-m', '--model', type=str, required=True)
     parser.add_argument('-c', '--checkpoint', type=str, required=True)
@@ -201,6 +196,8 @@ def main():
     parser.add_argument('--floating_prediction', dest='floating_prediction', action='store_true',
                         help='If specified, dump the output of the network to a pickle file, else the default '
                              'behavior is to threshold the output to get a binary prediction')
+    parser.add_argument('--with_augmentation', dest='with_augmentation', action='store_true', required=False,
+                        help='If True, augmentation is used.')
     options = parser.parse_args()
 
     model_name = options.model
@@ -210,6 +207,7 @@ def main():
     floating_output_dir = options.floating_output_dir
     floating_prediction = options.floating_prediction
     use_floating_output_cache = options.use_floating_output_cache
+    with_augmentation = options.with_augmentation
 
     os.makedirs(floating_output_dir, exist_ok=True)
 
@@ -244,12 +242,12 @@ def main():
         if i > test_set_size - 1:
             break
         
-        if floating_prediction and use_floating_output_cache and os.path.isfile(f'{floating_output_dir}/satimage_{offset+i}.pkl'):
+        if floating_prediction and use_floating_output_cache and os.path.isfile(f'{floating_output_dir}/satimage_{OFFSET_FOR_SAVING_IMAGES+i}.pkl'):
             i += 1
             continue
         
         if compute_saliency:
-            K.preprocessing.image.save_img(f'{SALIENCY_MAP_DIR}/saliency_map_{offset+i}.png', get_saliency_map(model,x))
+            K.preprocessing.image.save_img(f'{SALIENCY_MAP_DIR}/saliency_map_{OFFSET_FOR_SAVING_IMAGES+i}.png', get_saliency_map(model,x))
 
         if with_augmentation:
             x = _augment(tf.squeeze(x))
@@ -277,7 +275,7 @@ def main():
             output = output[0]
 
         if floating_prediction:
-            with open(f'{floating_output_dir}/satimage_{offset + i}.pkl', 'wb') as handle:
+            with open(f'{floating_output_dir}/satimage_{OFFSET_FOR_SAVING_IMAGES + i}.pkl', 'wb') as handle:
                 array = np.squeeze(output.numpy())
                 # rescale so that old optimal threshold is at 0.5
                 array = (array < segmentation_threshold) * array / segmentation_threshold * 0.5 + \
@@ -286,7 +284,7 @@ def main():
                 pickle.dump(array, handle)
         else:
             pred = tf.cast(output >= segmentation_threshold, tf.int32) * 255
-            K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred, data_format=data_format)
+            K.preprocessing.image.save_img(f'{OUTPUT_PRED_DIR}/satimage_{OFFSET_FOR_SAVING_IMAGES+i}.png', pred, data_format=data_format)
         del x
         if i >= test_set_size - 1:
             break

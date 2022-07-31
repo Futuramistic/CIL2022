@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+
 from models.Torch.Unet import UNet
 
 
@@ -8,6 +9,7 @@ class TwoShotNet(nn.Module):
     @Note: Custom Network
 
     A Network formed by the concatenation of 2 UNets.
+    A similar network can be constructed out of any other architecture other than UNet
     The idea is the following: First feed the images through the first UNet, get a pre-segmentation, then concatenate
     this segmentation with original input and feed it through the second UNet.
 
@@ -15,16 +17,19 @@ class TwoShotNet(nn.Module):
     """
     def __init__(self):
         super(TwoShotNet, self).__init__()
+        # Take one extra input channel to be able to feed the segmentation of the first pass again
         self.net = UNet(3+1, 1)
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     def forward(self, x, apply_activation):
         B, C, H, W = x.shape
-        zero = torch.zeros((B, 1, H, W), device=self.device)
+        # First pass
+        zero = torch.zeros((B, 1, H, W), device=self.device)  # In first pass, the 4th segmentation channel is zeros
         x1 = torch.cat((zero, x), 1)
         o1 = self.net(x1)
-        o1 = (o1 > 0.8).float()
-        x2 = torch.cat((o1, x), 1)
+        o1 = (o1 > 0.8).float()  # round to 1 the segmentations of which the network is really sure
+        x2 = torch.cat((o1, x), 1)  # Concatenate with original input again
+        # Second pass
         o2 = self.net(x2)
-        o = torch.max(o1, o2)
+        o = torch.max(o1, o2)  # make sure to keep the rounded segmentations of first pass
         return o

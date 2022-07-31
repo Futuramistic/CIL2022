@@ -4,6 +4,7 @@ import hashlib
 import pysftp
 import requests
 import torch.cuda
+import numpy as np
 
 from torch.utils.data import DataLoader, Subset
 from urllib.parse import urlparse
@@ -268,8 +269,6 @@ class TorchTrainer(Trainer, abc.ABC):
         print(f'Session ID: {SESSION_ID}')
         print('Hyperparameters:')
         print(self._get_hyperparams())
-        print('')
-        
         self.train_loader = self.dataloader.get_training_dataloader(split=self.split, batch_size=self.batch_size,
                                                                     preprocessing=self.preprocessing)
         self.test_loader = self.dataloader.get_testing_dataloader(batch_size=1, preprocessing=self.preprocessing)
@@ -298,9 +297,7 @@ class TorchTrainer(Trainer, abc.ABC):
                 self._set_new_training_weights()
             last_test_loss = self._eval_step(self.model, self.device, self.test_loader)
             metrics = {'train_loss': last_train_loss, 'test_loss': last_test_loss}
-            # if self.do_checkpoint and best_val_loss > last_test_loss:
-            #     best_val_loss = last_test_loss
-            #     self._save_checkpoint(self.model, None, None, None, best="test_loss")
+            
             print('\nEpoch %i finished at {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()) % epoch)
             print('Metrics: %s\n' % str(metrics))
 

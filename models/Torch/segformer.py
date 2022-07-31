@@ -1,10 +1,7 @@
-# code adapted from https://github.com/NVlabs/SegFormer/
-
-# ---------------------------------------------------------------
-# Copyright (c) 2021, NVIDIA Corporation. All rights reserved.
-#
-# This work is licensed under the NVIDIA Source Code License
-# ---------------------------------------------------------------
+"""SegFormer Implementation
+code taken from https://github.com/NVlabs/SegFormer/
+Copyright (c) 2021, NVIDIA Corporation. All rights reserved.
+This work is licensed under the NVIDIA Source Code License"""
 
 from collections import OrderedDict
 from functools import partial
@@ -18,6 +15,7 @@ import urllib.request
 import numpy as np
 import warnings
 
+from functools import partial
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from timm.models.registry import register_model
 from timm.models.vision_transformer import _cfg

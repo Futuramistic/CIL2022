@@ -4,13 +4,16 @@ Adapted from:
 Lovasz-Softmax and Jaccard hinge loss in PyTorch
 Maxim Berman 2018 ESAT-PSI KU Leuven (MIT License)
 https://github.com/bermanmaxim/LovaszSoftmax/blob/master/pytorch/lovasz_losses.py
+
+All losses take as input the groundtruth and the prediction tensors and output the loss 
+value if not stated otherwise.
 """
 
 import torch.nn.functional as F
 import torch
 import torch.nn as nn
-from utils import to_cuda
 
+from utils import to_cuda
 from losses.vgg_loss import VGGPerceptualLoss
 
 try:
@@ -37,7 +40,8 @@ class cra_loss(nn.Module):
 
 class cra_loss_with_vgg(nn.Module):
     """
-    Alternative Loss for the CRA Net model, that includes an extra VGG loss
+    Alternative Loss for the CRA Net model, that includes an extra VGG loss and calculates
+    a combined loss with the refined output
     """
 
     def __init__(self):
@@ -57,6 +61,8 @@ class cra_loss_with_vgg(nn.Module):
 class dice_bce_loss_with_logits(nn.Module):
     """
     Loss combining the BCE Loss and the Dice Loss
+    Args:
+        batch (bool): Whether batches or single samples are used
     """
 
     def __init__(self, batch=True):
@@ -88,6 +94,8 @@ class dice_bce_loss_with_logits(nn.Module):
 class dice_bce_loss_with_logits1(nn.Module):
     """
     Loss combining the BCE Loss and the Dice Loss (Version with different weighting)
+    Args:
+        batch (bool): Whether batches or single samples are used
     """
 
     def __init__(self, batch=True):
@@ -123,12 +131,8 @@ class BinaryDiceLoss(nn.Module):
     Args:
         smooth: A float number to smooth loss, and avoid NaN error, default: 1
         p: Denominator value: \sum{x^p} + \sum{y^p}, default: 2
-        predict: A tensor of shape [N, *]
-        target: A tensor of shape same with predict
         reduction: Reduction method to apply, return mean over batch if 'mean',
             return sum if 'sum', return a tensor of shape [N,] if 'none'
-    Returns:
-        Loss tensor according to arg reduction
     Raise:
         Exception if unexpected reduction
     """
@@ -139,6 +143,13 @@ class BinaryDiceLoss(nn.Module):
         self.reduction = reduction
 
     def forward(self, predict, target):
+        """
+        Args:
+            predict: A tensor of shape [N, *]
+            target: A tensor of shape same with predict
+        Raises:
+            Exception: If unexpected reduction format appears
+        """
         assert predict.shape[0] == target.shape[0], "predict & target batch size don't match"
         predict = predict.contiguous().view(predict.shape[0], -1)
         target = target.contiguous().view(target.shape[0], -1)
@@ -163,8 +174,6 @@ class DiceLoss(nn.Module):
     Args:
         weight: An array of shape [num_classes,]
         ignore_index: class index to ignore
-        predict: A tensor of shape [N, C, *]
-        target: A tensor of same shape with predict
         other args pass to BinaryDiceLoss
     Return:
         same as BinaryDiceLoss
@@ -176,6 +185,11 @@ class DiceLoss(nn.Module):
         self.ignore_index = ignore_index
 
     def forward(self, predict, target):
+        """
+        Args:
+        predict: A tensor of shape [N, C, *]
+        target: A tensor of same shape with predict
+        """
         assert predict.shape == target.shape, 'predict & target shape do not match'
         dice = BinaryDiceLoss(**self.kwargs)
         total_loss = 0

@@ -1,6 +1,7 @@
+import numpy as np
+
 from hyperopt import hp
 from hyperopt.pyll.base import scope
-import numpy as np
 from utils import ROOT_DIR
 
 
@@ -55,7 +56,7 @@ cranet_test = {
             'experiment_name': 'CodeTesting',
             'split': 0.02,
             'num_epochs': 2,
-            'batch_size': scope.int(hp.qloguniform('batch_size', np.log(2), np.log(16), 2)),
+            'batch_size': 1,
             'checkpoint_interval': 100000,
             'hyper_seg_threshold': False,
             'blobs_removal_threshold': 0

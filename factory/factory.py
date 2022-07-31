@@ -30,8 +30,6 @@ class Factory(abc.ABC):
             return UNetTFFactory()
         elif model_name_lower_no_sep in ["unet++", "unetplusplus"]:
             return UNetPlusPlusFactory()
-        elif model_name_lower_no_sep == "attunet":
-            return AttUNetFactory()
         elif model_name_lower_no_sep in ["attunet++", "attentionunet++", "attentionunetplusplus", "attunetplusplus",
                                          "attunetplusplustf"]:
             return AttUNetPlusPlusTFFactory()
@@ -53,6 +51,10 @@ class Factory(abc.ABC):
             return SimpleRLCNNFactory()
         elif model_name_lower_no_sep == "simplerlcnnminimal":
             return SimpleRLCNNMinimalFactory()
+        elif model_name_lower_no_sep == "simplerlcnnminimalsupervised":
+            return SimpleRLCNNMinimalSupervisedFactory()
+        elif model_name_lower_no_sep == "rlregressor":
+            return RLRegressorFactory()
         elif model_name_lower_no_sep == "segformer":
             return SegFormerFactory()
         elif model_name_lower_no_sep == "lawin":
@@ -63,7 +65,6 @@ class Factory(abc.ABC):
             return U2NetSmallFactory()
         elif model_name_lower_no_sep in ["u2netexp", "utwonetexp", "u2netexptf"]:
             return U2NetExpTFFactory()
-            
         else:
             print(f"The factory for the model {model_name} doesn't exist. Check if you wrote the model name "
                   f"correctly and implemented a corresponding factory in factory.py.")
@@ -134,16 +135,6 @@ class UNetPlusPlusFactory(Factory):
     def get_dataloader_class(self):
         return TFDataLoader
 
-
-class AttUNetFactory(Factory):
-    def get_trainer_class(self):
-        return AttUNetTrainer
-
-    def get_model_class(self):
-        return AttUnetTF
-
-    def get_dataloader_class(self):
-        return TFDataLoader
 
 
 class AttUNetPlusPlusTFFactory(Factory):
@@ -232,6 +223,28 @@ class SimpleRLCNNMinimalFactory(Factory):
 
     def get_dataloader_class(self):
         return TorchDataLoader
+
+
+class SimpleRLCNNMinimalSupervisedFactory(Factory):
+    def get_trainer_class(self):
+        return TorchRLTrainerMinimal
+
+    def get_model_class(self):
+        return SimpleRLCNNMinimalSupervised
+
+    def get_dataloader_class(self):
+        return TorchDataLoaderRLSupervised
+
+
+class RLRegressorFactory(Factory):
+    def get_trainer_class(self):
+        return TorchRLTrainerMinimal
+
+    def get_model_class(self):
+        return ResNetBasedRegressor
+
+    def get_dataloader_class(self):
+        return TorchDataLoaderRLSupervised
 
 
 class UNetExpFactory(Factory):

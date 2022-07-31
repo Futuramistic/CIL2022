@@ -1,10 +1,14 @@
-from typing import Iterable
-from .loss_harmonizer import *
-import torch.nn.functional as F
+"""
+All losses take as input the groundtruth and the prediction tensors and output the loss 
+value if not stated otherwise.
+"""
 import tensorflow.keras as K
 import tensorflow_addons as tfa
 import tensorflow as tf
-import numpy as np
+
+from typing import Iterable
+from .loss_harmonizer import *
+
 
 """
 If we take the F1 score for both classes (corresponding to average='micro' for sklearn.metrics.f1_score),
@@ -97,6 +101,13 @@ def f1_torch(thresholded_prediction, targets, classes):
 
 
 def patchified_f1_scores_torch(thresholded_prediction, targets, patch_thresh=0.25):
+    """
+    Compute patchified prediction F1 score (micro-averaged)
+    Args:
+        thresholded_prediction (Torch Tensor): binary prediction
+        targets (Torch Tensor): The target tensor
+        classes (list of int): Classes to predict for
+    """
     patch_sums_pred = torch.zeros([*thresholded_prediction.shape[:-2],
                                     thresholded_prediction.shape[-2] // 16,
                                     thresholded_prediction.shape[-1] // 16])

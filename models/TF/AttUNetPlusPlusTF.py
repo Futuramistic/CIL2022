@@ -17,16 +17,34 @@ def AttUNetPlusPlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
     """
     Attention UNet++ model.
     A mixture between Attention UNet and UNet++
+    Args:
+        input_shape (Union[List, Tuple]): Shape that the network expects
+        name (str): Name of the network (for logging)
+        dropout (float): Amount of dropout to use
+        kernel_init (str): Name of kernel initialization
+        normalize (bool): Whether to use batch normalization
+        deep_supervision (bool): Whether to apply some loss function to intermdiate outputs
+        up_transpose (bool): whether to use transpose convolutions or simple upscaling
+        kernel_regularizer: Specify the regularizer on the kernel weights or None
     """
 
     def __build_model(inputs):
-        nb_filters = [32,64,128,256,512]
+        """
+        Define the model architecture.
+        Call this function to feed the input through the network.
+        Args:
+            inputs (tensor): input tensor of shape (B, *input_shape)
+        Returns:
+            output of the network (tensor)
+        """
+        nb_filters = [32, 64, 128, 256, 512]
 
         if up_transpose:
             up_block = Transpose_Block
         else:
             up_block = UpSampleConvo_Block
 
+        # Define network parameters
         down_args = {
             'dropout': dropout,
             'kernel_init': kernel_init,
@@ -51,10 +69,10 @@ def AttUNetPlusPlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
             'kernel_regularizer': kernel_regularizer
         }
 
-        x0_0,pool1 = Down_Block(name=name+"-down-block-1", filters=nb_filters[0], **down_args)(inputs)
-        x1_0,pool2 = Down_Block(name=name+"-down-block-2", filters=nb_filters[1], **down_args)(pool1)
-        x2_0,pool3 = Down_Block(name=name+"-down-block-3", filters=nb_filters[2], **down_args)(pool2)
-        x3_0,pool4 = Down_Block(name=name+"-down-block-4", filters=nb_filters[3], **down_args)(pool3)
+        x0_0, pool1 = Down_Block(name=name+"-down-block-1", filters=nb_filters[0], **down_args)(inputs)
+        x1_0, pool2 = Down_Block(name=name+"-down-block-2", filters=nb_filters[1], **down_args)(pool1)
+        x2_0, pool3 = Down_Block(name=name+"-down-block-3", filters=nb_filters[2], **down_args)(pool2)
+        x3_0, pool4 = Down_Block(name=name+"-down-block-4", filters=nb_filters[3], **down_args)(pool3)
 
         x4_0 = Convo_Block(name=name+"-convo-block-bottom", filters=nb_filters[4], **down_args)(pool4)
         
@@ -93,7 +111,7 @@ def AttUNetPlusPlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
         return output4
 
     inputs = K.Input(input_shape)
-    outputs = __build_model(inputs)
+    outputs = __build_model(inputs)  # Feed the input through the model
     model = K.Model(inputs=inputs, outputs=outputs, name='AttUNetPlusPlus')
     # store parameters for the Trainer to be able to log them to MLflow
     model.dropout = dropout

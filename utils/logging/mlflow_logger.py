@@ -1,3 +1,4 @@
+"""This file handles the logging to mlflow (all checkpoints, code base, command, logs and metrics"""
 import mlflow
 import tempfile
 import shutil
@@ -89,6 +90,9 @@ def log_codebase():
 def log_checkpoints(remove_local=True):
     """
     Log a checkpoint to MLFlow
+    Args:
+        remove_local (bool, optional): Whether to remove the local checpoint after successfully logging to mlflow.
+                                       Defaults to True
     """
     if logging_to_mlflow_enabled():
         # check if there are checkpoints to log
@@ -109,10 +113,10 @@ def log_artifact(path, artifact_dir='', emit_warning_if_logging_disabled=True):
     """
     Log an artifact to MLFLow
     Args:
-        path: path to file/directory to log
-        artifact_dir: remote run subdirectory to log the file/directory into ('' for root run directory)
-        emit_warning_if_logging_disabled: True if a warning should be emitted in case logging to MLFlow is disabled,
-                                          and False otherwise
+        path (Path or String): path to file/directory to log
+        artifact_dir (Path or String): remote run subdirectory to log the file/directory into ('' for root run directory)
+        emit_warning_if_logging_disabled (bool, optional): True if a warning should be emitted in case logging to MLFlow 
+                                          is disabled, and False otherwise. Defaults to True
     """
     if logging_to_mlflow_enabled():
         mlflow.log_artifact(path, artifact_dir)

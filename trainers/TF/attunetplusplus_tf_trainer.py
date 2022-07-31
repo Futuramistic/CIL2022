@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow.keras as K
 
-from losses import DiceBCELoss2, DiceBCELoss1, FocalLoss
+from losses import DiceBCELoss2, DiceBCELoss1, FocalLossTF
 from trainers.trainer_tf import TFTrainer
 from utils import *
 
@@ -47,7 +47,7 @@ class AttUNetPlusPlusTrainer(TFTrainer):
 
         # According to the paper
         # Try DiceBCELoss
-        # Also: FocalLoss used in one online implementation
+        # Also: FocalLossTF used in one online implementation
         if loss_function is None:
             loss_function = DiceBCELoss1
 

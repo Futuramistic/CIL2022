@@ -1,12 +1,11 @@
 from trainers.trainer_torch import TorchTrainer
 from utils.logging import pushbullet_logger
-from utils import ROOT_DIR, OUTPUT_PRED_DIR, create_or_clean_directory
-from torch_predictor import compute_best_threshold
+from utils import ROOT_DIR
+from tqdm import tqdm
 
 import os
 import pickle
 import numpy as np
-from tqdm import tqdm
 import time
 
 # in order to fix some tensorflow issue for the dataloader weighting

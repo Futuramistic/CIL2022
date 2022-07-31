@@ -1,7 +1,8 @@
-# Imports
+"""
+Given a trained model, make predictions on the test set
+"""
 import torch
 import tensorflow as tf
-import tensorflow.keras as K
 import numpy as np
 import argparse
 import torchvision.transforms.functional as TF
@@ -17,7 +18,6 @@ from utils import *
 
 
 # Fixed constants
-offset = 144  # Numbering of first test image
 dataset = 'original'  # dataset name
 sigmoid = torch.nn.Sigmoid()
 
@@ -25,11 +25,6 @@ device = None
 model = None
 test_loader = None
 blob_threshold = None
-
-
-"""
-Given a trained model, make predictions on the test set
-"""
 
 
 def compute_best_threshold(loader, apply_sigmoid, with_augmentation=True, checkpoint=None):
@@ -158,7 +153,7 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=True, float
     with torch.no_grad():
         i = 0
         for x in tqdm(test_loader):
-            if floating_prediction and use_floating_output_cache and os.path.isfile(f'{floating_output_dir}/satimage_{offset+i}.pkl'):
+            if floating_prediction and use_floating_output_cache and os.path.isfile(f'{floating_output_dir}/satimage_{OFFSET_FOR_SAVING_IMAGES+i}.pkl'):
                 i += 1
                 continue
 
@@ -175,7 +170,7 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=True, float
             if apply_sigmoid:
                 output = sigmoid(output)
             if floating_prediction:
-                with open(f'{floating_output_dir}/satimage_{offset+i}.pkl', 'wb') as handle:
+                with open(f'{floating_output_dir}/satimage_{OFFSET_FOR_SAVING_IMAGES+i}.pkl', 'wb') as handle:
                     array = np.squeeze(output.cpu().detach().numpy())
                     # rescale so that old optimal threshold is at 0.5
                     array = (array < segmentation_threshold) * array / segmentation_threshold * 0.5 + \
@@ -190,7 +185,7 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=True, float
                 pred *= 255
                 while len(pred.shape) == 2:
                     pred = pred[None, :, :]
-                tf.keras.utils.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred,
+                tf.keras.utils.save_img(f'{OUTPUT_PRED_DIR}/satimage_{OFFSET_FOR_SAVING_IMAGES+i}.png', pred,
                                         data_format="channels_first")
             # pred = (output >= segmentation_threshold).cpu().detach().numpy().astype(int)
             # while len(pred.shape) > 3:
@@ -199,7 +194,7 @@ def predict(segmentation_threshold, apply_sigmoid, with_augmentation=True, float
             # pred *= 255
             # while len(pred.shape) == 2:
             #     pred = pred[None, :, :]
-            # K_utils.save_img(f'{OUTPUT_PRED_DIR}/satimage_{offset+i}.png', pred,
+            # K_utils.save_img(f'{OUTPUT_PRED_DIR}/satimage_{OFFSET_FOR_SAVING_IMAGES+i}.png', pred,
             #                  data_format="channels_first")
             i += 1
             del x
@@ -289,7 +284,6 @@ def _unify(images):
 
 def main():
     # seed everything
-
     random.seed(1)
     torch.manual_seed(1)
     np.random.seed(1)

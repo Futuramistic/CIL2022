@@ -1,3 +1,10 @@
+"""
+Adapted from https://github.com/liaochengcsu/Cascade_Residual_Attention_Enhanced_for_Refinement_Road_Extraction
+The network we use is called "OurDinkNet50",
+
+In turn, code based on:
+"Codes of LinkNet based on https://github.com/snakers4/spacenet-three"
+"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,49 +13,19 @@ from torchvision import models
 from functools import partial
 from torch.autograd import Variable
 
-
-"""
-Adapted from https://github.com/liaochengcsu/Cascade_Residual_Attention_Enhanced_for_Refinement_Road_Extraction
-The network we use is called "OurDinkNet50",
-
-In turn, code based on:
-"Codes of LinkNet based on https://github.com/snakers4/spacenet-three"
-"""
-
 nonlinearity = partial(F.relu, inplace=True)
 
 
-class Dblock_more_dilate(nn.Module):
-    def __init__(self, channel):
-        super(Dblock_more_dilate, self).__init__()
-        self.dilate1 = nn.Conv2d(channel, channel, kernel_size=3, dilation=1, padding=1)
-        self.dilate2 = nn.Conv2d(channel, channel, kernel_size=3, dilation=2, padding=2)
-        self.dilate3 = nn.Conv2d(channel, channel, kernel_size=3, dilation=4, padding=4)
-        self.dilate4 = nn.Conv2d(channel, channel, kernel_size=3, dilation=8, padding=8)
-        self.dilate5 = nn.Conv2d(channel, channel, kernel_size=3, dilation=16, padding=16)
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
-                if m.bias is not None:
-                    m.bias.data.zero_()
-
-    def forward(self, x):
-        dilate1_out = nonlinearity(self.dilate1(x))
-        dilate2_out = nonlinearity(self.dilate2(dilate1_out))
-        dilate3_out = nonlinearity(self.dilate3(dilate2_out))
-        dilate4_out = nonlinearity(self.dilate4(dilate3_out))
-        dilate5_out = nonlinearity(self.dilate5(dilate4_out))
-        out = x + dilate1_out + dilate2_out + dilate3_out + dilate4_out + dilate5_out
-        return out
-
-
 class Dblock(nn.Module):
+    """
+    Module performing dilated convolutions followed by ReLu activations (4 times)
+    """
     def __init__(self, channel):
         super(Dblock, self).__init__()
         self.dilate1 = nn.Conv2d(channel, channel, kernel_size=3, dilation=1, padding=1)
         self.dilate2 = nn.Conv2d(channel, channel, kernel_size=3, dilation=2, padding=2)
         self.dilate3 = nn.Conv2d(channel, channel, kernel_size=3, dilation=4, padding=4)
         self.dilate4 = nn.Conv2d(channel, channel, kernel_size=3, dilation=8, padding=8)
-        # self.dilate5 = nn.Conv2d(channel, channel, kernel_size=3, dilation=12, padding=12)
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
                 if m.bias is not None:
@@ -59,35 +36,17 @@ class Dblock(nn.Module):
         dilate2_out = nonlinearity(self.dilate2(x))
         dilate3_out = nonlinearity(self.dilate3(x))
         dilate4_out = nonlinearity(self.dilate4(x))
-        # dilate5_out = nonlinearity(self.dilate5(dilate4_out))
-        out = x + dilate1_out + dilate2_out + dilate3_out + dilate4_out #+ dilate5_out
-        return out
-
-
-class LDblock(nn.Module):
-    def __init__(self, channel):
-        super(LDblock, self).__init__()
-        self.dilate1 = nn.Conv2d(channel, channel, kernel_size=3, dilation=1, padding=1)
-        self.dilate2 = nn.Conv2d(channel, channel, kernel_size=3, dilation=2, padding=2)
-        self.dilate3 = nn.Conv2d(channel, channel, kernel_size=3, dilation=4, padding=4)
-        self.dilate4 = nn.Conv2d(channel, channel, kernel_size=3, dilation=8, padding=8)
-        self.dilate5 = nn.Conv2d(channel, channel, kernel_size=3, dilation=12, padding=12)
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
-                if m.bias is not None:
-                    m.bias.data.zero_()
-
-    def forward(self, x):
-        dilate1_out = nonlinearity(self.dilate1(x))
-        dilate2_out = nonlinearity(self.dilate2(dilate1_out))
-        dilate3_out = nonlinearity(self.dilate3(dilate2_out))
-        dilate4_out = nonlinearity(self.dilate4(dilate3_out))
-        dilate5_out = nonlinearity(self.dilate5(dilate4_out))
-        out = x + dilate1_out + dilate2_out + dilate3_out + dilate4_out + dilate5_out
+        out = x + dilate1_out + dilate2_out + dilate3_out + dilate4_out
         return out
 
 
 class DecoderBlock(nn.Module):
+    """
+    Decoding module used in the CRA-Net decoder (3 instances)
+    Consists in Conv->BN->Relu->
+                ConvTranspose->BN->Relu->
+                Conv->BN->Relu
+    """
     def __init__(self, in_channels, n_filters):
         super(DecoderBlock, self).__init__()
 
@@ -116,38 +75,11 @@ class DecoderBlock(nn.Module):
         return x
 
 
-class LDecoderBlock(nn.Module):
-    def __init__(self, in_channels, n_filters):
-        super(LDecoderBlock, self).__init__()
-
-        self.conv1 = nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1)
-        self.norm1 = nn.BatchNorm2d(in_channels)
-        self.relu1 = nonlinearity
-
-        self.deconv2 = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=3, stride=2, padding=1,
-                                          output_padding=1)
-        self.norm2 = nn.BatchNorm2d(in_channels // 2)
-        self.relu2 = nonlinearity
-
-        self.conv3 = nn.Conv2d(in_channels // 2, n_filters, kernel_size=3, padding=1)
-        self.norm3 = nn.BatchNorm2d(n_filters)
-        self.relu3 = nonlinearity
-
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.norm1(x)
-        x = self.relu1(x)
-        x = self.deconv2(x)
-        x = self.norm2(x)
-        x = self.relu2(x)
-        x = self.conv3(x)
-        x = self.norm3(x)
-        x = self.relu3(x)
-        return x
-
-
 class PositionAttentionModule(nn.Module):
-    """ Position attention module"""
+    """
+    Module for applying spatial attention
+    Some image coordinates can be more or less important according to its attention weight
+    """
     def __init__(self, in_channels, **kwargs):
         super(PositionAttentionModule, self).__init__()
         self.conv_b = nn.Conv2d(in_channels, in_channels // 8, 1)
@@ -168,7 +100,10 @@ class PositionAttentionModule(nn.Module):
 
 
 class ChannelAttentionModule(nn.Module):
-    """Channel attention module"""
+    """
+    Module for applying per-channel attention
+    Each channel can be more or less important according to its attention weight
+    """
     def __init__(self, **kwargs):
         super(ChannelAttentionModule, self).__init__()
         self.beta = nn.Parameter(torch.zeros(1))
@@ -187,6 +122,14 @@ class ChannelAttentionModule(nn.Module):
 
 
 class OurDinkNet50(nn.Module):
+    """
+    The CRA-Net
+    @Note: The name is kept as-is from the original repo:
+    https://github.com/liaochengcsu/Cascade_Residual_Attention_Enhanced_for_Refinement_Road_Extraction
+
+    Note that this networks outputs 2 segmentations, a refined one and a non-refined one.
+    More infos can be found in the paper https://www.mdpi.com/2220-9964/11/1/9
+    """
     def __init__(self, num_classes=1):
         super(OurDinkNet50, self).__init__()
 
@@ -243,6 +186,14 @@ class OurDinkNet50(nn.Module):
         self.lam2 = Variable(torch.rand([]), requires_grad=True)
 
     def forward(self, input, apply_activation=True):
+        """
+        Pushes the input through the network
+        Args:
+            input (tensor): batch of images with dim [B, C, H, W]
+            apply_activation (bool): if True apply the Sigmoid on the output
+        Returns:
+            Tuple(tensor, tensor): Refined and non-refined segmentations
+        """
         # Encoder
         x = self.firstconv(input)
         x = self.firstbn(x)
@@ -264,7 +215,7 @@ class OurDinkNet50(nn.Module):
         d1 = self.decoder1(d2+x)
 
         out = self.finaldeconv1(d1)
-        out = self.finalrelu1(out)  # torch.cat((out, _x), dim=1))  # original out
+        out = self.finalrelu1(out)
         out = self.finalconv2(out)
         out = self.finalrelu2(out)
         res = self.finalconv3(out)

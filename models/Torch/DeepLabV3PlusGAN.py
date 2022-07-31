@@ -1,7 +1,8 @@
-from torchvision.models.segmentation import deeplabv3_resnet50 as deeplabv3
-from torchvision.models.segmentation.deeplabv3 import DeepLabHead
 import torch.nn as nn
 import numpy as np
+
+from torchvision.models.segmentation import deeplabv3_resnet50 as deeplabv3
+from torchvision.models.segmentation.deeplabv3 import DeepLabHead
 
 
 class DeepLabV3PlusGAN(nn.Module):
@@ -14,12 +15,13 @@ class DeepLabV3PlusGAN(nn.Module):
 
     The performed tests did not seem to given improvements and made training more unstable.
     """
-
     def __init__(self, cnn_discriminator=True):
         super().__init__()
         self.model = deeplabv3(pretrained=True, progress=True)
-        self.model.classifier = DeepLabHead(2048, 1)
+        self.model.classifier = DeepLabHead(2048, 1)  # Define the head
+        # Define either a CNN-based or a a Fully Connected discriminator network
         self.discriminator = CNN_Discriminator() if cnn_discriminator else FC_Discriminator()
+        # Count the number of parameters
         nb_model_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         nb_model_classifier_params = sum(p.numel() for p in self.model.classifier.parameters() if p.requires_grad)
         nb_discriminator_params = sum(p.numel() for p in self.discriminator.parameters() if p.requires_grad)
@@ -31,6 +33,12 @@ class DeepLabV3PlusGAN(nn.Module):
         return self.discriminator
 
     def forward(self, x, apply_activation=True):
+        """
+        Pushes the input through the network
+        Args:
+            x (tensor): batch of images with dim [B, C, H, W]
+            apply_activation (bool): if True apply the Sigmoid on the output
+        """
         out = self.model(x)["out"]
         if apply_activation:
             out = self.sigmoid(out)
@@ -40,11 +48,18 @@ class DeepLabV3PlusGAN(nn.Module):
 class CNN_Discriminator(nn.Module):
     """
     CNN-based discriminator
+    Low parameter overhead (~17k)
     """
     def __init__(self):
         super(CNN_Discriminator, self).__init__()
 
         def discriminator_block(in_filters, out_filters, bn=True):
+            """
+            Args:
+                in_filters (int): Number of input filters
+                out_filters (int): Number of output filters
+                bn (bool): Whether to apply Batch Normalization
+            """
             block = [nn.Conv2d(in_filters, out_filters, 3, 2, 1), nn.LeakyReLU(0.2, inplace=True), nn.Dropout2d(0.25)]
             if bn:
                 block.append(nn.BatchNorm2d(out_filters, 0.8))
@@ -75,10 +90,10 @@ class CNN_Discriminator(nn.Module):
 class FC_Discriminator(nn.Module):
     """
     Fully Connected discriminator
+    Heavily parametrized
     """
     def __init__(self):
         super(FC_Discriminator, self).__init__()
-
         img_shape = (400, 400)
         self.model = nn.Sequential(
             nn.Linear(int(np.prod(img_shape)), 512),

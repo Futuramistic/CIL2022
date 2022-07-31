@@ -1,3 +1,5 @@
+"""The U-Net Exp model implemented in Tensorflow as well as its sub-components
+"""
 import tensorflow.keras as K
 
 from keras.layers import *
@@ -227,8 +229,6 @@ Custom model that:
     * Extends the Unet3+ architecture on the decoder side
     * Adds non-standard skip connections on the decoder side
 """
-
-
 def UNetExpTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
               name="UNetEXPTF",
               dropout=0.0,

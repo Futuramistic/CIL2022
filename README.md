@@ -22,11 +22,12 @@ research process and results.
 4. [Datasets](#datasets)
 5. [Models](#models)
 6. [Training](#training)
-7. [Evaluation](#evaluation)
-8. [Reproducibility](#reproducibility)
-9. [Pre-trained Models](#pre-trained-models)
-10. [Results](#results)
-11. [References](#references)
+7. [Predicting](#predicting)
+8. [The RL Framework](#the-rl-framework)
+9. [Reproducibility](#reproducibility)
+10. [Pre-trained Models](#pre-trained-models)
+11. [Results](#results)
+12. [References](#references)
 
 ## Our Image Segmentation Framework
 We conceived our framework to be able to handle both tensorflow-based models and torch-based models, as both are ubiquitous in the literature. To track our experiments, we used the MLFlow framework. Although it makes the code base a bit more complex, it allowed us to have a centralized space where we could log and **share** our experiments, model checkpoints, hyperparameters and so on. For hyperparameter tuning, we use [HyperOpt](http://hyperopt.github.io/hyperopt/), a framework conceived to optimize hyper parameter searches.
@@ -37,6 +38,7 @@ The overall structure of the repository is described below.
 
 ```
 .
+├── adaboost                        # Module for running adaboost on models
 ├── data_handling                   # Scripts for loading datasets
 ├── dataset                         # Folder containing the datasets
     ├── <dataset-name-1>
@@ -66,7 +68,7 @@ main.py                             # Script for training models
 
 ## Requirements
 
-The implementation works both on Linux and Windows.
+The implementation works both on Linux and Windows. 
 
 To setup an environment, run:
 
@@ -89,6 +91,11 @@ pip install -r requirements_unix.txt
 pip install -r requirements_windows.txt
 ```
 
+- On Euler, load the following modules: 
+```
+module load gcc/8.2.0 && module load python_gpu/3.9.9 && module load openmpi && module load eth_proxy
+```
+
 ## Datasets
 
 #### Available datasets
@@ -97,23 +104,21 @@ just need to specify the dataset name in the command line when training and
 our framework will automatically download the relevant dataset. Available 
 dataset names are:
 
->📋  TODO: Only keep the datasets that we need
-
 > * original: dataset used in the ETHZ CIL Road Segmentation 2022 Kaggle competition
-> * ext_original: "original" dataset, extended with 80 images scraped from Google Maps
-> * new_original: "original" dataset, with first 25 samples moved to end to form the validation split
-> * new_ext_original: "ext_original" dataset, with first 25 samples moved to end to form the validation split
-> * new_ext_original_oversampled: "ext_original" dataset, with second city class oversampled, and 
-first 25 sample moved to end to form the validation split
-> * original_aug_6: "original" dataset, 400x400 but with augmented training set using Preprocessor (x6)
-> * new_original_aug_6: Recreation of "original_aug_6" dataset, but with 25 samples from original dataset excluded from augmentation
-procedure to avoid data leakage
-> * ext_original_aug_6: Recreation of "original_aug_6" dataset, but with 80 additional samples scraped from Google Maps added before
-augmentation procedure, and with 25 samples from original dataset excluded from augmentation procedure 
-to avoid data leakage
-> * new_original_aug_6: Recreation of "original_aug_6" dataset, but with 80 additional samples scraped from Google Maps added before
-augmentation procedure, the second city class oversampled, and with 25 samples from original dataset excluded from
-augmentation procedure to avoid data leakage
+> * original_split_1: validation split 1 of original dataset (samples "satimage_0.png" to "satimage_24.png" from "original" dataset
+used as validation set)
+> * original_split_2: validation split 2 of original dataset (samples "satimage_25.png" to "satimage_49.png" from "original" dataset
+used as validation set)
+> * original_split_3: validation split 3 of original dataset (samples "satimage_50.png" to "satimage_74.png" from "original" dataset
+used as validation set)
+> * original_split_2_aug_6: validation split 2 of original dataset (samples "satimage_25.png" to "satimage_49.png" from "original" dataset used as validation set), with augmented training set using Preprocessor (x6)
+> * original_split_3_aug_6: validation split 3 of original dataset (samples "satimage_50.png" to "satimage_74.png" from "original" dataset used as validation set), with augmented training set using Preprocessor (x6)
+> * maps_filtered: hand-filtered dataset of 1597 satellite images screenshotted from Google Maps
+same 25 validation samples as in "new_original"
+> * maps_filtered_no_original_aug_6:  maps_filtered, without any original samples from the training set,
+400x400 but with augmented training set using Preprocessor (x6), same 25 validation samples as in "new_original"
+> * maps_filtered_aug_6:  maps_filtered, with 119 samples from the training set,
+400x400 but with augmented training set using Preprocessor (x6), same 25 validation samples as in "new_original"
 
 #### Custom datasets
 If you want to setup a custom dataset, simply place it in the 'dataset' folder,
@@ -141,7 +146,6 @@ command-line below under the `model-name` argument):
 - UNet++ (name: 'unet++')
 - UNetExp (name: 'unetexp')
 - UNet3+ (name: 'unet3+')
-- Attention UNet ('attunet')
 - Attention UNet++ ('attunet++')
 - GL Dense UNet ('gldenseunet')
 ```
@@ -154,6 +158,7 @@ command-line below under the `model-name` argument):
 - DeepLabV3+GAN (name: 'deeplabv3plusgan')
 - SegFormer (name: 'segformer')
 - TwoShotNet (name: 'twoshotnet')
+- Lawin (name: 'lawin')
 ```
 
 *Reinforcement Learning models (Torch)*
@@ -180,30 +185,41 @@ python main.py -d original -m deeplabv3 -E training_run --batch_size 4 --num_epo
 
 When a model is trained, checkpoints appear in the `checkpoints` folder.
 
-## Evaluation
+## Predicting
 
 #### Torch models
-To evaluate a Torch model, run:
+To output predictions using a Torch model, run:
 
 ```eval
 python torch_predictor.py -m <model-name> -c <checkpoint-name>
 ```
+You can add extra arguments:
+* `--floating_predictions`: to output non-thresholded value. If this is specified, also specify `--floating_output_dir <path/to/output/dir`
+* `--apply_sigmoid`: this must specified for the following models: UNet, CRANet, DeepLabV3, SegFormer
+* `--blob_threshold <integer>`: if specified, all 'blobs' with less than `<integer>` pixels will be removed from the segmentation
 
 #### Tensorflow models
-To evaluate a Tensorflow model, run:
+To output predictions using a Tensorflow model, run:
 
 ```eval
 python tf_predictor.py -m <model-name> -c <checkpoint-name>
 ```
+You can add extra arguments:
+* `--floating_predictions`: to output non-thresholded value. If this is specified, also specify `--floating_output_dir <path/to/output/dir`
+* `--blob_threshold <integer>`: if specified, all 'blobs' with less than `<integer>` pixels will be removed from the segmentation
+* `--saliency`: if specified, saliency maps are outputted to the `saliency_maps` directory
 
 #### RL models
-To evaluate an RL model, run:
+To output predictions using an RL model, run:
 
 ```eval
 python todo
 ```
 
 The predictions appear in the `output_preds` directory
+
+## The RL Framework
+![The walker algorithm](http://kamui-interactive.com/wp-content/uploads/2022/07/walker_test_5.gif)
 
 ## Reproducibility
 
@@ -262,22 +278,23 @@ python todo
 
 ## Pre-trained Models
 
->📋 TODO should we make available some pretrained models?
-
 You can download pretrained models here:
 
-- [Pretrained model name 1](https://drive.google.com/mymodel.pth) trained on 'blabla' using parameters 'blabla'. 
+- Models used for the final submission:
+  - [Lawin 1](https://polybox.ethz.ch/index.php/s/VI7G1l0B2SkKI3N/download) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
+  - [Lawin 2](/download) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
+  - [Lawin 3](/download) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
 
 ## Results
 
 Our models achieve the following performance on the 'original' dataset:
 
-| Model name         | F1-Score  | Weighted F1-Score |
-| ------------------ |---------------- |------------------|
-| UNet Exp  |     0.999         |          1         |
-| Submission ensemble  |     0.998         |           1        |
+| Model name           | Road F1-Score     | Macro F1-Score     | Weighted F1-Score |
+| -------------------- | ----------------- | ------------------ | ----------------- |
+| UNet Exp             |     0.999         |          1         |         1         |
+| Submission ensemble  |     0.998         |          1         |         1         |
 
-Our model '<insert-name>' Achieved an F1-Score of <insert-score> on the Kaggle competition, granting us the `x'th` position on the Leaderboard. 
+Our ensemble of Lawin models extensively pretrained on the scraped dataset ("maps_filtered") and fine-tuned on the original dataset ("original_split_1", "original_split_2", "original_split_3") achieved an F1-Score of `0.93737` on the Kaggle competition, granting us the `3rd` position on the Leaderboard. 
 
 ## References
 

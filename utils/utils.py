@@ -1,6 +1,8 @@
 """
-This file absolutely has to be in a subdirectory of the root directory of the project, because of the ROOT_DIR value
-DO NOT MOVE!
+! DO NOT MOVE ! (because of the ROOT_DIR value)
+
+This file contains global variables, Information on the Datasets and MlFlow, as well as usefull helper functions used
+throughout the framework.
 """
 
 import math
@@ -27,6 +29,7 @@ DEFAULT_NUM_SAMPLES_TO_VISUALIZE = 36
 DEFAULT_BLOBS_REMOVAL_THRESHOLD = 100
 DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT = 0.88  # refers to weighted F1 score
 DEFAULT_TF_INPUT_SHAPE = (400, 400, 3)
+OFFSET_FOR_SAVING_IMAGES = 144
 
 # Contains the URLs where our datasets are stored, as well as a short description for each dataset
 DATASET_ZIP_URLS = {
@@ -156,7 +159,7 @@ DATASET_ZIP_URLS = {
     # 400x400 but with augmented training set using Preprocessor (x6)
     # same 25 validation samples as in "new_original", "maps_filtered", etc.
     # use split of 0.9978 to use exactly these 25 samples as the validation set
-    "maps_filtered_aug_6": "https://polybox.ethz.ch/index.php/s/0m6ZC866JNqcrU5/download"
+    "maps_filtered_aug_6": "https://polybox.ethz.ch/index.php/s/UgTKjrRImltvLQl/download"
 }
 DATASET_STATS = {
 'original': {

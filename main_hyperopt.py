@@ -2,10 +2,9 @@
 Hyperopt runner file. Looks for the "--search_space" or "-s" command line argument to determine the
 feature_space in 'hyperopt/param_spaces_[...]/' to use, then passes the remaining command line arguments to the Hyperparameter optimizer.
 """
-
 import argparse
-from contextlib import redirect_stderr, redirect_stdout
 
+from contextlib import redirect_stderr, redirect_stdout
 from hyperopt_ import *
 from utils import *
 

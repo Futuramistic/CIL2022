@@ -3,7 +3,6 @@ from .trainer_tf import TFTrainer
 from .trainer_torch import TorchTrainer
 
 from .TF.attunetplusplus_tf_trainer import AttUNetPlusPlusTrainer
-from .TF.attunet_tf_trainer import AttUNetTrainer
 from .TF.gldenseunet_tf_trainer import GLDenseUNetTrainer
 from .TF.unetplusplus_tf_trainer import UNetPlusPlusTrainer
 from .TF.unet_tf_trainer import UNetTFTrainer

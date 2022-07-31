@@ -1,8 +1,12 @@
+"""
+All losses take as input the groundtruth and the prediction tensors and output the loss 
+value if not stated otherwise.
+"""
 import tensorflow as tf
 import keras.backend as K
 
 
-def FocalLoss(alpha=.25, gamma=2., logits=False):
+def FocalLossTF(alpha=.25, gamma=2., logits=False):
     """
     Focal Loss implentation. Refer to Paper: https://arxiv.org/pdf/1708.02002.pdf for more information
     Args:

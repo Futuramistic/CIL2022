@@ -1,14 +1,12 @@
-from keras.layers import *
-import tensorflow.keras as K
-
-from .blocks import *
-from utils import *
-
-
 """
 UNet++ model
 Refer to https://github.com/MrGiovanni/UNetPlusPlus for more details
 """
+import tensorflow.keras as K
+
+from keras.layers import *
+from .blocks import *
+from utils import *
 
 
 def UNetPlusPlusTF(input_shape=DEFAULT_TF_INPUT_SHAPE,
