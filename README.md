@@ -278,8 +278,6 @@ python todo
 
 ## Pre-trained Models
 
->📋 TODO should we make available some pretrained models?
-
 You can download pretrained models here:
 
 - [Pretrained model name 1](https://drive.google.com/mymodel.pth) trained on 'blabla' using parameters 'blabla'. 
@@ -293,7 +291,7 @@ Our models achieve the following performance on the 'original' dataset:
 | UNet Exp  |     0.999         |          1         |
 | Submission ensemble  |     0.998         |           1        |
 
-Our model '<insert-name>' Achieved an F1-Score of <insert-score> on the Kaggle competition, granting us the `x'th` position on the Leaderboard. 
+Our ensemble of Lawin models extensively pretrained on the scraped dataset and fine-tuned on the original dataset ("original_split_1", "original_split_2", "original_split_3") achieved an F1-Score of `0.93737` on the Kaggle competition, granting us the `3rd` position on the Leaderboard. 
 
 ## References
 
