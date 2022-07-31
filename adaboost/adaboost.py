@@ -7,15 +7,6 @@ import os
 import pickle
 import numpy as np
 import time
-
-# in order to fix some tensorflow issue for the dataloader weighting
-from tensorflow.compat.v1 import ConfigProto
-from tensorflow.compat.v1 import InteractiveSession
-from utils.utils import CHECKPOINTS_DIR, SESSION_ID
-def fix_gpu():
-    config = ConfigProto()
-    config.gpu_options.allow_growth = True
-    session = InteractiveSession(config=config)
     
 SMOL = 2e-5
 DEFAULT_MONOBOOST_TEMPERATURE = 0.0001
@@ -41,8 +32,6 @@ class AdaBooster:
         self.monoboost = monoboost
         self.monoboost_temperature = monoboost_temperature
         self.is_debug = is_debug
-
-        fix_gpu()
         
         # Create the dataloader using the commandline arguments
         self.dataloader = factory.get_dataloader_class()(**dataloader_spec_args)
