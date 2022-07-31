@@ -27,7 +27,7 @@ class TFTrainer(Trainer, abc.ABC):
                  optimizer_or_lr=None, loss_function=None, loss_function_hyperparams=None, evaluation_interval=None,
                  num_samples_to_visualize=None, checkpoint_interval=None, load_checkpoint_path=None,
                  segmentation_threshold=None, use_channelwise_norm=False, blobs_removal_threshold=0,
-                 hyper_seg_threshold=False, use_sample_weighting=False, use_adaboost=False, deep_adaboost=False,
+                 hyper_seg_threshold=False, use_sample_weighting=False, use_adaboost=False, monoboost=False,
                  f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
         """
         Initializes a Tensorflow trainer
@@ -41,7 +41,7 @@ class TFTrainer(Trainer, abc.ABC):
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
                          blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting,
-                         use_adaboost, deep_adaboost, f1_threshold_to_log_checkpoint)
+                         use_adaboost, monoboost, f1_threshold_to_log_checkpoint)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.steps_per_training_epoch = steps_per_training_epoch
@@ -369,7 +369,7 @@ class TFTrainer(Trainer, abc.ABC):
     def get_F1_scores_validation(self):
         """
         Compute the F1 score on the validation set
-        used e.g. in Deep AdaBoost to determine the next sample weight
+        used e.g. in MonoBoost to determine the next sample weight
         """
         test_loader = self.dataloader.get_testing_dataloader(batch_size=1,
                                                              preprocessing=self.preprocessing)

@@ -27,7 +27,7 @@ class TorchTrainer(Trainer, abc.ABC):
                  evaluation_interval=None, num_samples_to_visualize=None, checkpoint_interval=None,
                  load_checkpoint_path=None, segmentation_threshold=None, use_channelwise_norm=False,
                  blobs_removal_threshold=0, hyper_seg_threshold=False, use_sample_weighting=False, use_adaboost=False,
-                 deep_adaboost=False, f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
+                 monoboost=False, f1_threshold_to_log_checkpoint=DEFAULT_F1_THRESHOLD_TO_LOG_CHECKPOINT):
         """
         Initializes a Torch Trainer
         Args:
@@ -42,7 +42,7 @@ class TorchTrainer(Trainer, abc.ABC):
                          loss_function, loss_function_hyperparams, evaluation_interval, num_samples_to_visualize,
                          checkpoint_interval, load_checkpoint_path, segmentation_threshold, use_channelwise_norm,
                          blobs_removal_threshold, hyper_seg_threshold, use_sample_weighting, use_adaboost,
-                         deep_adaboost, f1_threshold_to_log_checkpoint)
+                         monoboost, f1_threshold_to_log_checkpoint)
         # these attributes must also be set by each TFTrainer subclass upon initialization:
         self.preprocessing = preprocessing
         self.scheduler = scheduler
@@ -426,7 +426,7 @@ class TorchTrainer(Trainer, abc.ABC):
     def get_F1_scores_validation(self):
         """
         Compute the F1 score on the validation set
-        used e.g. in Deep AdaBoost to determine the next sample weight
+        used e.g. in MonoBoost to determine the next sample weight
         Returns
             f1 weighted scores for each sample (List[float])
         """

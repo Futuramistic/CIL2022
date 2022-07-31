@@ -52,9 +52,6 @@ Debugging:
         }
     ]
 }
-# Deeplabv3 adaboost
-`python main.py --model=deeplabv3 --dataset=original --batch_size=2 --split=0.03 --evaluation_interval=1 -E=DeepLabV3Adaboost --optimizer_or_lr=1e-4 --num_epochs=2 --checkpoint_interval=1 --hyper_seg_threshold=True --use_adaboost=True --adaboost_runs=2 --evaluate --apply_sigmoid=False --blob_threshold=0.0`
-
 # Debugging adaboost with launch.json
 {
     "version": "0.2.0",
@@ -92,7 +89,7 @@ Debugging:
 `bsub -n 1 -W 75:00 -R "rusage[ngpus_excl_p=1, mem=10000]" -R "select[gpu_model0==NVIDIAGeForceGTX1080]" "python main.py -m=deeplabv3 --use_adaboost=True --adaboost_runs=10 --dataset=original_split_1 -E DeepLabV3AdaboostFinal --split=0.827 --num_epochs=75 --checkpoint_interval=25 --hyper_seg_threshold=True --optimizer_or_lr=0.0002 --use_geometric_augmentation=True --use_color_augmentation=True"`
 
 # SegFormer Run on Euler with Adaboost
-`bsub -n 1 -W 75:00 -R "rusage[ngpus_excl_p=1, mem=25000]" -R "select[gpu_model0==NVIDIAGeForceGTX1080]" "python main.py -m=segformer --use_adaboost=True --adaboost_runs=10 --dataset=original_split_1 -E SegFormerAdaboost12345 --split=0.827 --num_epochs=260 --checkpoint_interval=100000 --hyper_seg_threshold=True --optimizer_or_lr=0.0005 --batch_size=2 --use_geometric_augmentation=True --use_color_augmentation=True --blobs_removal_threshold=0 --hyper_seg_threshold=True"`
+`bsub -n 1 -W 75:00 -R "rusage[ngpus_excl_p=1, mem=25000]" -R "select[gpu_model0==NVIDIAGeForceGTX1080]" "python main.py -m=segformer --use_adaboost=True --adaboost_runs=10 --dataset=original_split_1 -E SegFormerAdaboost12345 --split=0.827 --num_epochs=260 --checkpoint_interval=100000 --hyper_seg_threshold=True --optimizer_or_lr=0.0005 --batch_size=2 --use_geometric_augmentation=True --use_color_augmentation=True --blobs_removal_threshold=0 --hyper_seg_threshold=True --evaluate"`
 
 # UnetExp on Euler with Adaboost (sadly only bs=1 possible)
 `bsub -n 1 -W 75:00 -R "rusage[ngpus_excl_p=1, mem=28000]" -R "select[gpu_model0==NVIDIAGeForceGTX1080]" "python main.py --model=unetexp --dataset=new_original_aug_6 --split=0.971 --batch_size=2 --blobs_removal_threshold=0 --use_geometric_augmentation=True --use_color_augmentation=False --dropout=0.0 --num_epochs=100 --optimizer_or_lr=0.001 --hyper_seg_threshold=False --input_shape=[400,400,3] --architecture='vgg' --experiment_name=UnetExpAdaboost --normalize=True --dropout=0.0 --kernel_regularizer=\(None\) --load_checkpoint_path=sftp://mlflow_user:waiMohu749@algvrithm.com:22/mlruns/169/37ab12b7fd784ab2931a9010e082027d/artifacts/checkpoints/cp_best_f1.ckpt --use_adaboost=True --adaboost_runs=10"`

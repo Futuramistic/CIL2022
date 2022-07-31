@@ -20,8 +20,8 @@ def fix_gpu():
 SMOL = 2e-5
 
 class AdaBooster:
-    def __init__(self, factory, known_args_dict, unknown_args_dict,  model_spec_args, trainer_spec_args, dataloader_spec_args, deep_adaboost, is_debug):
-        """An Adaboost class for performing the classical adaboost algorithm. The evaluation parameter will create the submission files on
+    def __init__(self, factory, known_args_dict, unknown_args_dict,  model_spec_args, trainer_spec_args, dataloader_spec_args, monoboost, is_debug):
+        """An Adaboost class for performing the classical adaboost algorithm and other variants, such as the MonoBoost. The evaluation parameter will create the submission files on
         the test data set.
         Note that it is necessary to call each new adaboost experiment by a separate experiment name, otherwise the previous experiment
         will be loaded and continued
@@ -36,7 +36,7 @@ class AdaBooster:
         self.model_args = model_spec_args
         self.trainer_args = trainer_spec_args
         self.dataloader_args = dataloader_spec_args
-        self.deep_adaboost = deep_adaboost
+        self.monoboost = monoboost
         self.is_debug = is_debug
 
         fix_gpu()
@@ -85,9 +85,9 @@ class AdaBooster:
         if curr_run_idx > 0:
             self.dataloader.weights_set = True
 
-        DEEP_ADABOOST_TEMPERATURE = 0.2  # quicker decay
+        MONOBOOST_TEMPERATURE = 0.2  # quicker decay
 
-        if self.deep_adaboost:
+        if self.monoboost:
             # calculate the val sample -- train sample similarities once
 
             dataset_name = self.dataloader.dataset
@@ -139,9 +139,9 @@ class AdaBooster:
                             sample_distances[train_x_filename][test_x_filename]
                     
                     training_sample_weights_for_validation_samples[test_idx] = (
-                        np.exp(-training_sample_weights_for_validation_samples[test_idx] / DEEP_ADABOOST_TEMPERATURE) /
+                        np.exp(-training_sample_weights_for_validation_samples[test_idx] / MONOBOOST_TEMPERATURE) /
                         np.sum(np.exp(-training_sample_weights_for_validation_samples[test_idx]))
-                               / DEEP_ADABOOST_TEMPERATURE)
+                               / MONOBOOST_TEMPERATURE)
                 
                 print('Val sample -- train sample distances calculated')
                 with open(val_sample_train_sample_dist_path, 'wb') as f:
@@ -152,7 +152,7 @@ class AdaBooster:
              # snapshot zip name and session ID don't have to be set, as code doesn't change
             CHECKPOINTS_DIR = os.path.join("checkpoints", str(int(time.time() * 1000)))
             
-            if not self.deep_adaboost:
+            if not self.monoboost:
                 # Create the model using the commandline arguments
                 model = self.factory.get_model_class()(**self.model_args)
                 
@@ -161,13 +161,13 @@ class AdaBooster:
                 trainer = trainer_class(dataloader=self.dataloader, model=model,
                                         **self.trainer_args)
             
-            # simply keep using old model if we're using deep adaboost
+            # simply keep using old model if we're using MonoBoost
 
             trainer.best_f1_score = -1.0
 
             # adapt the mlflow experiment name for each new model
             old_run_name = trainer.mlflow_experiment_name
-            new_run_name = ("AdaBoost_" if not self.deep_adaboost else "Deep_AdaBoost_") + f"{str(old_run_name)}_Run_{curr_run_idx}" if old_run_name is not None else f"Run_{curr_run_idx}"
+            new_run_name = ("AdaBoost_" if not self.monoboost else "MonoBoost_") + f"{str(old_run_name)}_Run_{curr_run_idx}" if old_run_name is not None else f"Run_{curr_run_idx}"
             trainer.mlflow_experiment_name = new_run_name
             
             trainer.train()
@@ -182,7 +182,7 @@ class AdaBooster:
             self.model_weights.append(f1_eval)
             
                 
-            if self.deep_adaboost:
+            if self.monoboost:
                 dataset_name = self.dataloader.dataset
                 
                 # loop through all train samples for one epoch; shuffling will not affect us as long as we know the sample indices
