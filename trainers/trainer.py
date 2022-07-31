@@ -8,7 +8,7 @@ import requests
 import shutil
 import socket
 import numpy as np
-import tensorflow.keras as K_back
+import tensorflow.keras as K_tf
 
 from losses import *
 from requests.auth import HTTPBasicAuth
@@ -431,4 +431,4 @@ class Trainer(abc.ABC):
             arr.append(row)
         # Concatenate in the second-to-last dimension to get the final big image
         final = np.concatenate(arr, axis=-2)
-        K_back.utils.save_img(file_path, segmentation_to_image(final), data_format="channels_first")
+        K_tf.utils.save_img(file_path, segmentation_to_image(final), data_format="channels_first")
