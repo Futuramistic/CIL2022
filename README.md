@@ -281,9 +281,9 @@ python todo
 You can download pretrained models here:
 
 - Models used for the final submission:
-  - [Lawin 1](https://drive.google.com/mymodel.pth) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
-  - [Lawin 2](https://drive.google.com/mymodel.pth) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
-  - [Lawin 3](https://drive.google.com/mymodel.pth) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
+  - [Lawin 1](https://polybox.ethz.ch/index.php/s/VI7G1l0B2SkKI3N/download) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
+  - [Lawin 2](/download) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
+  - [Lawin 3](/download) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
 
 ## Results
 
