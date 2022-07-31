@@ -1,8 +1,8 @@
-# format: model name followed by colon, then one checkpoint path on each line
+# format: model name followed by colon, then one checkpoint path on each line (SFTP or local path)
 #
 # example:
 #
 # unetexp:
 # sftp://mlflow_user:waiMohu749@algvrithm.com:22/mlruns/169/a2212d4570264840bd459dbf91b6b924/artifacts/checkpoints/cp_final.ckpt
 # sftp://mlflow_user:waiMohu749@algvrithm.com:22/mlruns/169/a2212d4570264840bd459dbf91b6b924/artifacts/checkpoints/cp_best_val_loss.ckpt
-
+# path/to/local/checkpoint.ckpt
