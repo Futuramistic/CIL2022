@@ -298,7 +298,9 @@ You can download pretrained models here:
 - Models used for the final submission:
   - [Lawin 1](https://polybox.ethz.ch/index.php/s/VI7G1l0B2SkKI3N/download) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
   - [Lawin 2](https://polybox.ethz.ch/index.php/s/UDgZiDWdUt8Yof0/download) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
-  - [Lawin 3](/download) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
+  - [Lawin 3](https://polybox.ethz.ch/index.php/s/Au4PRgKZynB16wG/download) trained on "maps_filtered" and fine-tuned on "original_split_1", "original_split_2" and "original_split_3"
+- U-NetExp model:
+  - [U-Net Exp](/download) trained on "maps_filtered_aug_6"
 
 ## Results
 
