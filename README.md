@@ -107,23 +107,23 @@ dataset names are:
 >📋  TODO: Only keep the datasets that we need
 
 > * original: dataset used in the ETHZ CIL Road Segmentation 2022 Kaggle competition
-> * ext_original: "original" dataset, extended with 80 images scraped from Google Maps
-> * new_original: "original" dataset, with first 25 samples moved to end to form the validation split
-> * new_ext_original: "ext_original" dataset, with first 25 samples moved to end to form the validation split
-> * new_ext_original_oversampled: "ext_original" dataset, with second city class oversampled, and 
-first 25 sample moved to end to form the validation split
-> * original_aug_6: "original" dataset, 400x400 but with augmented training set using Preprocessor (x6)
-> * new_original_aug_6: Recreation of "original_aug_6" dataset, but with 25 samples from original dataset excluded from augmentation
-procedure to avoid data leakage
-> * ext_original_aug_6: Recreation of "original_aug_6" dataset, but with 80 additional samples scraped from Google Maps added before
-augmentation procedure, and with 25 samples from original dataset excluded from augmentation procedure 
-to avoid data leakage
-> * new_original_aug_6: Recreation of "original_aug_6" dataset, but with 80 additional samples scraped from Google Maps added before
-augmentation procedure, the second city class oversampled, and with 25 samples from original dataset excluded from
-augmentation procedure to avoid data leakage
-> * ext_original_aug_6:  Recreation of "original_aug_6" dataset, but with 80 additional samples scraped from Google Maps added before 
-augmentation procedure, and with 25 samples from original dataset excluded from augmentation procedure
-to avoid data leakage
+[//]: > * ext_original: "original" dataset, extended with 80 images scraped from Google Maps
+[//]: > * new_original: "original" dataset, with first 25 samples moved to end to form the validation split
+[//]: > * new_ext_original: "ext_original" dataset, with first 25 samples moved to end to form the validation split
+[//]: > * new_ext_original_oversampled: "ext_original" dataset, with second city class oversampled, and 
+[//]: first 25 sample moved to end to form the validation split
+[//]: > * original_aug_6: "original" dataset, 400x400 but with augmented training set using Preprocessor (x6)
+[//]: > * new_original_aug_6: "original" dataset augmented x6 using Preprocessor, but with 25 samples from original dataset excluded from augmentation
+[//]: procedure to avoid data leakage
+[//]: > * ext_original_aug_6:  "original" dataset augmented x6 using Preprocessor, but with 80 additional samples scraped from Google Maps added before
+[//]: augmentation procedure, and with 25 samples from original dataset excluded from augmentation procedure 
+[//]: to avoid data leakage
+[//]: > * new_original_aug_6: "original" dataset augmented x6 using Preprocessor, but with 80 additional samples scraped from Google Maps added before
+[//]: augmentation procedure, the second city class oversampled, and with 25 samples from original dataset excluded from
+[//]: augmentation procedure to avoid data leakage
+[//]: > * ext_original_aug_6:  "original" dataset augmented x6 using Preprocessor, but with 80 additional samples scraped from Google Maps added before 
+[//]: augmentation procedure, and with 25 samples from original dataset excluded from augmentation procedure
+[//]: to avoid data leakage
 > * original_split_1: validation split 1 of original dataset (samples "satimage_0.png" to "satimage_24.png" from "original" dataset
 used as validation set)
 > * original_split_2: validation split 2 of original dataset (samples "satimage_25.png" to "satimage_49.png" from "original" dataset
