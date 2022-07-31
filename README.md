@@ -247,12 +247,22 @@ python todo
 ```reproduce
 python todo
 ```
+6) Lawin:
+
+To obtain thes results, first pre-train model:
+```
+python main.py --model=lawin --dataset=maps_filtered --split=0.9846 -E=Lawin --num_epochs=5000 --checkpoint_interval=500 --hyper_seg_threshold=False '--run_name=Pretrain on maps_filtered' --use_geometric_augmentation=True --use_color_augmentation=True --blobs_removal_threshold=0 --use_channelwise_norm=True --backbone_name=mit_bfive
+```
+Then, to finetune on one of the split datasets, run this command with checkpoint provided in the --load_checkpoint_path argument
+```
+python main.py --model=lawin --dataset=original_split_1 --split=0.827 -E=Lawin --num_epochs=5000 --checkpoint_interval=100000 --hyper_seg_threshold=False '--run_name=Finetune on original_split_1 (pretrained on maps_filtered)' --use_geometric_augmentation=True --use_color_augmentation=True --blobs_removal_threshold=0 --use_channelwise_norm=True --backbone_name=mit_bfive --load_checkpoint_path=<MODEL/URL/OR/PATH/HERE>
+```
 
 #### Our Contributions
 
 1) UNet Exp:
 ```reproduce
-python todo
+python main.py --model=
 ```
 2) RL Seg:
 ```reproduce
