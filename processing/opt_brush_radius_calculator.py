@@ -12,8 +12,15 @@ from PIL import Image
 from tqdm import tqdm
 import shutil
 
+from data_handling import DataLoader
+
 
 def run_cpu_tasks_in_parallel(tasks):
+    """
+    Run the specified tasks in parallel
+    Args:
+        tasks (list of Function): tasks to run
+    """
     # adapted from https://stackoverflow.com/a/56138825
     running_tasks = [Process(target=task) for task in tasks]
     for running_task in running_tasks:
@@ -23,6 +30,12 @@ def run_cpu_tasks_in_parallel(tasks):
 
 
 def process_imgs(file_names, dataset_path):
+    """
+    Calculate optimal brush radius pickle files from training images of the specified dataset for the supervised reinforcement learning setting
+    Args:
+        file_names (list of str): list of training files
+        dataset_path (str): path to dataset to process
+    """
     for file_name in file_names:
         image = cv2.imread(os.path.join(dataset_path, 'training', 'groundtruth', file_name))
         dims = (image.shape[0], image.shape[1])
@@ -84,17 +97,22 @@ def process_imgs(file_names, dataset_path):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--dataset', required=True, type=str, help='Name of the dataset to process')
+    parser.add_argument('-t', '--num_tasks', required=False, type=int, default=10,
+                        help='Number of tasks to run (samples to process) in parallel, '
+                             'upper-bounded by the number of CPU cores on this PC')
     options = parser.parse_args()
 
     dataset_name = options.dataset
-    dataset_path = os.path.join('dataset', dataset_name)
+    DataLoader._download_data(dataset_name=dataset_name) 
+    dataset_path = os.path.join('dataset', dataset_name)    
+
     optimal_brush_radius_dir = os.path.join(dataset_path, 'training', 'opt_brush_radius')
     os.makedirs(optimal_brush_radius_dir, exist_ok=True)
 
     imgs_to_process = list(filter(lambda fn: fn.lower().endswith('.png') and not os.path.exists(os.path.join(optimal_brush_radius_dir, fn.replace('.png', '.pkl'))),
                                   os.listdir(os.path.join(dataset_path, 'training', 'groundtruth'))))
     task_imgs = []
-    num_tasks = 10  #  cpu_count() - 1  # probably bad idea to use all cores, as numpy also parallelizes some computations
+    num_tasks = min(options.num_tasks, cpu_count())
     imgs_per_task_rounded = int(np.ceil(len(imgs_to_process) / num_tasks))
     num_handled_imgs = 0
     num_remaining_imgs = len(imgs_to_process)
@@ -104,11 +122,11 @@ if __name__ == '__main__':
         num_handled_imgs += num_task_imgs
         num_remaining_imgs = max(0, num_remaining_imgs - num_task_imgs)
     
-    # uncomment:
-
-    # serial processing:
-    # for task_idx in range(num_tasks):
-    #     process_imgs(task_imgs[task_idx], dataset_path)
-    
-    # parallel processing:
-    run_cpu_tasks_in_parallel([lambda task_idx=task_idx: process_imgs(task_imgs[task_idx], dataset_path) for task_idx in range(num_tasks)])
+    if num_tasks <= 1:
+        # serial processing:
+        for task_idx in range(num_tasks):
+            process_imgs(task_imgs[task_idx], dataset_path)
+    else:
+        # parallel processing:
+        run_cpu_tasks_in_parallel([lambda task_idx=task_idx: process_imgs(task_imgs[task_idx], dataset_path)
+                                    for task_idx in range(num_tasks)])
