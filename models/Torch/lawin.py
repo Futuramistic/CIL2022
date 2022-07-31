@@ -1,3 +1,5 @@
+# code adapted from https://github.com/yan-hao-tian/lawin and https://github.com/NVlabs/SegFormer
+
 from mmcv.cnn import ConvModule, NonLocal2d
 import torch
 import torch.nn as nn
@@ -10,8 +12,9 @@ from einops import rearrange
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from mmcv.runner import BaseModule, auto_fp16, force_fp32
 
-# do not remove these imports:
+# do not remove these imports, as these names need to be in score to construct the requested backbones
 from .segformer import mit_bone, mit_btwo, mit_bthree, mit_bfour, mit_bfive
+
 
 def resize(input,
            size=None,
@@ -19,6 +22,15 @@ def resize(input,
            mode='nearest',
            align_corners=None,
            warning=True):
+    """
+    Resize an input tensor to the given size.
+    Args:
+        size (list of int): (H, W) of desired output, or None to use scale_factor
+        scale_factor (float): scale factor of desired output, or None to use size
+        mode (str): interpolation mode, as in torch.nn.functional.interpolate
+        align_corners (bool): align_corners arg, as in torch.nn.functional.interpolate
+        warning: whether to issue a warning if the output and input sizes are chosen suboptimally
+    """
     if warning:
         if size is not None and align_corners:
             input_h, input_w = tuple(int(x) for x in input.shape[2:])
@@ -37,6 +49,63 @@ def resize(input,
     return F.interpolate(input, size, scale_factor, mode, align_corners)
 
 
+def accuracy(pred, target, topk=1, thresh=None, ignore_index=None):
+    """
+    Calculate accuracy according to the prediction and target.
+    Args:
+        pred (torch.Tensor): The model prediction, shape (N, num_class, ...)
+        target (torch.Tensor): The target of each prediction, shape (N, , ...)
+        ignore_index (int | None): The label index to be ignored. Default: None
+        topk (int | tuple[int], optional): If the predictions in ``topk``
+            matches the target, the predictions will be regarded as
+            correct ones. Defaults to 1.
+        thresh (float, optional): If not None, predictions with scores under
+            this threshold are considered incorrect. Default to None.
+    Returns:
+        float | tuple[float]: If the input ``topk`` is a single integer,
+            the function will return a single float as accuracy. If
+            ``topk`` is a tuple containing multiple integers, the
+            function will return a tuple containing accuracies of
+            each ``topk`` number.
+    """
+    assert isinstance(topk, (int, tuple))
+    if isinstance(topk, int):
+        topk = (topk, )
+        return_single = True
+    else:
+        return_single = False
+
+    maxk = max(topk)
+    if pred.size(0) == 0:
+        accu = [pred.new_tensor(0.) for i in range(len(topk))]
+        return accu[0] if return_single else accu
+    assert pred.ndim == target.ndim + 1
+    assert pred.size(0) == target.size(0)
+    assert maxk <= pred.size(1), \
+        f'maxk {maxk} exceeds pred dimension {pred.size(1)}'
+    pred_value, pred_label = pred.topk(maxk, dim=1)
+    # transpose to shape (maxk, N, ...)
+    pred_label = pred_label.transpose(0, 1)
+    correct = pred_label.eq(target.unsqueeze(0).expand_as(pred_label))
+    if thresh is not None:
+        # Only prediction values larger than thresh are counted as correct
+        correct = correct & (pred_value > thresh).t()
+    if ignore_index is not None:
+        correct = correct[:, target != ignore_index]
+    res = []
+    eps = torch.finfo(torch.float32).eps
+    for k in topk:
+        # Avoid causing ZeroDivisionError when all pixels
+        # of an image are ignored
+        correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True) + eps
+        if ignore_index is not None:
+            total_num = target[target != ignore_index].numel() + eps
+        else:
+            total_num = target.numel() + eps
+        res.append(correct_k.mul_(100.0 / total_num))
+    return res[0] if return_single else res
+
+
 class MLP(nn.Module):
     """
     Linear Embedding: github.com/NVlabs/SegFormer
@@ -46,6 +115,11 @@ class MLP(nn.Module):
         self.proj = nn.Linear(input_dim, embed_dim)
 
     def forward(self, x):
+        """
+        Calculate the output for the input tensor
+        Args:
+            x (torch.Tensor): input tensor
+        """
         x = x.flatten(2).transpose(1, 2)
         x = self.proj(x)
         return x
@@ -56,6 +130,15 @@ class PatchEmbed(nn.Module):
     Patch Embedding: github.com/SwinTransformer/
     """
     def __init__(self, proj_type='pool', patch_size=4, in_chans=3, embed_dim=96, norm_layer=None):
+        """
+        Constructor
+        Args:
+            proj_type (str): type of projection ("conv" or "pool")
+            patch_size (int): patch size
+            in_chans (int): number of channels in input image
+            embed_dim (int): dimension of embedding
+            norm_layer (class): class to construct normalization layer
+        """
         super().__init__()
         patch_size = to_2tuple(patch_size)
         self.proj_type = proj_type
@@ -76,7 +159,11 @@ class PatchEmbed(nn.Module):
             self.norm = None
 
     def forward(self, x):
-        """Forward function."""
+        """
+        Calculate the output for the input tensor
+        Args:
+            x (torch.Tensor): input tensor
+        """
         # padding
         _, _, H, W = x.size()
         if W % self.patch_size[1] != 0:
@@ -96,9 +183,18 @@ class PatchEmbed(nn.Module):
             x = x.transpose(1, 2).view(-1, self.embed_dim, Wh, Ww)
         return x
 
+
 class LawinAttn(NonLocal2d):
-    def __init__(self, *arg, head=1,
-            patch_size=None, **kwargs):
+    """
+    Lawin Attention Module: https://github.com/yan-hao-tian/lawin
+    """
+    def __init__(self, *arg, head=1, patch_size=None, **kwargs):
+        """
+        Constructor
+        Args:
+            head (int): number of heads
+            patch_size (int): patch size
+        """
         super().__init__(*arg, **kwargs)
         self.head = head
         self.patch_size = patch_size
@@ -107,6 +203,12 @@ class LawinAttn(NonLocal2d):
             self.position_mixing = nn.ModuleList([nn.Linear(patch_size*patch_size, patch_size*patch_size) for _ in range(self.head)])
 
     def forward(self, query, context):
+        """
+        Calculate the output for the input tensor (see Lawin paper)
+        Args:
+            query (torch.Tensor): query input tensor
+            context (torch.Tensor): context input tensor
+        """
         # x: [N, C, H, W]
         
         n = context.size(0)
@@ -163,64 +265,9 @@ class LawinAttn(NonLocal2d):
         return output
 
 
-def accuracy(pred, target, topk=1, thresh=None, ignore_index=None):
-    """Calculate accuracy according to the prediction and target.
-    Args:
-        pred (torch.Tensor): The model prediction, shape (N, num_class, ...)
-        target (torch.Tensor): The target of each prediction, shape (N, , ...)
-        ignore_index (int | None): The label index to be ignored. Default: None
-        topk (int | tuple[int], optional): If the predictions in ``topk``
-            matches the target, the predictions will be regarded as
-            correct ones. Defaults to 1.
-        thresh (float, optional): If not None, predictions with scores under
-            this threshold are considered incorrect. Default to None.
-    Returns:
-        float | tuple[float]: If the input ``topk`` is a single integer,
-            the function will return a single float as accuracy. If
-            ``topk`` is a tuple containing multiple integers, the
-            function will return a tuple containing accuracies of
-            each ``topk`` number.
-    """
-    assert isinstance(topk, (int, tuple))
-    if isinstance(topk, int):
-        topk = (topk, )
-        return_single = True
-    else:
-        return_single = False
-
-    maxk = max(topk)
-    if pred.size(0) == 0:
-        accu = [pred.new_tensor(0.) for i in range(len(topk))]
-        return accu[0] if return_single else accu
-    assert pred.ndim == target.ndim + 1
-    assert pred.size(0) == target.size(0)
-    assert maxk <= pred.size(1), \
-        f'maxk {maxk} exceeds pred dimension {pred.size(1)}'
-    pred_value, pred_label = pred.topk(maxk, dim=1)
-    # transpose to shape (maxk, N, ...)
-    pred_label = pred_label.transpose(0, 1)
-    correct = pred_label.eq(target.unsqueeze(0).expand_as(pred_label))
-    if thresh is not None:
-        # Only prediction values larger than thresh are counted as correct
-        correct = correct & (pred_value > thresh).t()
-    if ignore_index is not None:
-        correct = correct[:, target != ignore_index]
-    res = []
-    eps = torch.finfo(torch.float32).eps
-    for k in topk:
-        # Avoid causing ZeroDivisionError when all pixels
-        # of an image are ignored
-        correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True) + eps
-        if ignore_index is not None:
-            total_num = target[target != ignore_index].numel() + eps
-        else:
-            total_num = target.numel() + eps
-        res.append(correct_k.mul_(100.0 / total_num))
-    return res[0] if return_single else res
-
-
 class BaseDecodeHead(BaseModule):
-    """Base class for BaseDecodeHead.
+    """
+    Base class for BaseDecodeHead.
     Args:
         in_channels (int|Sequence[int]): Input channels.
         channels (int): Channels after modules, before conv_seg.
@@ -278,6 +325,28 @@ class BaseDecodeHead(BaseModule):
                  align_corners=False,
                  init_cfg=dict(
                      type='Normal', std=0.01, override=dict(name='conv_seg'))):
+        """
+            Constructor
+            Args:
+                in_channels (int): number of input channels
+                channels (int): channels of intermediate embedding
+                num_classes (int): number of output classes
+                dropout_ratio (float): dropout rate to apply to intermediate embedding
+                conv_cfg (dict): dict with configuration for conv layers (mmsegmentation-style)
+                norm_cfg (dict): dict with configuration for norm layers (mmsegmentation-style)
+                norm_cfg (dict): dict with configuration for activation function (mmsegmentation-style)
+                loss_decode (dict): ignored
+                in_index (int|Sequence[int]): input feature index from backbone
+                input_transform (str): transformation type of input features
+                                       options: 'resize_concat', 'multiple_select', None.
+                                                'resize_concat': Multiple feature maps will be resize to the
+                                                                 same size as first one and than concat together.
+                                                                 Usually used in FCN head of HRNet.
+                ignore_index (int): ignored
+                sampler (dict): ignored
+                align_corners (bool): align_corners arg, as in torch.nn.functional.interpolate
+                init_cfg (dict): dict with configuration for layer initialization (mmsegmentation-style)
+        """
         super(BaseDecodeHead, self).__init__(init_cfg)
         self._init_inputs(in_channels, in_index, input_transform)
         self.channels = channels
@@ -291,23 +360,8 @@ class BaseDecodeHead(BaseModule):
         self.ignore_index = ignore_index
         self.align_corners = align_corners
 
-        #if isinstance(loss_decode, dict):
-        #    self.loss_decode = build_loss(loss_decode)
-        #elif isinstance(loss_decode, (list, tuple)):
-        #    self.loss_decode = nn.ModuleList()
-        #    for loss in loss_decode:
-        #        self.loss_decode.append(build_loss(loss))
-        #else:
-        #    raise TypeError(f'loss_decode must be a dict or sequence of dict,\
-        #        but got {type(loss_decode)}')
-
         self.loss_decode = nn.CrossEntropyLoss()
         self.loss_decode.loss_name = 'CrossEntropyLoss'
-
-        #if sampler is not None:
-        #    self.sampler = build_pixel_sampler(sampler, context=self)
-        #else:
-        #    self.sampler = None
 
         self.conv_seg = nn.Conv2d(channels, num_classes, kernel_size=1)
         if dropout_ratio > 0:
@@ -317,14 +371,15 @@ class BaseDecodeHead(BaseModule):
         self.fp16_enabled = False
 
     def extra_repr(self):
-        """Extra repr."""
+        """Extra repr"""
         s = f'input_transform={self.input_transform}, ' \
             f'ignore_index={self.ignore_index}, ' \
             f'align_corners={self.align_corners}'
         return s
 
     def _init_inputs(self, in_channels, in_index, input_transform):
-        """Check and initialize input transforms.
+        """
+        Check and initialize input transforms
         The in_channels, in_index and input_transform must match.
         Specifically, when input_transform is None, only single feature map
         will be selected. So in_channels and in_index must be of type int.
@@ -341,7 +396,6 @@ class BaseDecodeHead(BaseModule):
                     a list and passed into decode head.
                 None: Only one select feature map is allowed.
         """
-
         if input_transform is not None:
             assert input_transform in ['resize_concat', 'multiple_select']
         self.input_transform = input_transform
@@ -360,7 +414,8 @@ class BaseDecodeHead(BaseModule):
             self.in_channels = in_channels
 
     def _transform_inputs(self, inputs):
-        """Transform inputs for decoder.
+        """
+        Transform inputs for decoder
         Args:
             inputs (list[Tensor]): List of multi-level img features.
         Returns:
@@ -386,11 +441,12 @@ class BaseDecodeHead(BaseModule):
 
     @auto_fp16()
     def forward(self, inputs):
-        """Placeholder of forward function."""
+        """Placeholder of forward function"""
         pass
 
     def forward_train(self, inputs, img_metas, gt_semantic_seg, train_cfg):
-        """Forward function for training.
+        """
+        Forward function for training
         Args:
             inputs (list[Tensor]): List of multi-level img features.
             img_metas (list[dict]): List of image info dict where each dict
@@ -409,7 +465,7 @@ class BaseDecodeHead(BaseModule):
         return losses
 
     def forward_test(self, inputs, img_metas, test_cfg):
-        """Forward function for testing.
+        """Forward function for testing
         Args:
             inputs (list[Tensor]): List of multi-level img features.
             img_metas (list[dict]): List of image info dict where each dict
@@ -424,7 +480,7 @@ class BaseDecodeHead(BaseModule):
         return self.forward(inputs)
 
     def cls_seg(self, feat):
-        """Classify each pixel."""
+        """Classify each pixel"""
         if self.dropout is not None:
             feat = self.dropout(feat)
         output = self.conv_seg(feat)
@@ -432,7 +488,7 @@ class BaseDecodeHead(BaseModule):
 
     @force_fp32(apply_to=('seg_logit', ))
     def losses(self, seg_logit, seg_label):
-        """Compute segmentation loss."""
+        """Compute segmentation loss"""
         loss = dict()
         seg_logit = resize(
             input=seg_logit,
@@ -469,14 +525,31 @@ class BaseDecodeHead(BaseModule):
 
 
 class LawinHead(BaseDecodeHead):
+    """
+    Lawin head: https://github.com/yan-hao-tian/lawin
+    """
+
     def __init__(self, embed_dim=768, use_scale=True, reduction=2, **kwargs):
+        """
+        Constructor
+        Args:
+            embed_dim (int): dimension of intermediate embedding
+            use_scale (bool): whether to use scaling for the underlying non-local module
+                              (https://arxiv.org/abs/1711.07971)
+            reduction (int): channel reduction ratio for the underlying non-local module
+                             (https://arxiv.org/abs/1711.07971)
+        """
         super(LawinHead, self).__init__(
             input_transform='multiple_select', **kwargs)
-        self.lawin_8 = LawinAttn(in_channels=512, reduction=reduction ,use_scale=use_scale, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg, mode='embedded_gaussian', head=64, patch_size=8)
-        self.lawin_4 = LawinAttn(in_channels=512, reduction=reduction ,use_scale=use_scale, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg, mode='embedded_gaussian', head=16, patch_size=8)
-        self.lawin_2 = LawinAttn(in_channels=512, reduction=reduction ,use_scale=use_scale, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg, mode='embedded_gaussian', head=4, patch_size=8)
+        self.lawin_8 = LawinAttn(in_channels=512, reduction=reduction, use_scale=use_scale, conv_cfg=self.conv_cfg,
+                                 norm_cfg=self.norm_cfg, mode='embedded_gaussian', head=64, patch_size=8)
+        self.lawin_4 = LawinAttn(in_channels=512, reduction=reduction, use_scale=use_scale, conv_cfg=self.conv_cfg,
+                                 norm_cfg=self.norm_cfg, mode='embedded_gaussian', head=16, patch_size=8)
+        self.lawin_2 = LawinAttn(in_channels=512, reduction=reduction, use_scale=use_scale, conv_cfg=self.conv_cfg,
+                                 norm_cfg=self.norm_cfg, mode='embedded_gaussian', head=4, patch_size=8)
 
-        self.image_pool = nn.Sequential(nn.AdaptiveAvgPool2d(1), ConvModule(512, 512, 1, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg, act_cfg=self.act_cfg))
+        self.image_pool = nn.Sequential(nn.AdaptiveAvgPool2d(1), ConvModule(512, 512, 1, conv_cfg=self.conv_cfg,
+                                        norm_cfg=self.norm_cfg, act_cfg=self.act_cfg))
         self.linear_c4 = MLP(input_dim=self.in_channels[-1], embed_dim=embed_dim)
         self.linear_c3 = MLP(input_dim=self.in_channels[2], embed_dim=embed_dim)
         self.linear_c2 = MLP(input_dim=self.in_channels[1], embed_dim=embed_dim)
@@ -485,39 +558,38 @@ class LawinHead(BaseDecodeHead):
         self.linear_fuse = ConvModule(
             in_channels=embed_dim*3,
             out_channels=512,
-            kernel_size=1 # ,
-            #norm_cfg=dict(type='SyncBN', requires_grad=True)
+            kernel_size=1
         )
         
         self.short_path = ConvModule(
             in_channels=512,
             out_channels=512,
-            kernel_size=1#,
-            #norm_cfg=dict(type='SyncBN', requires_grad=True)
+            kernel_size=1
         )
         
         self.cat = ConvModule(
             in_channels=512*5,
             out_channels=512,
-            kernel_size=1#,
-            #norm_cfg=dict(type='SyncBN', requires_grad=True)
+            kernel_size=1
         )
 
         self.low_level_fuse = ConvModule(
             in_channels=560,
             out_channels=512,
-            kernel_size=1#,
-            #norm_cfg=dict(type='SyncBN', requires_grad=True)
+            kernel_size=1
         )
-         
-#         self.ds_8 = PatchEmbed(proj_type='conv', patch_size=8, in_chans=512, embed_dim=512, norm_layer=nn.LayerNorm)
-#         self.ds_4 = PatchEmbed(proj_type='conv', patch_size=4, in_chans=512, embed_dim=512, norm_layer=nn.LayerNorm)
-#         self.ds_2 = PatchEmbed(proj_type='conv', patch_size=2, in_chans=512, embed_dim=512, norm_layer=nn.LayerNorm)
+        
         self.ds_8 = PatchEmbed(proj_type='pool', patch_size=8, in_chans=512, embed_dim=512, norm_layer=nn.LayerNorm)
         self.ds_4 = PatchEmbed(proj_type='pool', patch_size=4, in_chans=512, embed_dim=512, norm_layer=nn.LayerNorm)
         self.ds_2 = PatchEmbed(proj_type='pool', patch_size=2, in_chans=512, embed_dim=512, norm_layer=nn.LayerNorm)
 
     def get_context(self, x, patch_size):
+        """
+        Get context for spatial pyramid pooling (see Lawin paper)
+        Args:
+            x (torch.Tensor): input tensor
+            patch_size (int): patch size
+        """
         n, _, h, w = x.shape
         context = []
         for i, r in enumerate([8, 4, 2]):
@@ -528,7 +600,11 @@ class LawinHead(BaseDecodeHead):
         return context
     
     def forward(self, inputs):
-
+        """
+        Calculate the segmentation maps for the input features
+        Args:
+            inputs (torch.Tensor): input features from backbone
+        """
         inputs = self._transform_inputs(inputs)
         c1, c2, c3, c4 = inputs
 
@@ -578,13 +654,22 @@ class LawinHead(BaseDecodeHead):
 
 
 class Lawin(nn.Module):
+    """
+    Lawin transformer: https://github.com/yan-hao-tian/lawin
+    """
     def __init__(self, align_corners=False,
                  pretrained_backbone_path='https://polybox.ethz.ch/index.php/s/5j6rsXjTvcRWgSP/download',
                  backbone_name='mit_bfive'):
-        # backbone paths:
-        # https://polybox.ethz.ch/index.php/s/Yj3EGcUlcMnqUgY/download for mit_b1
-        # https://polybox.ethz.ch/index.php/s/5j6rsXjTvcRWgSP for mit_b5
-        
+        """
+        Constructor
+        Args:
+            align_corners (bool): align_corners argument of F.interpolate.
+            pretrained_backbone_path (str): path to pretrained backbone (must match backbone_name)
+            backbone_name (str): name of backbone to use (out of mit_bone, mit_btwo, mit_bthree, mit_bfour, mit_bfive)
+                                 backbone paths:
+                                 https://polybox.ethz.ch/index.php/s/Yj3EGcUlcMnqUgY/download for mit_b1
+                                 https://polybox.ethz.ch/index.php/s/5j6rsXjTvcRWgSP for mit_b5
+        """
         super(Lawin, self).__init__()
         if pretrained_backbone_path is not None and pretrained_backbone_path.lower().startswith('http'):
             os.makedirs('pretrained', exist_ok=True)
@@ -597,9 +682,6 @@ class Lawin(nn.Module):
         self.backbone = eval(backbone_name)(pretrained_backbone_path=pretrained_backbone_path)
         self.backbone_name = backbone_name
 
-
-        # !!!!!!!!!!
-        # sure about the input order (in_index)?
         self.head = LawinHead(in_channels=[64, 128, 320, 512], channels=512, num_classes=2,
                               in_index=[0, 1, 2, 3])
 
@@ -607,15 +689,24 @@ class Lawin(nn.Module):
         self.pretrained_backbone_path = pretrained_backbone_path
 
     def forward(self, x, apply_activation=True):
-        B, C, H, W = x.shape
-        # upscale 
-        if H < 512 or W < 512:
+        """
+        Calculate the segmentation maps for the input tensor
+        Args:
+            x (torch.Tensor): input tensor
+            apply_activation (bool): whether to apply the activation function to the output of the network
+                                     (default: True)
+        """
+        _, _, H, W = x.shape
+        
+        # resize input if necessary
+        if H != 512 or W != 512:
             x = resize(x, (512, 512), mode='bilinear', align_corners=self.align_corners)
         feats = self.backbone(x)
         head_out = self.head(feats)
         _, _, H_H, H_W = head_out.shape
+        
+        # resize output if necessary
         if H_H != H or H_W != W:
-            # see https://github.com/NVlabs/SegFormer/blob/08c5998dfc2c839c3be533e01fce9c681c6c224a/mmseg/models/segmentors/encoder_decoder.py
             head_out = resize(head_out, (H, W), mode='bilinear', align_corners=self.align_corners)
         if apply_activation:
             head_out = F.softmax(head_out)

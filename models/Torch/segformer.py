@@ -1,27 +1,43 @@
-# code taken from https://github.com/NVlabs/SegFormer/
+# code adapted from https://github.com/NVlabs/SegFormer/
 
 # ---------------------------------------------------------------
 # Copyright (c) 2021, NVIDIA Corporation. All rights reserved.
 #
 # This work is licensed under the NVIDIA Source Code License
 # ---------------------------------------------------------------
+
+from collections import OrderedDict
+from functools import partial
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from functools import partial
+import math
+import hashlib
+import os
+import urllib.request
+import numpy as np
+import warnings
 
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from timm.models.registry import register_model
 from timm.models.vision_transformer import _cfg
 from mmcv.runner import load_checkpoint
-import math
-import hashlib
-import os
-import urllib.request
+from mmcv.cnn import ConvModule, DepthwiseSeparableConvModule
 
 
 class Mlp(nn.Module):
+    """
+    MLP module with depthwise convolution: https://github.com/NVlabs/SegFormer/
+    """
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
+        """
+        Constructor
+        Args:
+            in_features: number of input features
+            hidden_features: number of hidden layer features
+            out_features: number of output layer features
+            act_layer (nn.Module): activation to use for the hidden layer
+        """
         super().__init__()
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
@@ -34,6 +50,9 @@ class Mlp(nn.Module):
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
+        """
+        Initialize all layers
+        """
         if isinstance(m, nn.Linear):
             trunc_normal_(m.weight, std=.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
@@ -49,6 +68,13 @@ class Mlp(nn.Module):
                 m.bias.data.zero_()
 
     def forward(self, x, H, W):
+        """
+        Calculate the output for the input tensor
+        Args:
+            x (torch.Tensor): input tensor
+            H (int): height of intermediate representation before depthwise convolution
+            W (int): width of intermediate representation before depthwise convolution
+        """
         x = self.fc1(x)
         x = self.dwconv(x, H, W)
         x = self.act(x)
@@ -59,7 +85,21 @@ class Mlp(nn.Module):
 
 
 class Attention(nn.Module):
+    """
+    Attention module: https://github.com/NVlabs/SegFormer/
+    """
     def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0., sr_ratio=1):
+        """
+        Constructor
+        Args:
+            dim (int): dimension of Q, K and V
+            num_heads (int): number of attention heads
+            qkv_bias (bool): whether to use bias terms for Q, K and V
+            qk_scale (float): normalizing weight to scale output of Q @ K by
+            attn_drop (float): dropout rate to apply to softmax(Q @ K / norm)
+            proj_drop (float): dropout rate to apply to projection of softmax(Q @ K / norm) @ V
+            sr_ratio (int): ratio of spatial reduction attention (default: 1)
+        """
         super().__init__()
         assert dim % num_heads == 0, f"dim {dim} should be divided by num_heads {num_heads}."
 
@@ -82,6 +122,11 @@ class Attention(nn.Module):
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
+        """
+        Initialize the weights of the given module
+        Args:
+            m (nn.Module): module to initialize weights for
+        """
         if isinstance(m, nn.Linear):
             trunc_normal_(m.weight, std=.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
@@ -97,6 +142,13 @@ class Attention(nn.Module):
                 m.bias.data.zero_()
 
     def forward(self, x, H, W):
+        """
+        Calculate the output for the input tensor
+        Args:
+            x (torch.Tensor): input tensor
+            H (int): height of intermediate representation before spatial reduction attention
+            W (int): width of intermediate representation before spatial reduction attention
+        """
         B, N, C = x.shape
         q = self.q(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
 
@@ -121,7 +173,20 @@ class Attention(nn.Module):
 
 
 class Block(nn.Module):
-
+    """
+    Transformer block: https://github.com/NVlabs/SegFormer/
+    Args:
+        dim (int): dimension of Q, K and V
+        num_heads (int): number of attention heads
+        mlp_ratio (int): ratio of intermediate MLP's embedding dim to "dim" parameter
+        qkv_bias (bool): whether to use bias terms for Q, K and V
+        qk_scale (float): normalizing weight to scale output of Q @ K by, or None to use default
+        drop (float): dropout rate to apply to output of intermediate MLP and projection of
+                        softmax(Q @ K / norm) @ V
+        attn_drop (float): dropout rate to apply to softmax(Q @ K / norm)
+        drop_path (float): path dropout rate
+        sr_ratio (int): ratio of spatial reduction attention (default: 1)
+    """
     def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
                  drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, sr_ratio=1):
         super().__init__()
@@ -154,17 +219,32 @@ class Block(nn.Module):
                 m.bias.data.zero_()
 
     def forward(self, x, H, W):
+        """
+        Calculate the output for the input tensor
+        Args:
+            x (torch.Tensor): input tensor
+            H (int): height of intermediate representation before depthwise convolution
+            W (int): width of intermediate representation before depthwise convolution
+        """
         x = x + self.drop_path(self.attn(self.norm1(x), H, W))
         x = x + self.drop_path(self.mlp(self.norm2(x), H, W))
-
         return x
 
 
 class OverlapPatchEmbed(nn.Module):
-    """ Image to Patch Embedding
+    """
+    Image to Patch Embedding: https://github.com/NVlabs/SegFormer/
     """
 
     def __init__(self, img_size=224, patch_size=7, stride=4, in_chans=3, embed_dim=768):
+        """
+        Constructor
+        Args:
+            img_size (int): size of input image
+            patch_size (int): patch size
+            stride (int): stride to use
+            in_chans (int): number of channels in the input image
+        """
         super().__init__()
         img_size = to_2tuple(img_size)
         patch_size = to_2tuple(patch_size)
@@ -180,6 +260,11 @@ class OverlapPatchEmbed(nn.Module):
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
+        """
+        Initialize the weights of the given module
+        Args:
+            m (nn.Module): module to initialize weights for
+        """
         if isinstance(m, nn.Linear):
             trunc_normal_(m.weight, std=.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
@@ -195,6 +280,11 @@ class OverlapPatchEmbed(nn.Module):
                 m.bias.data.zero_()
 
     def forward(self, x):
+        """
+        Calculate the output for the input tensor
+        Args:
+            x (torch.Tensor): input tensor
+        """
         x = self.proj(x)
         _, _, H, W = x.shape
         x = x.flatten(2).transpose(1, 2)
@@ -204,10 +294,32 @@ class OverlapPatchEmbed(nn.Module):
 
 
 class MixVisionTransformer(nn.Module):
+    """
+    Mix vision transformer: https://github.com/NVlabs/SegFormer/
+    """
     def __init__(self, img_size=400, patch_size=16, in_chans=3, num_classes=2, embed_dims=[64, 128, 256, 512],
                  num_heads=[1, 2, 4, 8], mlp_ratios=[4, 4, 4, 4], qkv_bias=False, qk_scale=None, drop_rate=0.,
                  attn_drop_rate=0., drop_path_rate=0., norm_layer=nn.LayerNorm,
                  depths=[3, 4, 6, 3], sr_ratios=[8, 4, 2, 1], pretrained_backbone_path=None):
+        """
+        Constructor
+        Args:
+            img_size (int): size of the input image
+            patch_size (int): size of a patch
+            in_chans (int): number of channels in the input image
+            num_classes (int): number of output classes
+            embed_dims (list of int): dimensions of embeddings for each block
+            num_heads (list of int): number of attention heads for each block
+            mlp_ratios (list of int): ratios of intermediate MLP's embedding dim to "dim" parameter for each block
+            qkv_bias (bool): whether to use bias terms for Q, K and V
+            qk_scale (float): normalizing weight to scale output of Q @ K by, or None to use default
+            drop (float): dropout rate to apply to output of intermediate MLP and projection of
+                softmax(Q @ K / norm) @ V
+            attn_drop_rate (float): dropout rate to apply to softmax(Q @ K / norm)
+            drop_path_rate (float): path dropout rate
+            sr_ratios (list of int): list of ratios of spatial reduction attention for each block
+            pretrained_backbone_path (str): path to backbone to load, or None to avoid loading a pretrained backbone
+        """
         super().__init__()
         self.num_classes = num_classes
         self.depths = depths
@@ -279,6 +391,11 @@ class MixVisionTransformer(nn.Module):
             self.init_weights(pretrained=pretrained_backbone_path)
 
     def _init_weights(self, m):
+        """
+        Initialize the weights of the given module
+        Args:
+            m (nn.Module): module to initialize weights for
+        """
         if isinstance(m, nn.Linear):
             trunc_normal_(m.weight, std=.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
@@ -294,12 +411,20 @@ class MixVisionTransformer(nn.Module):
                 m.bias.data.zero_()
 
     def init_weights(self, pretrained=None):
+        """
+        Initialize weights of the entire transformer
+        Args:
+            pretrained (str): path to file with pretrained weights, or None to skip loading pretrained weights
+        """
         if isinstance(pretrained, str):
-            #logger = get_root_logger()
-            #load_checkpoint(self, pretrained, map_location='cpu', strict=False, logger=logger)
             load_checkpoint(self, pretrained, map_location='cpu', strict=False, logger=None)
 
     def reset_drop_path(self, drop_path_rate):
+        """
+        Reset the path dropout probabilities for all blocks
+        Args:
+            drop_path_rate (float): path dropout probability
+        """
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(self.depths))]
         cur = 0
         for i in range(self.depths[0]):
@@ -322,16 +447,32 @@ class MixVisionTransformer(nn.Module):
 
     @torch.jit.ignore
     def no_weight_decay(self):
+        """
+        Return names of all layers to which no weight decaying is applied
+        """
         return {'pos_embed1', 'pos_embed2', 'pos_embed3', 'pos_embed4', 'cls_token'}  # has pos_embed may be better
 
     def get_classifier(self):
+        """
+        Return the classifier of this MiT
+        """
         return self.head
 
     def reset_classifier(self, num_classes, global_pool=''):
+        """
+        Reset the classifier of this MiT
+        Args:
+            num_classes (int): number of output classes
+        """
         self.num_classes = num_classes
         self.head = nn.Linear(self.embed_dim, num_classes) if num_classes > 0 else nn.Identity()
 
     def forward_features(self, x):
+        """
+        Calculate the features for the input tensor
+        Args:
+            x (torch.Tensor): input tensor
+        """
         B = x.shape[0]
         outs = []
 
@@ -370,78 +511,135 @@ class MixVisionTransformer(nn.Module):
         return outs
 
     def forward(self, x):
+        """
+        Calculate the features for the input tensor
+        Args:
+            x (torch.Tensor): input tensor
+        """
         x = self.forward_features(x)
         # x = self.head(x)
-
         return x
 
 
 class DWConv(nn.Module):
+    """
+    Depth-wise convolution layer
+    Args:
+        dim (int): dimension of embedding
+    """
     def __init__(self, dim=768):
         super(DWConv, self).__init__()
         self.dwconv = nn.Conv2d(dim, dim, 3, 1, 1, bias=True, groups=dim)
 
     def forward(self, x, H, W):
+        """
+        Calculate the output for the input tensor
+        Args:
+            x (torch.Tensor): input tensor
+            H (int): height of intermediate representation before depthwise convolution
+            W (int): width of intermediate representation before depthwise convolution
+        """
         B, N, C = x.shape
         x = x.transpose(1, 2).view(B, C, H, W)
         x = self.dwconv(x)
         x = x.flatten(2).transpose(1, 2)
-
         return x
+
 
 # difference across mit backbones lies in depths and embedding dims
 
-
 class mit_bzero(MixVisionTransformer):
+    """
+    MiT-B0 backbone: https://github.com/NVlabs/SegFormer/
+    """
     def __init__(self, pretrained_backbone_path=None, **kwargs):
-        super(mit_b0, self).__init__(
+        """
+        Constructor
+        Args:
+            pretrained_backbone_path (str): path to backbone to load, or None to avoid loading a pretrained backbone
+        """
+        super(mit_bzero, self).__init__(
             img_size=400, patch_size=4, embed_dims=[32, 64, 160, 256], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 2, 2], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1, pretrained_backbone_path=pretrained_backbone_path)
 
-
 class mit_bone(MixVisionTransformer):
+    """
+    MiT-B1 backbone: https://github.com/NVlabs/SegFormer/
+    """
     def __init__(self, pretrained_backbone_path=None, **kwargs):
-        super(mit_b1, self).__init__(
+        """
+        Constructor
+        Args:
+            pretrained_backbone_path (str): path to backbone to load, or None to avoid loading a pretrained backbone
+        """
+        super(mit_bone, self).__init__(
             img_size=400, patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[2, 2, 2, 2], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1, pretrained_backbone_path=pretrained_backbone_path)
 
 
 class mit_btwo(MixVisionTransformer):
+    """
+    MiT-B2 backbone: https://github.com/NVlabs/SegFormer/
+    """
     def __init__(self, pretrained_backbone_path=None, **kwargs):
-        super(mit_b2, self).__init__(
+        """
+        Constructor
+        Args:
+            pretrained_backbone_path (str): path to backbone to load, or None to avoid loading a pretrained backbone
+        """
+        super(mit_btwo, self).__init__(
             img_size=400, patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 4, 6, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1, pretrained_backbone_path=pretrained_backbone_path)
 
 
 class mit_bthree(MixVisionTransformer):
+    """
+    MiT-B3 backbone: https://github.com/NVlabs/SegFormer/
+    """
     def __init__(self, pretrained_backbone_path=None, **kwargs):
-        super(mit_b3, self).__init__(
+        """
+        Constructor
+        Args:
+            pretrained_backbone_path (str): path to backbone to load, or None to avoid loading a pretrained backbone
+        """
+        super(mit_bthree, self).__init__(
             img_size=400, patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 4, 18, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1, pretrained_backbone_path=pretrained_backbone_path)
 
 
 class mit_bfour(MixVisionTransformer):
+    """
+    MiT-B4 backbone: https://github.com/NVlabs/SegFormer/
+    """
     def __init__(self, pretrained_backbone_path=None, **kwargs):
-        super(mit_b4, self).__init__(
+        """
+        Constructor
+        Args:
+            pretrained_backbone_path (str): path to backbone to load, or None to avoid loading a pretrained backbone
+        """
+        super(mit_bfour, self).__init__(
             patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 8, 27, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1, pretrained_backbone_path=pretrained_backbone_path)
 
 class mit_bfive(MixVisionTransformer):
+    """
+    MiT-B5 backbone: https://github.com/NVlabs/SegFormer/
+    """
     def __init__(self, pretrained_backbone_path=None, **kwargs):
+        """
+        Constructor
+        Args:
+            pretrained_backbone_path (str): path to backbone to load, or None to avoid loading a pretrained backbone
+        """
         super(mit_bfive, self).__init__(
             patch_size=4, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[4, 4, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 6, 40, 3], sr_ratios=[8, 4, 2, 1],
             drop_rate=0.0, drop_path_rate=0.1, pretrained_backbone_path=pretrained_backbone_path)
-
-
-#################################
-# segformer_head.py starts here #
-#################################
 
 
 # ---------------------------------------------------------------
@@ -449,19 +647,6 @@ class mit_bfive(MixVisionTransformer):
 #
 # This work is licensed under the NVIDIA Source Code License
 # ---------------------------------------------------------------
-import numpy as np
-import torch.nn as nn
-import torch
-from mmcv.cnn import ConvModule, DepthwiseSeparableConvModule
-from collections import OrderedDict
-
-import warnings
-
-#from ..builder import HEADS
-#from .decode_head import BaseDecodeHead
-#from mmseg.models.utils import *
-#import attr
-
 
 def resize(input,
            size=None,
@@ -469,6 +654,15 @@ def resize(input,
            mode='nearest',
            align_corners=None,
            warning=True):
+    """
+    Resize an input tensor to the given size.
+    Args:
+        size (list of int): (H, W) of desired output, or None to use scale_factor
+        scale_factor (float): scale factor of desired output, or None to use size
+        mode (str): interpolation mode, as in torch.nn.functional.interpolate
+        align_corners (bool): align_corners arg, as in torch.nn.functional.interpolate
+        warning: whether to issue a warning if the output and input sizes are chosen suboptimally
+    """
     if warning:
         if size is not None and align_corners:
             input_h, input_w = tuple(int(x) for x in input.shape[2:])
@@ -492,10 +686,20 @@ class MLP(nn.Module):
     Linear Embedding
     """
     def __init__(self, input_dim=2048, embed_dim=768):
+        """
+        Constructor
+            input_dim (int): dimension of input
+            embed_dim (int): dimension of embedding
+        """
         super().__init__()
         self.proj = nn.Linear(input_dim, embed_dim)
 
     def forward(self, x):
+        """
+        Calculate the output for the input tensor
+        Args:
+            x (torch.Tensor): input tensor
+        """
         x = x.flatten(2).transpose(1, 2)
         x = self.proj(x)
         return x
@@ -503,12 +707,18 @@ class MLP(nn.Module):
 
 class SegFormerHead(nn.Module):
     """
-    SegFormer: Simple and Efficient Design for Semantic Segmentation with Transformers
+    SegFormer head:  https://github.com/NVlabs/SegFormer/
     """
-    def __init__(self, feature_strides=[4, 8, 16, 32], in_channels=[64, 128, 320, 512], num_classes=2, embedding_dim=256, dropout_rate=0.1):
-        # super(SegFormerHead, self).__init__(input_transform='multiple_select')
-        # in_index is just [0, 1, 2, 3], so "input_transform='multiple_select'" should have no effect
-
+    def __init__(self, feature_strides=[4, 8, 16, 32], in_channels=[64, 128, 320, 512], num_classes=2,
+                 embedding_dim=256, dropout_rate=0.1):
+        """
+        Constructor
+            feature_strides (list of int): ignored
+            in_channels (list of int): number of input channels for each block
+            num_classes (int): number of output classes
+            embedding_dim (int): embedding dim for MLPs
+            dropout_rate (float): droput
+        """
         super(SegFormerHead, self).__init__()
         self.in_channels = in_channels
         self.num_classes = num_classes
@@ -531,9 +741,6 @@ class SegFormerHead(nn.Module):
             in_channels=embedding_dim*4,
             out_channels=embedding_dim,
             kernel_size=1
-            # parallel training stuff:
-            #,
-            #norm_cfg=dict(type='SyncBN', requires_grad=True)
         )
 
         self.dropout = torch.nn.Dropout(p=dropout_rate)
@@ -541,9 +748,11 @@ class SegFormerHead(nn.Module):
         self.linear_pred = nn.Conv2d(embedding_dim, self.num_classes, kernel_size=1)
 
     def forward(self, inputs):
-        # has no effect in this particular case:
-        # x = self._transform_inputs(inputs)  # len=4, 1/4,1/8,1/16,1/32
-
+        """
+        Calculate the output for the input tensor
+        Args:
+            inputs (torch.Tensor): input tensor
+        """
         c1, c2, c3, c4 = inputs
 
         ############## MLP decoder on C1-C4 ###########
@@ -572,12 +781,16 @@ class SegFormer(nn.Module):
     def __init__(self, align_corners=False,
                  pretrained_backbone_path='https://polybox.ethz.ch/index.php/s/5j6rsXjTvcRWgSP/download',
                  backbone_name='mit_bfive'):
-        
-        # backbone paths:
-        # https://polybox.ethz.ch/index.php/s/Yj3EGcUlcMnqUgY/download for mit_b1
-        # https://polybox.ethz.ch/index.php/s/5j6rsXjTvcRWgSP for mit_b5
-        
-
+        """
+        Constructor
+        Args:
+            align_corners (bool): align_corners arg for the output segmentation, as in torch.nn.functional.interpolate
+            pretrained_backbone_path (str): path to backbone to load, or None to avoid loading a pretrained backbone
+            backbone_name (str): name of backbone to use (out of mit_bone, mit_btwo, mit_bthree, mit_bfour, mit_bfive)
+                                 backbone paths:
+                                 https://polybox.ethz.ch/index.php/s/Yj3EGcUlcMnqUgY/download for mit_b1
+                                 https://polybox.ethz.ch/index.php/s/5j6rsXjTvcRWgSP for mit_b5
+        """
         super(SegFormer, self).__init__()
         if pretrained_backbone_path is not None and pretrained_backbone_path.lower().startswith('http'):
             os.makedirs('pretrained', exist_ok=True)
@@ -594,12 +807,18 @@ class SegFormer(nn.Module):
         self.pretrained_backbone_path = pretrained_backbone_path
 
     def forward(self, x, apply_activation=True):
+        """
+        Calculate the output for the input tensor
+        Args:
+            x (torch.Tensor): input tensor
+            apply_activation (bool): whether to apply the activation function to the output of the network
+                                     (default: True)
+        """
         B, C, H, W = x.shape
         feats = self.backbone(x)
         head_out = self.head(feats)
         _, _, H_H, H_W = head_out.shape
         if H_H < H or H_W < W:
-            # see https://github.com/NVlabs/SegFormer/blob/08c5998dfc2c839c3be533e01fce9c681c6c224a/mmseg/models/segmentors/encoder_decoder.py
             head_out = resize(head_out, (H, W), mode='bilinear', align_corners=self.align_corners)
         if apply_activation:
             head_out = F.softmax(head_out)
