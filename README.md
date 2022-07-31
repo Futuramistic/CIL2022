@@ -195,8 +195,8 @@ python torch_predictor.py -m <model-name> -c <checkpoint-name>
 ```
 You can add extra arguments:
 * `--floating_predictions`: to output non-thresholded value. If this is specified, also specify `--floating_output_dir <path/to/output/dir`
-* `--apply_sigmoid`: this must specified for the following models: UNet, CRANet, DeepLabV3, SegFormer, TODO: others?
-* `--blob_threshold <integer>`: if specified, all 'blobs' with less than `<integer>` pixels will be removed
+* `--apply_sigmoid`: this must specified for the following models: UNet, CRANet, DeepLabV3, SegFormer
+* `--blob_threshold <integer>`: if specified, all 'blobs' with less than `<integer>` pixels will be removed from the segmentation
 
 #### Tensorflow models
 To output predictions using a Tensorflow model, run:
@@ -204,6 +204,10 @@ To output predictions using a Tensorflow model, run:
 ```eval
 python tf_predictor.py -m <model-name> -c <checkpoint-name>
 ```
+You can add extra arguments:
+* `--floating_predictions`: to output non-thresholded value. If this is specified, also specify `--floating_output_dir <path/to/output/dir`
+* `--blob_threshold <integer>`: if specified, all 'blobs' with less than `<integer>` pixels will be removed from the segmentation
+* `--saliency`: if specified, saliency maps are outputted to the `saliency_maps` directory
 
 #### RL models
 To output predictions using an RL model, run:
