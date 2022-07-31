@@ -194,7 +194,7 @@ class DeepLabV3PlusGANTrainer(TorchTrainer):
         """
         return {**(super()._get_hyperparams()),
                 **({param: getattr(self.model, param)
-                    for param in ['n_channels', 'n_classes', 'bilinear']
+                    for param in ['n_channels', 'n_classes', 'bilinear', 'pretrained']
                     if hasattr(self.model, param)})}
 
     @staticmethod

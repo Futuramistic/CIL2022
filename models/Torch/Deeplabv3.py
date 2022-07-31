@@ -9,9 +9,10 @@ from torchvision.models.segmentation.deeplabv3 import DeepLabHead
 
 
 class Deeplabv3(nn.Module):
-    def __init__(self):
+    def __init__(self, pretrained=True):
         super().__init__()
-        self.model = deeplabv3(pretrained=True, progress=True)
+        self.pretrained = pretrained
+        self.model = deeplabv3(pretrained=pretrained, progress=True)
         self.model.classifier = DeepLabHead(2048, 1)  # Define the head
         self.sigmoid = nn.Sigmoid()
 

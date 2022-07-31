@@ -15,9 +15,10 @@ class DeepLabV3PlusGAN(nn.Module):
 
     The performed tests did not seem to given improvements and made training more unstable.
     """
-    def __init__(self, cnn_discriminator=True):
+    def __init__(self, cnn_discriminator=True, pretrained=True):
         super().__init__()
-        self.model = deeplabv3(pretrained=True, progress=True)
+        self.pretrained = pretrained
+        self.model = deeplabv3(pretrained=pretrained, progress=True)
         self.model.classifier = DeepLabHead(2048, 1)  # Define the head
         # Define either a CNN-based or a a Fully Connected discriminator network
         self.discriminator = CNN_Discriminator() if cnn_discriminator else FC_Discriminator()
