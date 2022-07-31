@@ -6,3 +6,10 @@
 # sftp://mlflow_user:waiMohu749@algvrithm.com:22/mlruns/169/a2212d4570264840bd459dbf91b6b924/artifacts/checkpoints/cp_final.ckpt
 # sftp://mlflow_user:waiMohu749@algvrithm.com:22/mlruns/169/a2212d4570264840bd459dbf91b6b924/artifacts/checkpoints/cp_best_val_loss.ckpt
 # path/to/local/checkpoint.ckpt
+
+# (added after the deadline, but you can check those are the same files as in README.md)
+
+lawin:
+sftp://mlflow_user:waiMohu749@algvrithm.com:22/mlruns/197/07f58b3abcf34727b246abc594a1ff5d/artifacts/checkpoints/cp_best_f1.pt
+sftp://mlflow_user:waiMohu749@algvrithm.com:22/mlruns/197/a2f90615c7184f8b9fa65d3658ebbed1/artifacts/checkpoints/cp_best_f1.pt
+sftp://mlflow_user:waiMohu749@algvrithm.com:22/mlruns/197/c3025757f6fc4a86b63d36c4307143d6/artifacts/checkpoints/cp_best_f1.pt
